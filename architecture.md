@@ -2,6 +2,8 @@
 
 이 문서는 `prd.md`와 `context.md`를 기준으로 DURE MVP의 기술 구조를 정의한다. DURE는 여러 운영 단위의 수업, 참여자, 강사, 일정, 자료, 출석 기록을 한 워크스페이스 안에서 관리하는 웹 서비스다.
 
+이 문서는 시스템 구성, 데이터 모델, 권한 설계, 저장소, 배포, 보안 기준을 다룬다. 페이지별 query/action의 상세 입력과 출력 계약은 `docs/api-spec.md`에서 관리한다.
+
 ## 1. 설계 원칙
 
 - 워크스페이스를 최상위 테넌트 경계로 둔다.
@@ -141,6 +143,8 @@ src/
 - 여러 테이블을 함께 변경하는 작업은 PostgreSQL RPC 또는 서버 트랜잭션 함수로 묶는다.
 - 서비스 함수는 현재 사용자, 워크스페이스, 역할을 명시적으로 입력받는다.
 - Supabase service role key는 서버 전용 모듈에서만 사용하고 클라이언트 번들에 노출하지 않는다.
+- 페이지는 Supabase 업무 테이블을 직접 조회하지 않고 `docs/api-spec.md`의 query/action 계약을 호출한다.
+- 최근 활동, 자료 다운로드, 수업 참여자 범위 변경처럼 대상별 권한 판정이 필요한 기능은 전용 서비스 함수에서 권한 필터를 수행하고 DTO만 반환한다.
 
 ## 6. 데이터 모델
 
@@ -325,6 +329,7 @@ Supabase RLS는 모든 업무 테이블에 활성화한다. 정책에서 반복�
 - 강사는 담당 수업과 그 수업의 회차, 자료, 출석 대상만 조회한다. 담당 수업 밖의 일반 일정, 그룹 목록, 참여자 마스터는 조회하지 않는다.
 - `insert`, `update`, `delete` 정책은 `select`보다 더 엄격하게 둔다.
 - Storage bucket은 private으로 두고, signed URL 발급 전에 DB 권한을 확인한다.
+- Storage object RLS는 자료 레코드의 공개 범위와 같은 기준을 사용한다. URL 발급 서비스와 Storage 정책이 서로 다른 권한 기준을 쓰지 않게 한다.
 
 ## 10. 파일 저장 구조
 
@@ -345,7 +350,7 @@ workspaces/{workspace_id}/courses/{course_id}/materials/{material_id}/{file_id}-
 - 실행 파일과 스크립트 파일은 차단한다.
 - 원본 파일명은 `materials.original_filename`에 저장한다.
 - 내부 저장 키는 UUID 기반으로 생성한다.
-- 자료 제목, 설명, 파일이 바뀌면 `review_status`를 `pending`으로 되돌린다.
+- 자료 제목, 설명, 파일, 공개 범위가 바뀌면 `review_status`를 `pending`으로 되돌린다.
 
 ### 업로드 흐름
 

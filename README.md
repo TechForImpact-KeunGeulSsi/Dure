@@ -42,8 +42,13 @@ app/
         home/                # 운영 중인 수업 목록
         calendar/            # 월간 일정 관리
         courses/[courseId]/  # 수업 상세 (홈·자료·참여자 현황)
+          materials/         # 자료 목록·업로드·수정·다운로드·확인 상태
         manage/              # 그룹·수업·참여자 관리 허브
-  api/invites/[token]/accept/route.ts
+  api/
+    invites/[token]/accept/route.ts
+    materials/
+      upload-url/route.ts                  # signed upload URL 발급
+      [materialId]/download/route.ts       # signed download URL 발급
 components/                  # UI·도메인 컴포넌트
 lib/
   supabase/{client,server,admin}.ts
@@ -104,7 +109,7 @@ architecture.md §14의 MVP 구현 순서를 기준으로 추적한다.
 | 3 | 그룹, 참여자, 그룹 배정 CRUD 구현 | ✅ 완료 |
 | 4 | 수업 생성, 반복 회차 생성, 수업-참여자 배정 구현 | ✅ 완료 |
 | 5 | 운영자용 수업 목록/상세와 캘린더 구현 | ✅ 완료 |
-| 6 | 자료 업로드, 공개 그룹, 확인 상태 구현 | 🧑‍💻 진행 중.. |
+| 6 | 자료 업로드, 공개 그룹, 확인 상태 구현 | ✅ 완료 |
 | 7 | 강사 콘솔의 자료, 출석부, 수업 메모 구현 | ⏳ 대기 |
 | 8 | 사용자 초대/권한 설정 구현 | ⏳ 부분 (초대 수락 흐름만 완료, 발급 UI/액션은 대기) |
 | 9 | 헤더 최근 활동과 자동 완료 cron 구현 | ⏳ 대기 (헤더 자리는 있고 빈 상태 드롭다운만 노출) |
@@ -171,6 +176,46 @@ api-spec.md §7.2는 그룹 운영자의 description 수정을 허용하지만, 
 ### 단계 5에서 다루지 않은 것
 
 - **수업 자료 탭 구현:** Phase 6에서 진행할 예정이므로 EmptyState로 처리함.
+
+### 단계 6에서 구현한 것
+
+- **자료 도메인 서비스 [services/materials.ts](src/services/materials.ts):** api-spec.md §11의 7개 계약 모두 구현.
+  - `getCourseMaterials` — 코스 정보 + 자료 목록 + uploadPolicy + 권한 플래그(`canEdit`/`canReplaceFile`/`canChangeReviewStatus`/`canDownload`).
+  - `prepareMaterialUpload` — Zod + 정책 검증 → 그룹 정합성 사전 검증 → `materials` insert → `material_groups` insert(강사 케이스 위해 admin client 우회) → storage path 생성 → signed upload URL 발급.
+  - `completeMaterialUpload` — Storage list로 실제 파일 존재 확인 → `upload_status='uploaded'`.
+  - `updateMaterial` — 제목/설명/공개 범위 수정. 트리거 `reset_material_review_status`가 자동으로 `review_status='pending'`으로 복귀시킴.
+  - `replaceMaterialFile` — 새 storage path + 새 signed upload URL.
+  - `updateMaterialReviewStatus` — 강사 차단. owner 전체 통과 / group_admin은 자료 공개 그룹과 자기 접근 그룹이 교차할 때만.
+  - `getMaterialDownloadUrl` — 1시간 만료 signed URL + `download` 옵션으로 원본 파일명 보존.
+- **Zod 검증기 [lib/validators/material.ts](src/lib/validators/material.ts):** 4개 스키마(`PrepareMaterialUpload`/`UpdateMaterial`/`ReplaceMaterialFile`/`UpdateMaterialReviewStatus`) + 정책 헬퍼(`validateUploadPolicy`, `safeFilename`, `extractExtension`). 확장자/MIME/크기 상수는 migration의 storage bucket 정의와 동기화.
+- **Route Handler 2종:**
+  - `POST /api/materials/upload-url` — `prepareMaterialUpload` 위임.
+  - `GET /api/materials/[materialId]/download?workspaceId=...` — `getMaterialDownloadUrl` 위임.
+- **수업 자료 탭 UI:** 6개 파일로 분리해서 단계 5 컴포넌트 시스템(Card/Dialog/Button/Badge/MultiSelect)을 그대로 활용.
+  - `materials/page.tsx` — server component, `getCourseMaterials` 호출 후 클라이언트로 전달.
+  - `materials/materials-client.tsx` — 배너 + 통계 카드 2개(확인 미정/확인됨) + 검색·상태 필터 + 자료 목록 + 다이얼로그 마운트.
+  - `materials/material-row.tsx` — 행 단위 액션(다운로드/확인 상태 토글/수정). `canDownload`/`canChangeReviewStatus`/`canEdit`에 따라 버튼 노출 제어.
+  - `materials/visibility-fields.tsx` — 공개 범위 라디오 + MultiSelect (업로드·수정 다이얼로그 공용).
+  - `materials/upload-dialog.tsx` — 파일 선택 → `prepareMaterialUpload` → signed URL에 직접 PUT → `completeMaterialUpload` 3단계 흐름.
+  - `materials/edit-dialog.tsx` — 메타데이터·공개 범위 수정 + 별도 "파일 교체" 입력으로 `replaceMaterialFile` 호출.
+
+### 단계 6에서 활용한 DB 트리거
+
+서비스 코드가 단순해진 핵심은 migration이 이미 갖추고 있는 트리거 덕분이다.
+
+- `reset_material_review_status` — `title`/`description`/`storage_path`/`original_filename`/`visibility_scope` 중 무엇이라도 바뀌면 `review_status`를 자동으로 `pending`으로 되돌림.
+- `reset_material_review_status_after_group_change` — `material_groups` insert/update/delete 시 동일 처리.
+- `ensure_material_group_is_course_group` — `material_groups`에 등록되는 그룹이 해당 수업 연결 그룹임을 강제. admin client로 우회 insert해도 정합성 보장.
+
+서비스 레이어는 `review_status` 복귀를 직접 수행하지 않고 트리거에 위임한다.
+
+### 단계 6에서 다루지 않은 것
+
+- **수업 상세 layout의 mock 의존성 제거:** `courses/[courseId]/layout.tsx`는 여전히 `getCourseHome` mock으로 헤더(이름·색상·breadcrumb)를 렌더링한다. materials 페이지 자체는 실제 DB를 쓰지만 layout은 단계 7 이후 일괄 전환 예정.
+- **자료 삭제 UI:** api-spec.md §11에 삭제 계약이 없어 의도적으로 제외. 자료를 회수하려면 `visibilityScope='selected_groups'` + 빈 그룹 또는 운영 정책으로 처리.
+- **AuditLog 연동:** 자료 업로드·수정·확인 상태 변경 이벤트를 `activity_logs`에 남기는 작업은 단계 9(헤더 최근 활동)에서 일괄 진행.
+- **자료 미리보기:** architecture.md §15 기본 판단대로 MVP 제외. 다운로드만 제공.
+- **만료/실패 업로드 정리:** `upload_status='uploading'` 상태로 남은 고아 자료 정리는 단계 9 cron 작업에서 처리.
 
 ## 작업 시 참고
 

@@ -1,5 +1,25 @@
 import { EmptyState } from '@/components/courses/empty-state';
+import { getCourseMaterials } from '@/services/materials';
 
-export default function CourseMaterialsTabPage() {
-  return <EmptyState message="자료 기능은 단계 6에서 제공됩니다" />;
+import { MaterialsClient } from './materials-client';
+
+type Props = {
+  params: Promise<{ workspaceId: string; courseId: string }>;
+};
+
+export default async function CourseMaterialsTabPage({ params }: Props) {
+  const { workspaceId, courseId } = await params;
+  const result = await getCourseMaterials({ workspaceId, courseId });
+
+  if (!result.ok) {
+    return <EmptyState message={result.error.message} />;
+  }
+
+  return (
+    <MaterialsClient
+      workspaceId={workspaceId}
+      courseId={courseId}
+      initial={result.data}
+    />
+  );
 }

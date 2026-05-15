@@ -1,4 +1,4 @@
-import { getCourseParticipantsStatus } from '@/services/courses';
+import { getCourseParticipantsStatus } from '@/services/courses-mock';
 
 import { ParticipantsStatusClient } from './participants-status-client';
 

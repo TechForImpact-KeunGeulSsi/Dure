@@ -1,378 +1,811 @@
+"use server";
+
+import "server-only";
+
+import { revalidatePath } from "next/cache";
+
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth/require-user";
+import { apiError, apiOk, type ApiResult } from "@/lib/api/errors";
 import type {
-  CourseHomePageData,
-  CourseParticipantStatusItem,
-  CourseSessionSummary,
-  DashboardCourseItem,
-  GetCourseHomeInput,
-  GetCourseHomeOutput,
-  GetCourseParticipantsStatusInput,
-  GetCourseParticipantsStatusOutput,
-  GetCourseSessionsInput,
-  GetCourseSessionsOutput,
+  CourseListItem,
+  CourseStatus,
+  GroupSummary,
+  InstructorSummary,
+  PageInfo,
+  ParticipantSummary,
   UUID,
-} from '@/types/course';
+} from "@/lib/api/types";
+import { planSessions } from "@/lib/courses/recurrence";
+import {
+  CreateCourseSchema,
+  UpdateCourseParticipantAssignmentSchema,
+  UpdateCourseSchema,
+  type CreateCourseInput,
+  type UpdateCourseInput,
+  type UpdateCourseParticipantAssignmentInput,
+} from "@/lib/validators/course";
 
-const MOCK_WORKSPACE_ID = 'ws-demo-001';
+const DEFAULT_PAGE_SIZE = 20;
 
-const MOCK_COURSES: Record<UUID, GetCourseHomeOutput['course']> = {
-  'course-001': {
-    id: 'course-001',
-    name: '요리 수업',
-    status: 'in_progress',
-    startsOn: '2026-03-01',
-    endsOn: '2026-06-30',
-    cardColor: '#2563EB',
-    bannerUrl: null,
-    groups: [
-      {
-        id: 'group-001',
-        name: '햇살 그룹',
-        description: '청도 권역',
-        status: 'active',
-      },
-    ],
-    instructor: {
-      id: 'member-001',
-      email: 'instructor@dure.app',
-      displayName: '김강사',
-      status: 'active',
-    },
-    canUpdateVisuals: true,
-  },
-  'course-002': {
-    id: 'course-002',
-    name: '미술 수업',
-    status: 'planned',
-    startsOn: '2026-04-01',
-    endsOn: '2026-08-31',
-    cardColor: '#8B5CF6',
-    bannerUrl: null,
-    groups: [
-      {
-        id: 'group-002',
-        name: '바람 그룹',
-        description: '서울 권역',
-        status: 'active',
-      },
-    ],
-    instructor: null,
-    canUpdateVisuals: true,
-  },
-  'course-003': {
-    id: 'course-003',
-    name: '영어 회화',
-    status: 'completed',
-    startsOn: '2025-09-01',
-    endsOn: '2026-02-28',
-    cardColor: '#111827',
-    bannerUrl: null,
-    groups: [
-      {
-        id: 'group-001',
-        name: '햇살 그룹',
-        description: '기초 회화 과정',
-        status: 'active',
-      },
-    ],
-    instructor: {
-      id: 'member-002',
-      email: 'sarah@dure.app',
-      displayName: '사라 젠킨스',
-      status: 'active',
-    },
-    canUpdateVisuals: true,
-  },
-  'course-004': {
-    id: 'course-004',
-    name: '체육',
-    status: 'in_progress',
-    startsOn: '2026-02-01',
-    endsOn: '2026-07-31',
-    cardColor: '#EA580C',
-    bannerUrl: null,
-    groups: [
-      {
-        id: 'group-002',
-        name: '바람 그룹',
-        description: '주말 체육반',
-        status: 'active',
-      },
-    ],
-    instructor: {
-      id: 'member-003',
-      email: 'coach@dure.app',
-      displayName: '박코치',
-      status: 'active',
-    },
-    canUpdateVisuals: true,
-  },
-  'course-005': {
-    id: 'course-005',
-    name: '코딩 기초',
-    status: 'planned',
-    startsOn: '2026-06-01',
-    endsOn: '2026-09-30',
-    cardColor: '#0D9488',
-    bannerUrl: null,
-    groups: [
-      {
-        id: 'group-001',
-        name: '햇살 그룹',
-        description: '파이썬 입문',
-        status: 'active',
-      },
-    ],
-    instructor: {
-      id: 'member-001',
-      email: 'instructor@dure.app',
-      displayName: '김강사',
-      status: 'active',
-    },
-    canUpdateVisuals: true,
-  },
+type GetCoursesPageInput = {
+  workspaceId: UUID;
+  search?: string;
+  groupId?: UUID;
+  status?: CourseStatus;
+  page?: number;
+  pageSize?: number;
 };
 
-const MOCK_PARTICIPANTS: CourseParticipantStatusItem[] = [
-  {
-    courseParticipantId: 'cp-001',
-    participant: {
-      id: 'participant-001',
-      name: '김하나',
-      email: 'hana@dure.app',
-      status: 'active',
-    },
-    assignmentGroups: [{ id: 'group-001', name: '햇살 그룹', description: '청도 권역', status: 'active' }],
-    assignmentStatus: 'active',
-    presentCount: 12,
-    partialCount: 0,
-    absentCount: 0,
-    attendanceRate: null,
-    latestNote: '과제 제출과 출석 모두 안정적입니다.',
-    canEditAssignment: true,
-  },
-  {
-    courseParticipantId: 'cp-002',
-    participant: {
-      id: 'participant-002',
-      name: '이민준',
-      email: 'minjun@dure.app',
-      status: 'active',
-    },
-    assignmentGroups: [{ id: 'group-001', name: '햇살 그룹', description: '청도 권역', status: 'active' }],
-    assignmentStatus: 'active',
-    presentCount: 11,
-    partialCount: 1,
-    absentCount: 0,
-    attendanceRate: null,
-    latestNote: '지난주 1회 부분 출석, 보호자 안내 완료',
-    canEditAssignment: true,
-  },
-  {
-    courseParticipantId: 'cp-003',
-    participant: {
-      id: 'participant-003',
-      name: '박서연',
-      email: 'seoyeon@dure.app',
-      status: 'active',
-    },
-    assignmentGroups: [{ id: 'group-001', name: '햇살 그룹', description: '청도 권역', status: 'active' }],
-    assignmentStatus: 'active',
-    presentCount: 11,
-    partialCount: 0,
-    absentCount: 1,
-    attendanceRate: null,
-    latestNote: '감기 결석 1회, 보충 자료 전달',
-    canEditAssignment: true,
-  },
-  {
-    courseParticipantId: 'cp-004',
-    participant: {
-      id: 'participant-004',
-      name: '최지우',
-      email: 'jiwoo@dure.app',
-      status: 'active',
-    },
-    assignmentGroups: [{ id: 'group-001', name: '햇살 그룹', description: '청도 권역', status: 'active' }],
-    assignmentStatus: 'excluded',
-    presentCount: 8,
-    partialCount: 0,
-    absentCount: 2,
-    attendanceRate: null,
-    latestNote: '수업 제외 처리됨',
-    canEditAssignment: true,
-  },
-];
+export type GetCoursesPageOutput = {
+  courses: CourseListItem[];
+  pageInfo: PageInfo;
+};
 
-function buildSessions(courseId: UUID, courseName: string): CourseSessionSummary[] {
-  return [
-    {
-      id: `${courseId}-session-1`,
-      courseId,
-      courseName,
-      sessionNo: 1,
-      date: '2026-05-10',
-      startsAt: '10:00:00',
-      endsAt: '12:00:00',
-      type: 'regular',
-      visibilityStatus: 'visible',
-      rollupStatus: 'included',
-      progressStatus: 'scheduled',
+export async function getCoursesPage(
+  input: GetCoursesPageInput,
+): Promise<ApiResult<GetCoursesPageOutput>> {
+  const page = Math.max(1, input.page ?? 1);
+  const pageSize = Math.min(100, Math.max(1, input.pageSize ?? DEFAULT_PAGE_SIZE));
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  await requireUser();
+  const membership = await loadCurrentMembership(input.workspaceId);
+  if (!membership) {
+    return apiError("WORKSPACE_ACCESS_DENIED", "워크스페이스 접근 권한이 없습니다.");
+  }
+
+  const supabase = await createSupabaseServerClient();
+
+  // groupId 필터링은 course_groups 사전 조회.
+  let courseIdFilter: UUID[] | null = null;
+  if (input.groupId) {
+    const { data: cgRows, error: cgError } = await supabase
+      .from("course_groups")
+      .select("course_id")
+      .eq("workspace_id", input.workspaceId)
+      .eq("group_id", input.groupId);
+    if (cgError) return apiError("INTERNAL_ERROR", cgError.message);
+    courseIdFilter = Array.from(
+      new Set((cgRows ?? []).map((row) => row.course_id as UUID)),
+    );
+    if (courseIdFilter.length === 0) {
+      return apiOk({
+        courses: [],
+        pageInfo: { page, pageSize, totalCount: 0, hasNextPage: false },
+      });
+    }
+  }
+
+  let query = supabase
+    .from("courses")
+    .select(
+      "id, name, status, starts_on, ends_on, card_color, banner_url, instructor_member_id",
+      { count: "exact" },
+    )
+    .eq("workspace_id", input.workspaceId)
+    .order("created_at", { ascending: false })
+    .range(from, to);
+
+  if (input.search && input.search.trim().length > 0) {
+    query = query.ilike("name", `%${input.search.trim()}%`);
+  }
+  if (input.status) {
+    query = query.eq("status", input.status);
+  }
+  if (courseIdFilter) {
+    query = query.in("id", courseIdFilter);
+  }
+
+  const { data, error, count } = await query;
+  if (error) return apiError("INTERNAL_ERROR", error.message);
+
+  const rows = data ?? [];
+  const courseIds = rows.map((row) => row.id as UUID);
+  const instructorIds = rows
+    .map((row) => row.instructor_member_id as UUID | null)
+    .filter((id): id is UUID => id != null);
+
+  const [groupsByCourse, participantCounts, sessionCounts, instructorMap] =
+    await Promise.all([
+      loadGroupsByCourse(input.workspaceId, courseIds),
+      loadParticipantCounts(courseIds),
+      loadSessionCounts(courseIds),
+      loadInstructors(input.workspaceId, instructorIds),
+    ]);
+
+  const accessibleGroupIds = await loadAccessibleGroupIds(input.workspaceId);
+  const isOwner = membership.role === "owner_admin";
+
+  const courses: CourseListItem[] = rows.map((row) => {
+    const groups = groupsByCourse.get(row.id as UUID) ?? [];
+    const allInAccess = groups.every((group) => accessibleGroupIds.has(group.id));
+    return {
+      id: row.id,
+      name: row.name,
+      status: row.status,
+      startsOn: row.starts_on,
+      endsOn: row.ends_on,
+      cardColor: row.card_color,
+      bannerUrl: row.banner_url,
+      groups,
+      instructor: row.instructor_member_id
+        ? (instructorMap.get(row.instructor_member_id as UUID) ?? null)
+        : null,
+      participantCount: participantCounts.get(row.id as UUID) ?? 0,
+      sessionCount: sessionCounts.get(row.id as UUID) ?? 0,
+      canManageFullCourse: isOwner || allInAccess,
+      canManageScopedParticipants:
+        isOwner || groups.some((group) => accessibleGroupIds.has(group.id)),
+    };
+  });
+
+  const totalCount = count ?? rows.length;
+  return apiOk({
+    courses,
+    pageInfo: {
+      page,
+      pageSize,
+      totalCount,
+      hasNextPage: from + rows.length < totalCount,
     },
-    {
-      id: `${courseId}-session-2`,
-      courseId,
-      courseName,
-      sessionNo: 2,
-      date: '2026-05-17',
-      startsAt: '10:00:00',
-      endsAt: '12:00:00',
-      type: 'regular',
-      visibilityStatus: 'visible',
-      rollupStatus: 'included',
-      progressStatus: 'scheduled',
-    },
-    {
-      id: `${courseId}-session-3`,
-      courseId,
-      courseName,
-      sessionNo: 3,
-      date: '2026-05-24',
-      startsAt: '14:00:00',
-      endsAt: '16:00:00',
-      type: 'makeup',
-      visibilityStatus: 'hidden',
-      rollupStatus: 'included',
-      progressStatus: 'scheduled',
-    },
-    {
-      id: `${courseId}-session-4`,
-      courseId,
-      courseName,
-      sessionNo: 4,
-      date: '2026-05-31',
-      startsAt: '10:00:00',
-      endsAt: '12:00:00',
-      type: 'special',
-      visibilityStatus: 'visible',
-      rollupStatus: 'excluded',
-      progressStatus: 'cancelled',
-    },
-  ];
+  });
 }
 
-function resolveCourse(courseId: UUID): GetCourseHomeOutput['course'] {
-  const found = MOCK_COURSES[courseId];
-  if (found) return found;
+export type CourseFormOptions = {
+  groups: GroupSummary[];
+  instructors: InstructorSummary[];
+  participantCandidates: Array<
+    ParticipantSummary & {
+      groups: GroupSummary[];
+      defaultAssignmentGroupIds: UUID[];
+    }
+  >;
+};
 
-  return {
-    id: courseId,
-    name: '요리 수업',
-    status: 'in_progress',
-    startsOn: '2026-03-01',
-    endsOn: '2026-06-30',
-    cardColor: '#2563EB',
-    bannerUrl: null,
-    groups: [
-      {
-        id: 'group-001',
-        name: '햇살 그룹',
-        description: '청도 권역',
-        status: 'active',
-      },
-    ],
-    instructor: {
-      id: 'member-001',
-      email: 'instructor@dure.app',
-      displayName: '김강사',
-      status: 'active',
-    },
-    canUpdateVisuals: true,
-  };
-}
+export async function getCourseFormOptions(input: {
+  workspaceId: UUID;
+  groupIds?: UUID[];
+}): Promise<ApiResult<CourseFormOptions>> {
+  await requireUser();
+  const membership = await loadCurrentMembership(input.workspaceId);
+  if (!membership) {
+    return apiError("WORKSPACE_ACCESS_DENIED", "워크스페이스 접근 권한이 없습니다.");
+  }
+  const supabase = await createSupabaseServerClient();
 
-/** Mock: getCourseHome — api-spec.md §10.1 */
-export async function getCourseHome(
-  input: GetCourseHomeInput,
-): Promise<GetCourseHomeOutput> {
-  await delay();
-  void input.workspaceId;
-  return { course: resolveCourse(input.courseId) };
-}
-
-/** Mock: getCourseSessions */
-export async function getCourseSessions(
-  input: GetCourseSessionsInput,
-): Promise<GetCourseSessionsOutput> {
-  await delay();
-  const course = resolveCourse(input.courseId);
-  return {
-    sessions: buildSessions(course.id, course.name),
-  };
-}
-
-/** Mock: course home tab aggregate */
-export async function getCourseHomePageData(
-  input: GetCourseHomeInput,
-): Promise<CourseHomePageData> {
-  const [{ course }, { sessions }] = await Promise.all([
-    getCourseHome(input),
-    getCourseSessions(input),
-  ]);
-
-  return {
-    course,
-    sessions,
-    sessionCount: sessions.length,
-  };
-}
-
-/** Mock: getCourseParticipantsStatus — api-spec.md §12.1 */
-export async function getCourseParticipantsStatus(
-  input: GetCourseParticipantsStatusInput,
-): Promise<GetCourseParticipantsStatusOutput> {
-  await delay();
-  const course = resolveCourse(input.courseId);
-
-  return {
-    course: {
-      id: course.id,
-      name: course.name,
-      status: course.status,
-      startsOn: course.startsOn,
-      endsOn: course.endsOn,
-      cardColor: course.cardColor,
-      bannerUrl: course.bannerUrl,
-    },
-    summary: {
-      attendanceRate: null,
-      partialCount: 0,
-      absentCount: 0,
-      countedSessionCount: 0,
-    },
-    participants: MOCK_PARTICIPANTS,
-  };
-}
-
-/** Mock: getDashboardHome courses list */
-export async function getDashboardCourses(
-  workspaceId: UUID,
-): Promise<DashboardCourseItem[]> {
-  await delay();
-  void workspaceId;
-
-  return Object.values(MOCK_COURSES).map((course) => ({
-    ...course,
-    participantCount: 24,
-    sessionCount: 12,
-    nextSession: buildSessions(course.id, course.name)[0] ?? null,
-    pendingMaterialCount: 2,
+  const { data: groupRows } = await supabase
+    .from("groups")
+    .select("id, name, description, status")
+    .eq("workspace_id", input.workspaceId)
+    .is("deleted_at", null)
+    .order("name");
+  const groups: GroupSummary[] = (groupRows ?? []).map((row) => ({
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    status: row.status,
   }));
+
+  const { data: instructorRows } = await supabase
+    .from("workspace_members")
+    .select("id, email, display_name, role, status")
+    .eq("workspace_id", input.workspaceId)
+    .eq("role", "instructor")
+    .in("status", ["active", "invited"])
+    .order("display_name", { ascending: true, nullsFirst: false });
+  const instructors: InstructorSummary[] = (instructorRows ?? []).map((row) => ({
+    id: row.id,
+    email: row.email,
+    displayName: row.display_name,
+    status: row.status,
+  }));
+
+  const groupIds = input.groupIds ?? [];
+  let participantCandidates: CourseFormOptions["participantCandidates"] = [];
+  if (groupIds.length > 0) {
+    const { data: pgRows } = await supabase
+      .from("participant_groups")
+      .select(
+        "participant_id, group_id, participant:participants!inner ( id, name, memo, status, deleted_at )",
+      )
+      .eq("workspace_id", input.workspaceId)
+      .eq("status", "active")
+      .in("group_id", groupIds);
+
+    const byParticipant = new Map<
+      UUID,
+      { participant: ParticipantSummary; groupIds: Set<UUID> }
+    >();
+    for (const row of pgRows ?? []) {
+      const p = row.participant as unknown as
+        | {
+            id: UUID;
+            name: string;
+            memo: string | null;
+            status: ParticipantSummary["status"];
+            deleted_at: string | null;
+          }
+        | null;
+      if (!p || p.deleted_at || p.status !== "active") continue;
+      const entry = byParticipant.get(p.id) ?? {
+        participant: {
+          id: p.id,
+          name: p.name,
+          memo: p.memo,
+          status: p.status,
+        },
+        groupIds: new Set<UUID>(),
+      };
+      entry.groupIds.add(row.group_id as UUID);
+      byParticipant.set(p.id, entry);
+    }
+
+    const groupMap = new Map(groups.map((group) => [group.id, group]));
+    participantCandidates = Array.from(byParticipant.values()).map((entry) => {
+      const matchedGroups = Array.from(entry.groupIds)
+        .filter((id) => groupIds.includes(id))
+        .map((id) => groupMap.get(id))
+        .filter((g): g is GroupSummary => g != null);
+      return {
+        ...entry.participant,
+        groups: matchedGroups,
+        defaultAssignmentGroupIds: matchedGroups.map((group) => group.id),
+      };
+    });
+    participantCandidates.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+  }
+
+  return apiOk({ groups, instructors, participantCandidates });
 }
 
-export function getDefaultWorkspaceId(): UUID {
-  return MOCK_WORKSPACE_ID;
+export async function createCourseAction(
+  workspaceId: UUID,
+  rawInput: CreateCourseInput,
+): Promise<ApiResult<{ courseId: UUID }>> {
+  const parsed = CreateCourseSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return apiError("VALIDATION_FAILED", firstZodMessage(parsed.error), {
+      fieldErrors: collectFieldErrors(parsed.error),
+    });
+  }
+  const input = parsed.data;
+
+  await requireUser();
+  const membership = await loadCurrentMembership(workspaceId);
+  if (!membership) {
+    return apiError("WORKSPACE_ACCESS_DENIED", "워크스페이스 접근 권한이 없습니다.");
+  }
+  if (membership.role === "instructor") {
+    return apiError("ROLE_FORBIDDEN", "강사는 수업을 만들 수 없습니다.");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const accessibleGroupIds = await loadAccessibleGroupIds(workspaceId);
+  if (membership.role !== "owner_admin") {
+    if (!input.groupIds.every((id) => accessibleGroupIds.has(id))) {
+      return apiError(
+        "SCOPE_FORBIDDEN",
+        "접근 권한이 있는 그룹만 연결할 수 있습니다.",
+      );
+    }
+  }
+
+  // 각 참여자 배정의 assignmentGroupIds가 수업의 연결 그룹 안에 있는지 사전 확인.
+  const groupIdSet = new Set(input.groupIds);
+  for (const assignment of input.participantAssignments) {
+    if (
+      !assignment.assignmentGroupIds.every((gid) => groupIdSet.has(gid))
+    ) {
+      return apiError(
+        "VALIDATION_FAILED",
+        "참여자의 수업 내 참여 그룹은 연결 그룹 중에서만 선택할 수 있습니다.",
+      );
+    }
+  }
+
+  // 그룹/참여자 스냅샷 데이터 사전 로드.
+  const [groupSnapshots, participantSnapshots] = await Promise.all([
+    loadGroupSnapshots(workspaceId, input.groupIds),
+    loadParticipantSnapshots(
+      workspaceId,
+      input.participantAssignments.map((row) => row.participantId),
+    ),
+  ]);
+  if (groupSnapshots.size !== input.groupIds.length) {
+    return apiError("NOT_FOUND", "선택한 그룹 중 일부를 찾을 수 없습니다.");
+  }
+  if (
+    participantSnapshots.size !==
+    new Set(input.participantAssignments.map((row) => row.participantId)).size
+  ) {
+    return apiError("NOT_FOUND", "선택한 참여자 중 일부를 찾을 수 없습니다.");
+  }
+
+  // 회차 계산.
+  const sessions = planSessions(input.recurrence);
+  if (sessions.length === 0) {
+    return apiError(
+      "VALIDATION_FAILED",
+      "선택한 조건으로 생성될 회차가 없습니다. 요일과 기간을 다시 확인해 주세요.",
+    );
+  }
+
+  // 단계별 insert (best-effort transaction via cleanup on failure).
+  const now = new Date().toISOString();
+  const { data: courseRow, error: courseError } = await supabase
+    .from("courses")
+    .insert({
+      workspace_id: workspaceId,
+      name: input.name,
+      status: input.status,
+      instructor_member_id: input.instructorMemberId ?? null,
+      card_color: input.cardColor ?? null,
+      banner_url: input.bannerUrl ?? null,
+      starts_on: input.recurrence.startsOn,
+      ends_on: input.recurrence.endsOn ?? null,
+      created_at: now,
+      updated_at: now,
+    })
+    .select("id")
+    .single();
+  if (courseError || !courseRow) {
+    return apiError(
+      "INTERNAL_ERROR",
+      courseError?.message ?? "수업을 만들지 못했습니다.",
+    );
+  }
+  const courseId = courseRow.id as UUID;
+
+  const rollback = async (message: string): Promise<ApiResult<never>> => {
+    await supabase.from("courses").delete().eq("id", courseId);
+    return apiError("INTERNAL_ERROR", message);
+  };
+
+  const { error: recurrenceError } = await supabase
+    .from("course_recurrence_rules")
+    .insert({
+      workspace_id: workspaceId,
+      course_id: courseId,
+      repeat_weekdays: input.recurrence.repeatWeekdays,
+      starts_at: input.recurrence.startsAt,
+      ends_at: input.recurrence.endsAt,
+      ends_on: input.recurrence.endsOn ?? null,
+      session_count: input.recurrence.sessionCount ?? null,
+    });
+  if (recurrenceError) return rollback(recurrenceError.message);
+
+  const groupRows = input.groupIds.map((groupId) => ({
+    workspace_id: workspaceId,
+    course_id: courseId,
+    group_id: groupId,
+    group_name_snapshot: groupSnapshots.get(groupId) ?? "",
+  }));
+  const { error: groupError } = await supabase
+    .from("course_groups")
+    .insert(groupRows);
+  if (groupError) return rollback(groupError.message);
+
+  const sessionRows = sessions.map((plan) => ({
+    workspace_id: workspaceId,
+    course_id: courseId,
+    session_no: plan.sessionNo,
+    date: plan.date,
+    starts_at: plan.startsAt,
+    ends_at: plan.endsAt,
+  }));
+  const { error: sessionError } = await supabase
+    .from("course_sessions")
+    .insert(sessionRows);
+  if (sessionError) return rollback(sessionError.message);
+
+  if (input.participantAssignments.length > 0) {
+    const participantRows = input.participantAssignments.map((assignment) => ({
+      workspace_id: workspaceId,
+      course_id: courseId,
+      participant_id: assignment.participantId,
+      status: "active" as const,
+      participant_name_snapshot:
+        participantSnapshots.get(assignment.participantId) ?? "",
+    }));
+    const { data: insertedParticipants, error: participantError } = await supabase
+      .from("course_participants")
+      .insert(participantRows)
+      .select("id, participant_id");
+    if (participantError || !insertedParticipants) {
+      return rollback(participantError?.message ?? "참여자 배정에 실패했습니다.");
+    }
+
+    const participantIdToCourseParticipantId = new Map<UUID, UUID>();
+    for (const row of insertedParticipants) {
+      participantIdToCourseParticipantId.set(
+        row.participant_id as UUID,
+        row.id as UUID,
+      );
+    }
+
+    const groupAssignmentRows = input.participantAssignments.flatMap(
+      (assignment) =>
+        assignment.assignmentGroupIds.map((groupId) => ({
+          workspace_id: workspaceId,
+          course_participant_id: participantIdToCourseParticipantId.get(
+            assignment.participantId,
+          )!,
+          group_id: groupId,
+          group_name_snapshot: groupSnapshots.get(groupId) ?? "",
+        })),
+    );
+
+    if (groupAssignmentRows.length > 0) {
+      const { error: groupAssignmentError } = await supabase
+        .from("course_participant_groups")
+        .insert(groupAssignmentRows);
+      if (groupAssignmentError) return rollback(groupAssignmentError.message);
+    }
+  }
+
+  revalidatePath(`/workspaces/${workspaceId}/manage/courses`);
+  revalidatePath(`/workspaces/${workspaceId}/home`);
+  return apiOk({ courseId });
 }
 
-function delay(ms = 80) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+export async function updateCourseAction(
+  workspaceId: UUID,
+  courseId: UUID,
+  rawInput: UpdateCourseInput,
+): Promise<ApiResult<{ courseId: UUID }>> {
+  const parsed = UpdateCourseSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return apiError("VALIDATION_FAILED", firstZodMessage(parsed.error), {
+      fieldErrors: collectFieldErrors(parsed.error),
+    });
+  }
+
+  await requireUser();
+  const membership = await loadCurrentMembership(workspaceId);
+  if (!membership) {
+    return apiError("WORKSPACE_ACCESS_DENIED", "워크스페이스 접근 권한이 없습니다.");
+  }
+  if (membership.role === "instructor") {
+    return apiError("ROLE_FORBIDDEN", "강사는 수업을 수정할 수 없습니다.");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const updates: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+  if (parsed.data.name !== undefined) updates.name = parsed.data.name;
+  if (parsed.data.status !== undefined) updates.status = parsed.data.status;
+  if (parsed.data.instructorMemberId !== undefined)
+    updates.instructor_member_id = parsed.data.instructorMemberId;
+  if (parsed.data.cardColor !== undefined) updates.card_color = parsed.data.cardColor;
+  if (parsed.data.bannerUrl !== undefined) updates.banner_url = parsed.data.bannerUrl;
+
+  const { error } = await supabase
+    .from("courses")
+    .update(updates)
+    .eq("workspace_id", workspaceId)
+    .eq("id", courseId);
+  if (error) return apiError("INTERNAL_ERROR", error.message);
+
+  revalidatePath(`/workspaces/${workspaceId}/manage/courses`);
+  revalidatePath(`/workspaces/${workspaceId}/home`);
+  return apiOk({ courseId });
+}
+
+export async function updateCourseParticipantAssignmentAction(
+  workspaceId: UUID,
+  courseId: UUID,
+  participantId: UUID,
+  rawInput: UpdateCourseParticipantAssignmentInput,
+): Promise<ApiResult<{ courseParticipantId: UUID; assignmentGroupIds: UUID[] }>> {
+  const parsed = UpdateCourseParticipantAssignmentSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return apiError("VALIDATION_FAILED", firstZodMessage(parsed.error));
+  }
+
+  await requireUser();
+  const membership = await loadCurrentMembership(workspaceId);
+  if (!membership) {
+    return apiError("WORKSPACE_ACCESS_DENIED", "워크스페이스 접근 권한이 없습니다.");
+  }
+  if (membership.role === "instructor") {
+    return apiError("ROLE_FORBIDDEN", "강사는 참여자 배정을 변경할 수 없습니다.");
+  }
+  const supabase = await createSupabaseServerClient();
+  const accessibleGroupIds = await loadAccessibleGroupIds(workspaceId);
+  const isOwner = membership.role === "owner_admin";
+
+  const { data: courseGroupsRows, error: courseGroupsError } = await supabase
+    .from("course_groups")
+    .select("group_id, group_name_snapshot")
+    .eq("workspace_id", workspaceId)
+    .eq("course_id", courseId);
+  if (courseGroupsError) {
+    return apiError("INTERNAL_ERROR", courseGroupsError.message);
+  }
+  const courseGroupNameById = new Map<UUID, string>();
+  for (const row of courseGroupsRows ?? []) {
+    courseGroupNameById.set(
+      row.group_id as UUID,
+      row.group_name_snapshot ?? "",
+    );
+  }
+  if (
+    !parsed.data.assignmentGroupIds.every((id) => courseGroupNameById.has(id))
+  ) {
+    return apiError(
+      "VALIDATION_FAILED",
+      "수업 내 참여 그룹은 연결 그룹 중에서만 선택할 수 있습니다.",
+    );
+  }
+  if (
+    !isOwner &&
+    !parsed.data.assignmentGroupIds.every((id) => accessibleGroupIds.has(id))
+  ) {
+    return apiError(
+      "SCOPE_FORBIDDEN",
+      "접근 권한이 있는 그룹만 추가할 수 있습니다.",
+    );
+  }
+
+  const { data: cpRow, error: cpFetchError } = await supabase
+    .from("course_participants")
+    .select("id")
+    .eq("workspace_id", workspaceId)
+    .eq("course_id", courseId)
+    .eq("participant_id", participantId)
+    .maybeSingle();
+  if (cpFetchError) return apiError("INTERNAL_ERROR", cpFetchError.message);
+  if (!cpRow) return apiError("NOT_FOUND", "수업 참여자 배정을 찾을 수 없습니다.");
+  const courseParticipantId = cpRow.id as UUID;
+
+  const { data: currentGroupRows, error: currentGroupsError } = await supabase
+    .from("course_participant_groups")
+    .select("group_id")
+    .eq("course_participant_id", courseParticipantId);
+  if (currentGroupsError) {
+    return apiError("INTERNAL_ERROR", currentGroupsError.message);
+  }
+  const currentGroupIds = new Set<UUID>(
+    (currentGroupRows ?? []).map((row) => row.group_id as UUID),
+  );
+  const targetGroupIds = new Set<UUID>(parsed.data.assignmentGroupIds);
+
+  let nextGroupIds: Set<UUID>;
+  if (isOwner) {
+    nextGroupIds = targetGroupIds;
+  } else {
+    nextGroupIds = new Set<UUID>(currentGroupIds);
+    for (const id of accessibleGroupIds) {
+      if (targetGroupIds.has(id)) nextGroupIds.add(id);
+      else nextGroupIds.delete(id);
+    }
+  }
+
+  const toAdd = [...nextGroupIds].filter((id) => !currentGroupIds.has(id));
+  const toRemove = [...currentGroupIds].filter((id) => !nextGroupIds.has(id));
+
+  if (toRemove.length > 0) {
+    const { error } = await supabase
+      .from("course_participant_groups")
+      .delete()
+      .eq("course_participant_id", courseParticipantId)
+      .in("group_id", toRemove);
+    if (error) return apiError("INTERNAL_ERROR", error.message);
+  }
+  if (toAdd.length > 0) {
+    const rows = toAdd.map((groupId) => ({
+      workspace_id: workspaceId,
+      course_participant_id: courseParticipantId,
+      group_id: groupId,
+      group_name_snapshot: courseGroupNameById.get(groupId) ?? "",
+    }));
+    const { error } = await supabase
+      .from("course_participant_groups")
+      .insert(rows);
+    if (error) return apiError("INTERNAL_ERROR", error.message);
+  }
+
+  // status: 명시값이 있으면 그대로. 없고 nextGroupIds가 비면 excluded로.
+  const finalStatus =
+    parsed.data.status ?? (nextGroupIds.size === 0 ? "excluded" : "active");
+  const { error: statusError } = await supabase
+    .from("course_participants")
+    .update({ status: finalStatus, updated_at: new Date().toISOString() })
+    .eq("id", courseParticipantId);
+  if (statusError) return apiError("INTERNAL_ERROR", statusError.message);
+
+  revalidatePath(`/workspaces/${workspaceId}/manage/courses`);
+  return apiOk({
+    courseParticipantId,
+    assignmentGroupIds: [...nextGroupIds],
+  });
+}
+
+// --- internal helpers ---
+
+type CurrentMembership = {
+  memberId: UUID;
+  role: "owner_admin" | "group_admin" | "instructor";
+};
+
+async function loadCurrentMembership(
+  workspaceId: UUID,
+): Promise<CurrentMembership | null> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("workspace_members")
+    .select("id, role")
+    .eq("workspace_id", workspaceId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (!data) return null;
+  return { memberId: data.id, role: data.role };
+}
+
+async function loadAccessibleGroupIds(workspaceId: UUID): Promise<Set<UUID>> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase.rpc("accessible_group_ids", {
+    target_workspace_id: workspaceId,
+  });
+  const ids: UUID[] = Array.isArray(data)
+    ? (data as Array<string | { accessible_group_ids: string }>).map((row) =>
+        typeof row === "string" ? row : (row.accessible_group_ids ?? ""),
+      )
+    : [];
+  return new Set(ids.filter((id) => id.length > 0));
+}
+
+async function loadGroupsByCourse(
+  workspaceId: UUID,
+  courseIds: UUID[],
+): Promise<Map<UUID, GroupSummary[]>> {
+  const result = new Map<UUID, GroupSummary[]>();
+  if (courseIds.length === 0) return result;
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("course_groups")
+    .select(
+      "course_id, group_id, group_name_snapshot, group:groups ( id, name, description, status, deleted_at )",
+    )
+    .eq("workspace_id", workspaceId)
+    .in("course_id", courseIds);
+
+  for (const row of data ?? []) {
+    const group = row.group as unknown as
+      | {
+          id: UUID;
+          name: string;
+          description: string | null;
+          status: GroupSummary["status"];
+          deleted_at: string | null;
+        }
+      | null;
+    const summary: GroupSummary = group && !group.deleted_at
+      ? {
+          id: group.id,
+          name: group.name,
+          description: group.description,
+          status: group.status,
+        }
+      : {
+          id: row.group_id as UUID,
+          name: row.group_name_snapshot ?? "(삭제된 그룹)",
+          description: null,
+          status: "inactive",
+        };
+    const list = result.get(row.course_id as UUID) ?? [];
+    list.push(summary);
+    result.set(row.course_id as UUID, list);
+  }
+  return result;
+}
+
+async function loadParticipantCounts(
+  courseIds: UUID[],
+): Promise<Map<UUID, number>> {
+  const counts = new Map<UUID, number>();
+  if (courseIds.length === 0) return counts;
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("course_participants")
+    .select("course_id")
+    .in("course_id", courseIds)
+    .eq("status", "active");
+  for (const row of data ?? []) {
+    const id = row.course_id as UUID;
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return counts;
+}
+
+async function loadSessionCounts(courseIds: UUID[]): Promise<Map<UUID, number>> {
+  const counts = new Map<UUID, number>();
+  if (courseIds.length === 0) return counts;
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("course_sessions")
+    .select("course_id")
+    .in("course_id", courseIds);
+  for (const row of data ?? []) {
+    const id = row.course_id as UUID;
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return counts;
+}
+
+async function loadInstructors(
+  workspaceId: UUID,
+  memberIds: UUID[],
+): Promise<Map<UUID, InstructorSummary>> {
+  const result = new Map<UUID, InstructorSummary>();
+  if (memberIds.length === 0) return result;
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("workspace_members")
+    .select("id, email, display_name, status")
+    .eq("workspace_id", workspaceId)
+    .in("id", memberIds);
+  for (const row of data ?? []) {
+    result.set(row.id as UUID, {
+      id: row.id,
+      email: row.email,
+      displayName: row.display_name,
+      status: row.status,
+    });
+  }
+  return result;
+}
+
+async function loadGroupSnapshots(
+  workspaceId: UUID,
+  groupIds: UUID[],
+): Promise<Map<UUID, string>> {
+  const result = new Map<UUID, string>();
+  if (groupIds.length === 0) return result;
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("groups")
+    .select("id, name")
+    .eq("workspace_id", workspaceId)
+    .in("id", groupIds);
+  for (const row of data ?? []) {
+    result.set(row.id as UUID, row.name);
+  }
+  return result;
+}
+
+async function loadParticipantSnapshots(
+  workspaceId: UUID,
+  participantIds: UUID[],
+): Promise<Map<UUID, string>> {
+  const result = new Map<UUID, string>();
+  if (participantIds.length === 0) return result;
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("participants")
+    .select("id, name")
+    .eq("workspace_id", workspaceId)
+    .in("id", participantIds);
+  for (const row of data ?? []) {
+    result.set(row.id as UUID, row.name);
+  }
+  return result;
+}
+
+function firstZodMessage(error: import("zod").ZodError): string {
+  return error.issues[0]?.message ?? "입력값을 확인해 주세요.";
+}
+
+function collectFieldErrors(
+  error: import("zod").ZodError,
+): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+  for (const issue of error.issues) {
+    const path = issue.path.join(".") || "_";
+    (result[path] ??= []).push(issue.message);
+  }
+  return result;
 }

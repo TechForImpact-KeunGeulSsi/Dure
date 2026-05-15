@@ -1,4 +1,4 @@
-import { getCourseHomePageData } from '@/services/courses';
+import { getCourseHomePageData } from '@/services/courses-mock';
 
 import { CourseHomeClient } from './course-home-client';
 

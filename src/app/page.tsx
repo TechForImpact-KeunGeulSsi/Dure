@@ -1,7 +1,14 @@
-import { redirect } from 'next/navigation';
+import { redirect } from "next/navigation";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-import { getDefaultWorkspaceId } from '@/services/courses';
+export default async function RootPage() {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-export default function RootPage() {
-  redirect(`/workspaces/${getDefaultWorkspaceId()}/home`);
+  if (!user) {
+    redirect("/login");
+  }
+  redirect("/workspaces");
 }

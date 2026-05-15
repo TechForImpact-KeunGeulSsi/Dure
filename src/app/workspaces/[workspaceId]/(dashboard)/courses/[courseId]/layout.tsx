@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 import { CourseDetailProvider } from '@/components/courses/course-detail-context';
 import { CourseDetailTabs } from '@/components/courses/course-detail-tabs';
-import { getCourseHome } from '@/services/courses';
+import { getCourseHome } from '@/services/courses-mock';
 
 type CourseDetailLayoutProps = {
   children: React.ReactNode;

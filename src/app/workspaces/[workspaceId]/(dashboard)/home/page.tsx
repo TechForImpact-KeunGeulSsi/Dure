@@ -1,4 +1,4 @@
-import { getDashboardCourses } from '@/services/courses';
+import { getDashboardCourses } from '@/services/courses-mock';
 
 import { DashboardHomeClient } from './home-client';
 

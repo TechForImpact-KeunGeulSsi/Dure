@@ -1,75 +1,104 @@
-﻿'use client';
+"use client";
 
-import { X } from 'lucide-react';
-import * as React from 'react';
+import * as React from "react";
 
-import { Button } from './button';
+import { cn } from "@/lib/utils/cn";
 
 type DialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  title: string;
-  description?: string;
   children: React.ReactNode;
-  footer?: React.ReactNode;
+  className?: string;
 };
 
 export function Dialog({
   open,
   onOpenChange,
-  title,
-  description,
   children,
-  footer,
+  className,
 }: DialogProps) {
   React.useEffect(() => {
     if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onOpenChange(false);
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onOpenChange(false);
     };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    document.addEventListener("keydown", handleKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      document.body.style.overflow = "";
+    };
   }, [open, onOpenChange]);
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/40"
-        aria-label="dialog-overlay"
-        onClick={() => onOpenChange(false)}
-      />
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-10"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onOpenChange(false);
+      }}
+    >
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="dialog-title"
-        className="relative z-10 w-full max-w-md rounded-xl border border-gray-100 bg-white p-6 shadow-lg"
+        className={cn(
+          "w-full max-w-md rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-card)] shadow-lg",
+          className,
+        )}
       >
-        <div className="mb-4 flex items-start justify-between gap-4">
-          <div>
-            <h2 id="dialog-title" className="text-lg font-semibold text-gray-900">
-              {title}
-            </h2>
-            {description ? (
-              <p className="mt-1 text-sm text-gray-500">{description}</p>
-            ) : null}
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="text-gray-400"
-            onClick={() => onOpenChange(false)}
-            aria-label="dialog-close"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-        <div>{children}</div>
-        {footer ? <div className="mt-6 flex justify-end gap-2">{footer}</div> : null}
+        {children}
       </div>
+    </div>
+  );
+}
+
+export function DialogHeader({
+  title,
+  description,
+}: {
+  title: string;
+  description?: string;
+}) {
+  return (
+    <div className="border-b border-[var(--color-border)] px-6 py-4">
+      <h2 className="text-base font-semibold text-[var(--color-foreground)]">
+        {title}
+      </h2>
+      {description && (
+        <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
+          {description}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function DialogBody({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return <div className={cn("px-6 py-4 space-y-4", className)}>{children}</div>;
+}
+
+export function DialogFooter({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-end gap-2 border-t border-[var(--color-border)] px-6 py-3",
+        className,
+      )}
+    >
+      {children}
     </div>
   );
 }

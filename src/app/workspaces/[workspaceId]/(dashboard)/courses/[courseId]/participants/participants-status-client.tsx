@@ -13,7 +13,7 @@ import { useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardTitle } from '@/components/ui/card';
-import { Dialog } from '@/components/ui/dialog';
+import { Dialog, DialogBody, DialogFooter, DialogHeader } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -235,7 +235,7 @@ export function ParticipantsStatusClient({ data }: ParticipantsStatusClientProps
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-1">
-                        <Badge variant={rowStatus === 'normal' ? 'success' : 'warning'}>
+                        <Badge tone={rowStatus === 'normal' ? 'success' : 'warning'}>
                           {PARTICIPANT_ROW_STATUS_LABEL[rowStatus]}
                         </Badge>
                         <span className="text-xs text-gray-500">
@@ -265,17 +265,16 @@ export function ParticipantsStatusClient({ data }: ParticipantsStatusClientProps
         </Table>
       </Card>
 
-      <Dialog
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        title="참여자 추가"
-        footer={
-          <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogHeader title="참여자 추가" description="수업에 배정할 참여자를 선택합니다. (임시 모달)" />
+        <DialogBody>
+          <p className="text-sm text-gray-500">참여자 추가 모달 영역</p>
+        </DialogBody>
+        <DialogFooter>
+          <Button type="button" variant="secondary" onClick={() => setAddOpen(false)}>
             닫기
           </Button>
-        }
-      >
-        <p className="text-sm text-gray-500">참여자 추가 모달 영역</p>
+        </DialogFooter>
       </Dialog>
     </section>
   );

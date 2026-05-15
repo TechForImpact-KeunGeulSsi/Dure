@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 
-import { Tabs, type TabItem } from "@/components/ui/tabs";
+import { NavTabs, type TabItem } from "@/components/ui/tabs";
 
 type ManageTabsProps = {
   workspaceId: string;
@@ -30,5 +30,5 @@ export function ManageTabs({ workspaceId }: ManageTabsProps) {
     },
   ];
 
-  return <Tabs items={items} />;
+  return <NavTabs items={items} />;
 }

@@ -1,20 +1,22 @@
-import * as React from 'react';
+import * as React from "react";
 
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils/cn";
 
-export const Select = React.forwardRef<
-  HTMLSelectElement,
-  React.SelectHTMLAttributes<HTMLSelectElement>
->(({ className, children, ...props }, ref) => (
-  <select
-    ref={ref}
-    className={cn(
-      'flex h-9 w-full rounded-lg border border-gray-200 bg-white px-3 py-1 text-sm text-gray-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
-      className,
-    )}
-    {...props}
-  >
-    {children}
-  </select>
-));
-Select.displayName = 'Select';
+type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement>;
+
+export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
+  function Select({ className, children, ...rest }, ref) {
+    return (
+      <select
+        ref={ref}
+        className={cn(
+          "h-9 w-full rounded-[var(--radius-md)] border border-[var(--color-input)] bg-white px-3 text-sm outline-none focus:border-[var(--color-ring)] focus:ring-2 focus:ring-[var(--color-ring)]/20 disabled:bg-[var(--color-muted)] disabled:opacity-70",
+          className,
+        )}
+        {...rest}
+      >
+        {children}
+      </select>
+    );
+  },
+);

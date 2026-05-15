@@ -1,19 +1,23 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, LogOut } from "lucide-react";
+import { Bell, LogOut, Plus } from "lucide-react";
 
 import { cn } from "@/lib/utils/cn";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { workspaceRoleLabel } from "@/lib/api/labels";
-import type { MemberSummary } from "@/lib/api/types";
+import type { MemberSummary, UUID } from "@/lib/api/types";
 
 type HeaderProps = {
   member: MemberSummary;
+  workspaceId: UUID;
 };
 
-export function Header({ member }: HeaderProps) {
+export function Header({ member, workspaceId }: HeaderProps) {
+  const canCreateCourse =
+    member.role === "owner_admin" || member.role === "group_admin";
   const router = useRouter();
   const [showActivity, setShowActivity] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -31,6 +35,15 @@ export function Header({ member }: HeaderProps) {
 
   return (
     <header className="flex h-14 items-center justify-end gap-3 border-b border-[var(--color-border)] bg-[var(--color-card)] px-4">
+      {canCreateCourse && (
+        <Link
+          href={`/workspaces/${workspaceId}/manage/courses/new`}
+          className="inline-flex h-9 items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 text-sm font-medium text-[var(--color-primary-foreground)] hover:opacity-90"
+        >
+          <Plus className="size-4" />
+          <span className="hidden sm:inline">수업 만들기</span>
+        </Link>
+      )}
       <div className="relative">
         <button
           type="button"

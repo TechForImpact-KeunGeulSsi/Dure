@@ -5,8 +5,10 @@
 import type {
   AttendanceStatus,
   CourseStatus,
+  GroupStatus,
   MaterialReviewStatus,
   MemberStatus,
+  ParticipantStatus,
   SessionProgressStatus,
   SessionRollupStatus,
   SessionType,
@@ -22,6 +24,21 @@ export function workspaceRoleLabel(role: WorkspaceRole): string {
       return "그룹 운영자";
     case "instructor":
       return "강사";
+  }
+}
+
+export function groupStatusLabel(status: GroupStatus): string {
+  return status === "active" ? "활성" : "비활성";
+}
+
+export function participantStatusLabel(status: ParticipantStatus): string {
+  switch (status) {
+    case "active":
+      return "활성";
+    case "inactive":
+      return "비활성";
+    case "deleted":
+      return "삭제됨";
   }
 }
 

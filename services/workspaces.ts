@@ -85,12 +85,12 @@ export async function createWorkspaceAction(
     });
   }
 
-  await requireUser();
+  const user = await requireUser();
   const supabase = await createSupabaseServerClient();
 
   const { data, error } = await supabase.rpc("create_workspace", {
-    name: parsed.data.name,
-    timezone: parsed.data.timezone,
+    workspace_name: parsed.data.name,
+    workspace_timezone: parsed.data.timezone,
   });
 
   if (error) {
@@ -100,6 +100,33 @@ export async function createWorkspaceAction(
   const workspaceId = extractWorkspaceId(data);
   if (!workspaceId) {
     return apiError("INTERNAL_ERROR", "워크스페이스 ID를 확인할 수 없습니다.");
+  }
+
+  // auth user metadata에 담긴 이름을 워크스페이스 멤버 표시 이름으로 동기화.
+  const metaName =
+    typeof user.user_metadata?.display_name === "string"
+      ? user.user_metadata.display_name.trim()
+      : "";
+  if (metaName.length > 0) {
+    await supabase
+      .from("workspace_members")
+      .update({ display_name: metaName })
+      .eq("workspace_id", workspaceId)
+      .eq("user_id", user.id);
+  }
+
+  // 첫 그룹은 선택값. 입력했을 때만 생성.
+  const firstGroupName = parsed.data.firstGroupName?.trim();
+  if (firstGroupName && firstGroupName.length > 0) {
+    const { error: groupError } = await supabase.from("groups").insert({
+      workspace_id: workspaceId,
+      name: firstGroupName,
+      status: "active",
+    });
+    if (groupError) {
+      // 워크스페이스는 이미 생성되었으므로 사용자에게는 부드러운 경고만.
+      console.warn("first group creation failed:", groupError.message);
+    }
   }
 
   return apiOk({ workspaceId });

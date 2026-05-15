@@ -4,13 +4,13 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { AuthShell } from "@/components/auth/auth-shell";
 
-import { LoginForm } from "./login-form";
+import { SignupForm } from "./signup-form";
 
-type LoginPageProps = {
+type SignupPageProps = {
   searchParams: Promise<{ next?: string }>;
 };
 
-export default async function LoginPage({ searchParams }: LoginPageProps) {
+export default async function SignupPage({ searchParams }: SignupPageProps) {
   const { next } = await searchParams;
 
   const supabase = await createSupabaseServerClient();
@@ -27,17 +27,17 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       footer={
         <div className="space-y-3">
           <p className="text-xs text-[var(--color-muted-foreground)]">
-            아직 계정이 없나요?
+            이미 계정이 있나요?
           </p>
           <Link
-            href={`/signup${next ? `?next=${encodeURIComponent(next)}` : ""}`}
+            href={`/login${next ? `?next=${encodeURIComponent(next)}` : ""}`}
             className="block w-full rounded-[var(--radius-md)] border border-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5"
           >
-            회원가입
+            로그인
           </Link>
         </div>
       }
-      formCard={<LoginForm next={next ?? "/workspaces"} />}
+      formCard={<SignupForm next={next ?? "/workspaces"} />}
     />
   );
 }

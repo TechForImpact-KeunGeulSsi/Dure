@@ -98,9 +98,9 @@ architecture.md §14의 MVP 구현 순서를 기준으로 추적한다.
 | # | 단계 | 상태 |
 | --- | --- | --- |
 | 1 | Supabase 프로젝트, Auth, 기본 DB migration, RLS helper function 구성 | ✅ 완료 ([supabase/migrations/20260512163305_initial_schema.sql](supabase/migrations/20260512163305_initial_schema.sql) — 43 테이블, 18 enum, RLS helper 8종, `create_workspace` RPC, 마지막 owner 보호 트리거, `course-materials` Storage 버킷) |
-| 2 | 워크스페이스 생성과 멤버십 모델 구현 | ✅ 완료 (이번 작업) |
-| 3 | 그룹, 참여자, 그룹 배정 CRUD 구현 | ⏳ 대기 |
-| 4 | 수업 생성, 반복 회차 생성, 수업-참여자 배정 구현 | ⏳ 대기 |
+| 2 | 워크스페이스 생성과 멤버십 모델 구현 | ✅ 완료 |
+| 3 | 그룹, 참여자, 그룹 배정 CRUD 구현 | ✅ 완료 |
+| 4 | 수업 생성, 반복 회차 생성, 수업-참여자 배정 구현 | ✅ 완료 (이번 작업) |
 | 5 | 운영자용 수업 목록/상세와 캘린더 구현 | ⏳ 대기 |
 | 6 | 자료 업로드, 공개 그룹, 확인 상태 구현 | ⏳ 대기 |
 | 7 | 강사 콘솔의 자료, 출석부, 수업 메모 구현 | ⏳ 대기 |
@@ -124,6 +124,38 @@ architecture.md §14의 MVP 구현 순서를 기준으로 추적한다.
 - 초대 링크 발급 UI와 `createInvite` 액션 — 단계 8에서 처리.
 - 최근 활동 데이터 로딩 — 단계 9에서 처리. 지금은 빈 드롭다운만.
 - 강사 콘솔 — 단계 7.
+
+### 단계 3에서 구현한 것
+
+- 관리 허브 레이아웃과 탭 네비(그룹/수업/참여자) — `/manage`는 `/manage/groups`로 자동 redirect, 수업 탭은 단계 4 placeholder.
+- 그룹 CRUD: 목록(검색·상태 필터·페이지네이션) + 생성/수정/소프트 삭제. 대표 운영자는 전체 필드, 그룹 운영자는 접근 그룹 description만 수정(`accessible_group_ids` RPC로 사전 검증 후 admin client로 우회 — RLS 스펙 충돌 처리).
+- 참여자 CRUD: 목록(검색·그룹·상태 필터·페이지네이션) + 생성/수정/소프트 삭제/그룹 배정 변경. 그룹 운영자는 자기 접근 그룹 범위에서만 동작.
+- 공통 UI 프리미티브 12종: Button, Input, Textarea, Label, Select, Dialog, Table, Tabs, Badge, StatusBadge(그룹/참여자/멤버), Pagination, EmptyState, MultiSelect.
+- 라벨 함수 추가: `groupStatusLabel`, `participantStatusLabel`.
+
+### 단계 3 RLS / 스펙 충돌 (보고 사항 — AGENTS.md §2)
+
+api-spec.md §7.2는 그룹 운영자의 description 수정을 허용하지만, 현재 migration의 `owners can manage groups` 정책은 owner만 write 가능. 임시 처리: [services/groups.ts](services/groups.ts)의 `updateGroupDescriptionAsGroupAdmin`에서 `accessible_group_ids` RPC로 접근 권한을 사전 검증한 뒤 admin client(service role)로 description만 갱신. 다른 필드 변경은 ROLE_FORBIDDEN. 후속으로 마이그레이션을 추가해 정책을 완화하면 admin client 우회를 제거할 수 있다.
+
+### 단계 4에서 구현한 것
+
+- 수업 목록 페이지([app/.../manage/courses/page.tsx](app/workspaces/[workspaceId]/(dashboard)/manage/courses/page.tsx) + [courses-client.tsx](app/workspaces/[workspaceId]/(dashboard)/manage/courses/courses-client.tsx)) — Phase 4 placeholder 교체. 통계 카드(전체/진행중/완료), 검색·그룹·상태 필터, 표(이름/연결 그룹/담당자/참여자 수/회차 수/상태), 페이지네이션.
+- 수업 생성 페이지([app/.../manage/courses/new/page.tsx](app/workspaces/[workspaceId]/(dashboard)/manage/courses/new/page.tsx) + [new-course-form.tsx](app/workspaces/[workspaceId]/(dashboard)/manage/courses/new/new-course-form.tsx)) — 단일 페이지 섹션 폼. 기본 정보 / 반복 회차(요일·시간·종료 조건 + 실시간 회차 미리보기) / 참여자 배정(그룹 선택 시 자동 후보 로딩 + 수업 내 참여 그룹 토글).
+- 회차 계산 유틸 [lib/courses/recurrence.ts](lib/courses/recurrence.ts) — `planSessions({startsOn, endsOn|sessionCount, repeatWeekdays, startsAt, endsAt})` → `SessionPlan[]`. date-fns 사용. Sunday=0 컨벤션. 클라이언트 미리보기와 서버 insert가 같은 함수를 공유.
+- 서비스 [services/courses.ts](services/courses.ts) — api-spec.md §8 계약 5종(`getCoursesPage`, `getCourseFormOptions`, `createCourseAction`, `updateCourseAction`, `updateCourseParticipantAssignmentAction`). 생성은 sequential insert(courses → recurrence → groups → sessions → participants → participant_groups) + 단계 실패 시 courses 삭제로 best-effort 트랜잭션.
+- Zod 스키마 [lib/validators/course.ts](lib/validators/course.ts) — 회차 규칙(종료일 xor 회차 수), 시간 정합성, 카드 색상 형식 모두 검증.
+- 도메인 컴포넌트 [components/courses/](components/courses/) — CourseCard(홈/목록 공통), WeekdayPicker, ColorPicker(6색 팔레트).
+- 헤더 "+ 수업 만들기" 버튼([components/layout/header.tsx](components/layout/header.tsx)) — 운영자(owner/group)에게만 노출, 모든 대시보드 화면에서 접근.
+- 홈 화면([app/.../home/page.tsx](app/workspaces/[workspaceId]/(dashboard)/home/page.tsx)) — `getCoursesPage`로 수업을 불러와 Figma 2:3 카드 디자인으로 표시. 진행 중 → 진행 전 → 진행 완료 순 정렬. 마지막 셀에 "수업 추가" 카드 유지.
+- `CourseStatusBadge` 추가 — [components/ui/status-badge.tsx](components/ui/status-badge.tsx).
+
+### 단계 4에서 다루지 않은 것
+
+- 수업 상세 페이지(수업 홈, 수업 자료, 참여자 현황 탭) — 단계 5/6/7.
+- 수업 수정/삭제 UI — 단계 5.
+- 회차 재생성(반복 규칙 변경) — 단계 5.
+- 캘린더 화면 — 단계 5.
+- Supabase JS 트랜잭션 부재로 인한 race condition(아주 드묾) — 후속 RPC 묶음으로 개선 가능.
 
 ## 작업 시 참고
 

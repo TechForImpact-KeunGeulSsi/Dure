@@ -26,7 +26,7 @@ export default async function DashboardLayout({
     <div className="flex min-h-screen">
       <Sidebar workspace={workspace} capabilities={capabilities} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Header member={workspace.currentMember} />
+        <Header member={workspace.currentMember} workspaceId={workspace.id} />
         <main className="flex-1 overflow-y-auto bg-[var(--color-muted)] p-6">
           {children}
         </main>

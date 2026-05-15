@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle2, Circle, Download, Pencil } from 'lucide-react';
+import { CheckCircle2, Circle, Download, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -14,9 +14,16 @@ type Props = {
   material: MaterialListItem;
   onToggleReview: (m: MaterialListItem) => Promise<void> | void;
   onEdit: () => void;
+  onDelete: (m: MaterialListItem) => Promise<void> | void;
 };
 
-export function MaterialRow({ workspaceId, material, onToggleReview, onEdit }: Props) {
+export function MaterialRow({
+  workspaceId,
+  material,
+  onToggleReview,
+  onEdit,
+  onDelete,
+}: Props) {
   const handleDownload = async () => {
     const res = await fetch(
       `/api/materials/${material.id}/download?workspaceId=${workspaceId}`,
@@ -27,6 +34,11 @@ export function MaterialRow({ workspaceId, material, onToggleReview, onEdit }: P
       return;
     }
     window.open(json.data.signedDownloadUrl, '_blank', 'noopener');
+  };
+
+  const handleDelete = () => {
+    if (!window.confirm(`"${material.title}" 자료를 삭제하시겠습니까?`)) return;
+    onDelete(material);
   };
 
   return (
@@ -60,6 +72,11 @@ export function MaterialRow({ workspaceId, material, onToggleReview, onEdit }: P
           {material.canEdit && (
             <Button variant="ghost" size="icon" onClick={onEdit} title="수정">
               <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+          {material.canEdit && (
+            <Button variant="ghost" size="icon" onClick={handleDelete} title="삭제">
+              <Trash2 className="h-4 w-4 text-rose-500" />
             </Button>
           )}
         </div>

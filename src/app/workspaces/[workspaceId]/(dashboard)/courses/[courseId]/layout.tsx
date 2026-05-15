@@ -1,8 +1,9 @@
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 
 import { CourseDetailProvider } from '@/components/courses/course-detail-context';
 import { CourseDetailTabs } from '@/components/courses/course-detail-tabs';
-import { getCourseHome } from '@/services/courses-mock';
+import { getCourseDetail } from '@/services/course-detail';
 
 type CourseDetailLayoutProps = {
   children: React.ReactNode;
@@ -14,7 +15,11 @@ export default async function CourseDetailLayout({
   params,
 }: CourseDetailLayoutProps) {
   const { workspaceId, courseId } = await params;
-  const { course } = await getCourseHome({ workspaceId, courseId });
+  const result = await getCourseDetail(workspaceId, courseId);
+
+  if (!result.ok) notFound();
+
+  const course = result.data;
   const accent = course.cardColor ?? '#3B82F6';
 
   return (

@@ -1,14 +1,19 @@
-import { getCourseParticipantsStatus } from '@/services/courses-mock';
+import { EmptyState } from '@/components/courses/empty-state';
+import { getCourseParticipantsStatus } from '@/services/course-participants';
 
 import { ParticipantsStatusClient } from './participants-status-client';
 
-type CourseParticipantsPageProps = {
+type Props = {
   params: Promise<{ workspaceId: string; courseId: string }>;
 };
 
-export default async function CourseParticipantsPage({ params }: CourseParticipantsPageProps) {
+export default async function CourseParticipantsPage({ params }: Props) {
   const { workspaceId, courseId } = await params;
-  const data = await getCourseParticipantsStatus({ workspaceId, courseId });
+  const result = await getCourseParticipantsStatus(workspaceId, courseId);
 
-  return <ParticipantsStatusClient data={data} />;
+  if (!result.ok) {
+    return <EmptyState message={result.error.message} />;
+  }
+
+  return <ParticipantsStatusClient data={result.data} />;
 }

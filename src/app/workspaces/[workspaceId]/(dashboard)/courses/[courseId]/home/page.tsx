@@ -1,14 +1,35 @@
-import { getCourseHomePageData } from '@/services/courses-mock';
+import { EmptyState } from '@/components/courses/empty-state';
+import { getCourseDetail } from '@/services/course-detail';
+import { getCourseSessions } from '@/services/course-sessions';
 
 import { CourseHomeClient } from './course-home-client';
 
-type CourseHomePageProps = {
+type Props = {
   params: Promise<{ workspaceId: string; courseId: string }>;
 };
 
-export default async function CourseHomePage({ params }: CourseHomePageProps) {
+export default async function CourseHomePage({ params }: Props) {
   const { workspaceId, courseId } = await params;
-  const data = await getCourseHomePageData({ workspaceId, courseId });
 
-  return <CourseHomeClient data={data} />;
+  const [courseResult, sessionsResult] = await Promise.all([
+    getCourseDetail(workspaceId, courseId),
+    getCourseSessions(workspaceId, courseId),
+  ]);
+
+  if (!courseResult.ok) {
+    return <EmptyState message={courseResult.error.message} />;
+  }
+  if (!sessionsResult.ok) {
+    return <EmptyState message={sessionsResult.error.message} />;
+  }
+
+  return (
+    <CourseHomeClient
+      data={{
+        course: courseResult.data,
+        sessions: sessionsResult.data,
+        sessionCount: sessionsResult.data.length,
+      }}
+    />
+  );
 }

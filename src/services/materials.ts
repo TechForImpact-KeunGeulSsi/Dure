@@ -36,10 +36,12 @@ import {
 } from "@/lib/validators/material";
 
 const BUCKET = "course-materials";
-const SIGNED_UPLOAD_EXPIRES_SECONDS = 60 * 10; // 10분
-const SIGNED_DOWNLOAD_EXPIRES_SECONDS = 60 * 60; // 1시간
+const SIGNED_UPLOAD_EXPIRES_SECONDS = 60 * 10;
+const SIGNED_DOWNLOAD_EXPIRES_SECONDS = 60 * 60;
 
+// ─────────────────────────────────────────────────────────────
 // Public API (api-spec.md §11)
+// ─────────────────────────────────────────────────────────────
 
 type GetCourseMaterialsInput = {
   workspaceId: UUID;
@@ -70,7 +72,6 @@ export type GetCourseMaterialsOutput = {
   canCreateMaterial: boolean;
 };
 
-// api-spec.md §11.1
 export async function getCourseMaterials(
   input: GetCourseMaterialsInput,
 ): Promise<ApiResult<GetCourseMaterialsOutput>> {
@@ -115,7 +116,6 @@ export type PrepareMaterialUploadOutput = {
   expiresAt: string;
 };
 
-// api-spec.md §11.2
 export async function prepareMaterialUpload(
   input: PrepareMaterialUploadRawInput,
 ): Promise<ApiResult<PrepareMaterialUploadOutput>> {
@@ -150,7 +150,6 @@ export async function prepareMaterialUpload(
   );
 }
 
-// api-spec.md §11.3
 export async function completeMaterialUpload(
   workspaceId: UUID,
   materialId: UUID,
@@ -186,7 +185,6 @@ export async function completeMaterialUpload(
   return refetchMaterialListItem(workspaceId, row.course_id, materialId, membership);
 }
 
-// api-spec.md §11.4
 export async function updateMaterial(
   workspaceId: UUID,
   materialId: UUID,
@@ -223,7 +221,6 @@ export type ReplaceMaterialFileOutput = {
   expiresAt: string;
 };
 
-// api-spec.md §11.5
 export async function replaceMaterialFile(
   workspaceId: UUID,
   materialId: UUID,
@@ -257,7 +254,6 @@ export async function replaceMaterialFile(
   return issueReplacementUploadUrl(workspaceId, row.course_id, materialId, parsed.data);
 }
 
-// api-spec.md §11.6
 export async function updateMaterialReviewStatus(
   workspaceId: UUID,
   materialId: UUID,
@@ -302,7 +298,6 @@ export type GetMaterialDownloadUrlOutput = {
   originalFilename: string | null;
 };
 
-// api-spec.md §11.7
 export async function getMaterialDownloadUrl(
   workspaceId: UUID,
   materialId: UUID,
@@ -334,21 +329,69 @@ export async function getMaterialDownloadUrl(
   });
 }
 
+export async function deleteMaterial(
+  workspaceId: UUID,
+  materialId: UUID,
+): Promise<ApiResult<{ id: UUID }>> {
+  await requireUser();
+  const membership = await loadCurrentMembership(workspaceId);
+  if (!membership) {
+    return apiError("WORKSPACE_ACCESS_DENIED", "워크스페이스 접근 권한이 없습니다.");
+  }
+
+  const row = await loadMaterialBasicRow(workspaceId, materialId);
+  if (!row) return apiError("NOT_FOUND", "자료를 찾을 수 없습니다.");
+
+  const allowed = await canEditMaterial({ workspaceId, membership, row });
+  if (!allowed) return apiError("SCOPE_FORBIDDEN", "자료를 삭제할 권한이 없습니다.");
+
+  const admin = createSupabaseAdminClient();
+
+  if (row.storage_path) {
+    await admin.storage.from(BUCKET).remove([row.storage_path]);
+  }
+
+  const { error } = await admin
+    .from("materials")
+    .delete()
+    .eq("workspace_id", workspaceId)
+    .eq("id", materialId);
+  if (error) return apiError("INTERNAL_ERROR", error.message);
+
+  revalidatePath(`/workspaces/${workspaceId}/courses/${row.course_id}/materials`);
+  return apiOk({ id: materialId });
+}
+
+// ─────────────────────────────────────────────────────────────
 // internal helpers
+// ─────────────────────────────────────────────────────────────
 
 type CurrentMembership = {
   memberId: UUID;
   role: "owner_admin" | "group_admin" | "instructor";
 };
 
+/**
+ * ⚠️ user_id 필터가 필수다. workspace_members의 select RLS는
+ * 같은 워크스페이스의 모든 active 멤버 row를 보여주므로,
+ * user_id 없이 .maybeSingle() 하면 다른 멤버 row를 가져올 수 있고
+ * 그 결과 uploaded_by = current_member_id(workspace_id) 비교에 실패해
+ * "new row violates row-level security policy for table materials" 가 난다.
+ */
 async function loadCurrentMembership(
   workspaceId: UUID,
 ): Promise<CurrentMembership | null> {
   const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
   const { data } = await supabase
     .from("workspace_members")
     .select("id, role")
     .eq("workspace_id", workspaceId)
+    .eq("user_id", user.id)
     .eq("status", "active")
     .maybeSingle();
   if (!data) return null;
@@ -623,11 +666,9 @@ function computeMaterialPermissionFlags(
     canEdit,
     canReplaceFile: canEdit,
     canChangeReviewStatus,
-    canDownload: true, // RLS를 통과해서 보이는 자료면 다운로드 가능
+    canDownload: true,
   };
 }
-
-// permission helpers (server)
 
 async function canEditMaterial(params: {
   workspaceId: UUID;
@@ -664,7 +705,6 @@ async function canChangeReviewStatus(params: {
   });
 }
 
-// 자료 공개 범위와 사용자 접근 그룹이 교차하는지, all_course_groups면 수업 연결 그룹 기준
 async function hasGroupOverlap(params: {
   workspaceId: UUID;
   row: Pick<MaterialBasicRow, "id" | "course_id" | "visibility_scope">;
@@ -686,8 +726,6 @@ async function hasGroupOverlap(params: {
     .eq("material_id", params.row.id);
   return (data ?? []).some((r) => params.accessibleGroupIds.has(r.group_id as UUID));
 }
-
-// upload preparation helpers
 
 async function createMaterialAndIssueUploadUrl(
   workspaceId: UUID,
@@ -767,7 +805,6 @@ async function issueReplacementUploadUrl(
       mime_type: data.mimeType,
       size_bytes: data.sizeBytes,
       upload_status: "uploading",
-      // review_status는 트리거 reset_material_review_status 가 자동으로 'pending'으로 변경
     })
     .eq("workspace_id", workspaceId)
     .eq("id", materialId);
@@ -818,8 +855,6 @@ async function insertMaterialGroups(
   materialId: UUID,
   groupIds: UUID[],
 ): Promise<{ ok: true } | { ok: false; error: ApiResult<never> }> {
-  // RLS는 full course admin/owner만 가능, 강사 업로드 케이스 위해 admin client
-  // DB 트리거 ensure_material_group_is_course_group 이 그룹 정합성 강제
   const admin = createSupabaseAdminClient();
   const rows = groupIds.map((groupId) => ({
     workspace_id: workspaceId,
@@ -831,7 +866,10 @@ async function insertMaterialGroups(
   return { ok: true };
 }
 
-async function deleteAllMaterialGroups(workspaceId: UUID, materialId: UUID): Promise<ApiResult<never> | null> {
+async function deleteAllMaterialGroups(
+  workspaceId: UUID,
+  materialId: UUID,
+): Promise<ApiResult<never> | null> {
   const admin = createSupabaseAdminClient();
   const { error } = await admin
     .from("material_groups")
@@ -867,8 +905,6 @@ async function storageObjectExists(storagePath: string): Promise<boolean> {
   const { data } = await admin.storage.from(BUCKET).list(folder, { search: filename, limit: 1 });
   return (data ?? []).some((entry) => entry.name === filename);
 }
-
-// update helpers
 
 async function writeMaterialUpdates(
   workspaceId: UUID,
@@ -922,8 +958,6 @@ async function rewriteMaterialGroups(
   if (!inserted.ok) return inserted.error;
   return null;
 }
-
-// refetch helpers
 
 async function refetchMaterialListItem(
   workspaceId: UUID,

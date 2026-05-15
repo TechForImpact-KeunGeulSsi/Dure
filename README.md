@@ -39,10 +39,10 @@ app/
     [workspaceId]/
       (dashboard)/
         layout.tsx           # getWorkspaceContext 게이트 + 사이드바/헤더
-        home/                # 운영 중인 수업 목록
+        home/                # 운영 중인 수업 목록 (실 DB 연동)
         calendar/            # 월간 일정 관리
         courses/[courseId]/  # 수업 상세 (홈·자료·참여자 현황)
-          materials/         # 자료 목록·업로드·수정·다운로드·확인 상태
+          materials/         # 자료 목록·업로드·수정·삭제·다운로드·확인 상태
         manage/              # 그룹·수업·참여자 관리 허브
   api/
     invites/[token]/accept/route.ts
@@ -57,6 +57,7 @@ lib/
   validators/
   utils/cn.ts
 services/                    # 페이지가 호출하는 query/action 구현체
+  course-detail.ts           # 수업 상세 헤더용 단건 조회 (단계 6)
 middleware.ts
 supabase/                    # DB migration
 src/                         # Phase 5 UI 구현 (App Router 병행)
@@ -179,7 +180,7 @@ api-spec.md §7.2는 그룹 운영자의 description 수정을 허용하지만, 
 
 ### 단계 6에서 구현한 것
 
-- **자료 도메인 서비스 [services/materials.ts](src/services/materials.ts):** api-spec.md §11의 7개 계약 모두 구현.
+- **자료 도메인 서비스 [services/materials.ts](src/services/materials.ts):** api-spec.md §11의 7개 계약 + 운영 편의용 삭제까지 구현.
   - `getCourseMaterials` — 코스 정보 + 자료 목록 + uploadPolicy + 권한 플래그(`canEdit`/`canReplaceFile`/`canChangeReviewStatus`/`canDownload`).
   - `prepareMaterialUpload` — Zod + 정책 검증 → 그룹 정합성 사전 검증 → `materials` insert → `material_groups` insert(강사 케이스 위해 admin client 우회) → storage path 생성 → signed upload URL 발급.
   - `completeMaterialUpload` — Storage list로 실제 파일 존재 확인 → `upload_status='uploaded'`.
@@ -187,6 +188,7 @@ api-spec.md §7.2는 그룹 운영자의 description 수정을 허용하지만, 
   - `replaceMaterialFile` — 새 storage path + 새 signed upload URL.
   - `updateMaterialReviewStatus` — 강사 차단. owner 전체 통과 / group_admin은 자료 공개 그룹과 자기 접근 그룹이 교차할 때만.
   - `getMaterialDownloadUrl` — 1시간 만료 signed URL + `download` 옵션으로 원본 파일명 보존.
+  - `deleteMaterial` — api-spec.md §11에는 없지만 운영 편의를 위해 추가. Storage 객체와 `materials` 행을 함께 제거(material_groups는 FK CASCADE). 권한은 `canEditMaterial`과 동일하고, RLS DELETE 정책이 없어 admin client로 처리.
 - **Zod 검증기 [lib/validators/material.ts](src/lib/validators/material.ts):** 4개 스키마(`PrepareMaterialUpload`/`UpdateMaterial`/`ReplaceMaterialFile`/`UpdateMaterialReviewStatus`) + 정책 헬퍼(`validateUploadPolicy`, `safeFilename`, `extractExtension`). 확장자/MIME/크기 상수는 migration의 storage bucket 정의와 동기화.
 - **Route Handler 2종:**
   - `POST /api/materials/upload-url` — `prepareMaterialUpload` 위임.
@@ -194,10 +196,14 @@ api-spec.md §7.2는 그룹 운영자의 description 수정을 허용하지만, 
 - **수업 자료 탭 UI:** 6개 파일로 분리해서 단계 5 컴포넌트 시스템(Card/Dialog/Button/Badge/MultiSelect)을 그대로 활용.
   - `materials/page.tsx` — server component, `getCourseMaterials` 호출 후 클라이언트로 전달.
   - `materials/materials-client.tsx` — 배너 + 통계 카드 2개(확인 미정/확인됨) + 검색·상태 필터 + 자료 목록 + 다이얼로그 마운트.
-  - `materials/material-row.tsx` — 행 단위 액션(다운로드/확인 상태 토글/수정). `canDownload`/`canChangeReviewStatus`/`canEdit`에 따라 버튼 노출 제어.
+  - `materials/material-row.tsx` — 행 단위 액션(다운로드/확인 상태 토글/수정/**삭제**). `canDownload`/`canChangeReviewStatus`/`canEdit`에 따라 버튼 노출 제어. 삭제는 `window.confirm`으로 확인 후 진행.
   - `materials/visibility-fields.tsx` — 공개 범위 라디오 + MultiSelect (업로드·수정 다이얼로그 공용).
   - `materials/upload-dialog.tsx` — 파일 선택 → `prepareMaterialUpload` → signed URL에 직접 PUT → `completeMaterialUpload` 3단계 흐름.
   - `materials/edit-dialog.tsx` — 메타데이터·공개 범위 수정 + 별도 "파일 교체" 입력으로 `replaceMaterialFile` 호출.
+- **단계 6 이후 mock 정리:** 자료 탭이 실 DB를 쓰는데 헤더가 mock이면 단계 5 placeholder ID(`course-001` 등)와 충돌해 진입이 어려워지는 문제가 있어, 다음 두 화면을 함께 실 DB로 전환했다.
+  - **대시보드 홈** [home/page.tsx](src/app/workspaces/[workspaceId]/(dashboard)/home/page.tsx) — `getDashboardCourses`(mock) → `getCoursesPage`(실 DB). `DashboardCourseItem` 형태로 매핑해서 단계 5 `home-client.tsx`는 그대로 사용.
+  - **수업 상세 layout** [courses/[courseId]/layout.tsx](src/app/workspaces/[workspaceId]/(dashboard)/courses/[courseId]/layout.tsx) — `getCourseHome`(mock) → 신규 `getCourseDetail`(실 DB). 수업 없으면 `notFound()`로 404.
+  - 신규 서비스 [services/course-detail.ts](src/services/course-detail.ts) — 코스 + 연결 그룹 + 강사 + `canUpdateVisuals`를 한 번에 반환. `can_manage_full_course` RPC 호출.
 
 ### 단계 6에서 활용한 DB 트리거
 
@@ -211,10 +217,10 @@ api-spec.md §7.2는 그룹 운영자의 description 수정을 허용하지만, 
 
 ### 단계 6에서 다루지 않은 것
 
-- **수업 상세 layout의 mock 의존성 제거:** `courses/[courseId]/layout.tsx`는 여전히 `getCourseHome` mock으로 헤더(이름·색상·breadcrumb)를 렌더링한다. materials 페이지 자체는 실제 DB를 쓰지만 layout은 단계 7 이후 일괄 전환 예정.
-- **자료 삭제 UI:** api-spec.md §11에 삭제 계약이 없어 의도적으로 제외. 자료를 회수하려면 `visibilityScope='selected_groups'` + 빈 그룹 또는 운영 정책으로 처리.
-- **AuditLog 연동:** 자료 업로드·수정·확인 상태 변경 이벤트를 `activity_logs`에 남기는 작업은 단계 9(헤더 최근 활동)에서 일괄 진행.
+- **수업 홈 탭, 참여자 현황 탭의 mock 의존성:** `courses/[courseId]/home/page.tsx`와 `courses/[courseId]/participants/page.tsx`는 여전히 `courses-mock.ts`(`getCourseHomePageData`, `getCourseParticipantsStatus`)를 사용한다. 단계 7에서 강사 콘솔 작업과 함께 실 DB로 일괄 전환한다. mock의 fallback이 어떤 UUID에도 디폴트 데이터를 돌려주므로 그동안 화면은 채워져 보인다.
+- **AuditLog 연동:** 자료 업로드·수정·확인 상태 변경·삭제 이벤트를 `activity_logs`에 남기는 작업은 단계 9(헤더 최근 활동)에서 일괄 진행.
 - **자료 미리보기:** architecture.md §15 기본 판단대로 MVP 제외. 다운로드만 제공.
+- **자료 일괄 작업:** 다중 선택 후 일괄 확인 처리·삭제 같은 bulk 액션은 MVP 외 항목.
 - **만료/실패 업로드 정리:** `upload_status='uploading'` 상태로 남은 고아 자료 정리는 단계 9 cron 작업에서 처리.
 
 ## 작업 시 참고

@@ -12,6 +12,7 @@ import { materialReviewStatusLabel } from '@/lib/api/labels';
 import type { MaterialListItem, MaterialReviewStatus } from '@/lib/api/types';
 import { cn } from '@/lib/utils';
 import {
+  deleteMaterial,
   updateMaterialReviewStatus,
   type GetCourseMaterialsOutput,
 } from '@/services/materials';
@@ -65,6 +66,16 @@ export function MaterialsClient({ workspaceId, courseId, initial }: Props) {
     router.refresh();
   };
 
+  const handleDelete = async (m: MaterialListItem) => {
+    const result = await deleteMaterial(workspaceId, m.id);
+    if (!result.ok) {
+      toast.error(result.error.message);
+      return;
+    }
+    toast.success('자료를 삭제했습니다.');
+    router.refresh();
+  };
+
   return (
     <section className="space-y-6">
       <Banner accent={accent} />
@@ -100,6 +111,7 @@ export function MaterialsClient({ workspaceId, courseId, initial }: Props) {
               material={m}
               onToggleReview={handleToggleReview}
               onEdit={() => setEditing(m)}
+              onDelete={handleDelete}
             />
           ))}
         </div>

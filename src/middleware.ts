@@ -4,7 +4,6 @@ import { NextResponse, type NextRequest } from "next/server";
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
 export async function middleware(request: NextRequest) {
-  return NextResponse.next();
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

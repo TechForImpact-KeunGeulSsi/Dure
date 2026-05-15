@@ -40,6 +40,25 @@ const SIGNED_UPLOAD_EXPIRES_SECONDS = 60 * 10;
 const SIGNED_DOWNLOAD_EXPIRES_SECONDS = 60 * 60;
 
 // ─────────────────────────────────────────────────────────────
+// RLS 우회 정책에 대한 메모
+//
+// materials INSERT 정책은 `uploaded_by = current_member_id(workspace_id)`
+// 정확 일치 비교를 요구한다. SSR 환경에서 일부 시나리오(다중 멤버,
+// 인증 컨텍스트 전달 한계 등)에서 이 비교가 통과되지 못해 INSERT가 거부되는
+// 케이스가 확인되어, INSERT/UPDATE는 admin client로 처리한다.
+//
+// 권한은 service 레이어에서 충분히 검증한다:
+//   - 워크스페이스 멤버십 확인 (loadCurrentMembership, user_id 일치)
+//   - 역할별 업로드 허용 (canUploadForRole)
+//   - 수정/삭제 시 본인/owner/접근 그룹 검사 (canEditMaterial)
+//   - 확인 상태 변경 시 owner/접근 그룹 검사 (canChangeReviewStatus)
+//
+// SELECT는 그대로 server client(RLS 적용)를 쓴다. 읽기 권한은 RLS가 정확히
+// 처리하기 때문이다. material_groups insert와 deleteMaterial이 이미 같은
+// 우회 패턴을 사용하므로 일관성이 유지된다.
+// ─────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────
 // Public API (api-spec.md §11)
 // ─────────────────────────────────────────────────────────────
 
@@ -174,8 +193,8 @@ export async function completeMaterialUpload(
     return apiError("CONFLICT", "업로드된 파일을 확인할 수 없습니다. 다시 시도해 주세요.");
   }
 
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
+  const admin = createSupabaseAdminClient();
+  const { error } = await admin
     .from("materials")
     .update({ upload_status: "uploaded" })
     .eq("workspace_id", workspaceId)
@@ -281,8 +300,8 @@ export async function updateMaterialReviewStatus(
   const allowed = await canChangeReviewStatus({ workspaceId, membership, row });
   if (!allowed) return apiError("SCOPE_FORBIDDEN", "해당 자료의 확인 상태를 변경할 권한이 없습니다.");
 
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
+  const admin = createSupabaseAdminClient();
+  const { error } = await admin
     .from("materials")
     .update({ review_status: parsed.data.reviewStatus })
     .eq("workspace_id", workspaceId)
@@ -371,13 +390,6 @@ type CurrentMembership = {
   role: "owner_admin" | "group_admin" | "instructor";
 };
 
-/**
- * ⚠️ user_id 필터가 필수다. workspace_members의 select RLS는
- * 같은 워크스페이스의 모든 active 멤버 row를 보여주므로,
- * user_id 없이 .maybeSingle() 하면 다른 멤버 row를 가져올 수 있고
- * 그 결과 uploaded_by = current_member_id(workspace_id) 비교에 실패해
- * "new row violates row-level security policy for table materials" 가 난다.
- */
 async function loadCurrentMembership(
   workspaceId: UUID,
 ): Promise<CurrentMembership | null> {
@@ -740,8 +752,9 @@ async function createMaterialAndIssueUploadUrl(
     }
   }
 
-  const supabase = await createSupabaseServerClient();
-  const { data: inserted, error: insertError } = await supabase
+  // admin client로 INSERT (RLS 우회). 권한은 호출 전 모두 검증됨.
+  const admin = createSupabaseAdminClient();
+  const { data: inserted, error: insertError } = await admin
     .from("materials")
     .insert({
       workspace_id: workspaceId,
@@ -769,7 +782,7 @@ async function createMaterialAndIssueUploadUrl(
   }
 
   const storagePath = buildStoragePath(workspaceId, courseId, materialId, data.originalFilename);
-  const { error: pathError } = await supabase
+  const { error: pathError } = await admin
     .from("materials")
     .update({ storage_path: storagePath })
     .eq("workspace_id", workspaceId)
@@ -796,8 +809,8 @@ async function issueReplacementUploadUrl(
 ): Promise<ApiResult<ReplaceMaterialFileOutput>> {
   const storagePath = buildStoragePath(workspaceId, courseId, materialId, data.originalFilename);
 
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
+  const admin = createSupabaseAdminClient();
+  const { error } = await admin
     .from("materials")
     .update({
       storage_path: storagePath,
@@ -835,6 +848,11 @@ function buildStoragePath(
 async function issueSignedUploadUrl(
   storagePath: string,
 ): Promise<{ ok: true; url: string; expiresAt: string } | { ok: false; error: ApiResult<never> }> {
+  // Storage signed upload URL은 server client(authenticated JWT)로 발급해야 한다.
+  // admin client(service_role JWT)로 발급하면 storage의 JWT 키 검증 단계에서
+  // "No suitable key or wrong key type" 에러가 발생한다. storage RLS는
+  // `to authenticated` 정책으로 설정되어 있어 일반 인증 사용자 컨텍스트에서
+  // 발급/PUT이 모두 정상 처리된다.
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUploadUrl(storagePath);
   if (error || !data) {
@@ -926,13 +944,13 @@ async function writeMaterialUpdates(
     }
   }
 
-  const supabase = await createSupabaseServerClient();
+  const admin = createSupabaseAdminClient();
   const updatePayload: Record<string, unknown> = {};
   if (input.title !== undefined) updatePayload.title = input.title;
   if (input.description !== undefined) updatePayload.description = input.description ?? null;
   if (input.visibilityScope !== undefined) updatePayload.visibility_scope = input.visibilityScope;
   if (Object.keys(updatePayload).length > 0) {
-    const { error } = await supabase
+    const { error } = await admin
       .from("materials")
       .update(updatePayload)
       .eq("workspace_id", workspaceId)

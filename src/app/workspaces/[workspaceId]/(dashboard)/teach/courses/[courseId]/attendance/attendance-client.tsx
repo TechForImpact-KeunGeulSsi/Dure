@@ -31,7 +31,7 @@ type LocalRecord = {
 
 const STATUS_OPTIONS: { value: AttendanceStatus; label: string; tone: string }[] = [
   { value: 'present', label: '출석', tone: 'bg-emerald-500 hover:bg-emerald-600' },
-  { value: 'partial', label: '부분', tone: 'bg-amber-500 hover:bg-amber-600' },
+  { value: 'partial', label: '지각', tone: 'bg-amber-500 hover:bg-amber-600' },
   { value: 'absent', label: '결석', tone: 'bg-rose-500 hover:bg-rose-600' },
 ];
 
@@ -136,7 +136,7 @@ export function AttendanceClient({ workspaceId, courseId, initial }: Props) {
 
       <div className="grid grid-cols-3 gap-4">
         <StatCard label="출석" value={`${stats.present}명`} tone="emerald" />
-        <StatCard label="부분" value={`${stats.partial}명`} tone="amber" />
+        <StatCard label="지각" value={`${stats.partial}명`} tone="amber" />
         <StatCard label="결석" value={`${stats.absent}명`} tone="rose" />
       </div>
 

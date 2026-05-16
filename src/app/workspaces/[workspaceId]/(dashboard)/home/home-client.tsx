@@ -1,6 +1,7 @@
 'use client';
 
 import { Plus } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
@@ -105,8 +106,28 @@ export function DashboardHomeClient({
               viewType={viewType}
             />
           ))}
+          {canCreateCourse && <AddCourseCard workspaceId={workspaceId} />}
         </div>
       )}
     </div>
+  );
+}
+
+function AddCourseCard({ workspaceId }: { workspaceId: string }) {
+  return (
+    <Link
+      href={`/workspaces/${workspaceId}/manage/courses/new`}
+      className="group flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-6 text-center transition-colors hover:border-blue-300 hover:bg-blue-50/40"
+    >
+      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-100">
+        <Plus className="h-6 w-6" />
+      </span>
+      <div>
+        <p className="text-base font-bold text-gray-900">수업 추가</p>
+        <p className="mt-1 text-xs text-gray-500">
+          새로운 수업 또는<br />교육 과정을 개설합니다.
+        </p>
+      </div>
+    </Link>
   );
 }

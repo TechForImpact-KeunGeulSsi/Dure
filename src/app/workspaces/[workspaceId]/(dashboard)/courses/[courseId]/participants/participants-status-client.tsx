@@ -56,7 +56,7 @@ const ATTENDANCE_FILTERS: {
 }[] = [
   { value: 'all', label: '전체', activeClassName: 'text-blue-600' },
   { value: 'present', label: '출석', activeClassName: 'text-green-600' },
-  { value: 'partial', label: '부분 출석', activeClassName: 'text-amber-600' },
+  { value: 'partial', label: '지각', activeClassName: 'text-amber-600' },
   { value: 'absent', label: '결석', activeClassName: 'text-red-600' },
 ];
 
@@ -176,7 +176,7 @@ export function ParticipantsStatusClient({ workspaceId, courseId, data }: Props)
                 <AlertTriangle className="h-5 w-5" />
               </span>
               <div>
-                <CardTitle>부분 출석</CardTitle>
+                <CardTitle>지각</CardTitle>
                 <p className="mt-1 text-2xl font-bold text-gray-900">
                   {data.summary.partialCount}건
                 </p>
@@ -247,7 +247,7 @@ export function ParticipantsStatusClient({ workspaceId, courseId, data }: Props)
             <TableRow className="hover:bg-transparent">
               <TableHead>이름</TableHead>
               <TableHead>출석 수</TableHead>
-              <TableHead>부분 출석 수</TableHead>
+              <TableHead>지각 수</TableHead>
               <TableHead>결석 수</TableHead>
               <TableHead>최근 특이사항</TableHead>
               <TableHead>상태</TableHead>

@@ -80,7 +80,7 @@ export function attendanceStatusLabel(status: AttendanceStatus): string {
     case "present":
       return "출석";
     case "partial":
-      return "부분 출석";
+      return "지각";
     case "absent":
       return "결석";
   }

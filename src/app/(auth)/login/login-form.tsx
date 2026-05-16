@@ -17,7 +17,7 @@ export function LoginForm({ next }: LoginFormProps) {
   const [mode, setMode] = useState<Mode>("password");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [keepSignedIn, setKeepSignedIn] = useState(true);
+  const [keepSignedIn, setKeepSignedIn] = useState(false);
   const [magicSent, setMagicSent] = useState(false);
   const [pending, startTransition] = useTransition();
 

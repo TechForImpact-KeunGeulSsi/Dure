@@ -5,7 +5,8 @@
       "mcp__Figma__get_screenshot",
       "Bash(curl -s -o /tmp/dure-overview.png \"https://www.figma.com/api/mcp/asset/31db2439-dc97-4303-b0eb-f910ee1ca34d\")",
       "Read(//tmp/**)",
-      "Bash(cp /tmp/dure-overview.png ./dure-overview-temp.png && ls -la dure-overview-temp.png)"
+      "Bash(cp /tmp/dure-overview.png ./dure-overview-temp.png && ls -la dure-overview-temp.png)",
+      "Bash(git add *)"
     ],
     "additionalDirectories": [
       "\\tmp"

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Building2, Home, ShieldCheck } from "lucide-react";
 
 import { requireUser } from "@/lib/auth/require-user";
@@ -89,13 +90,16 @@ function FeatureRow({
 
 function JoinExistingHint() {
   return (
-    <div className="mt-6 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-muted)]/40 px-4 py-3 text-sm flex items-center justify-between">
+    <Link
+      href="/workspaces/discover"
+      className="mt-6 flex items-center justify-between rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-muted)]/40 px-4 py-3 text-sm hover:border-[var(--color-primary)]"
+    >
       <span className="font-medium text-[var(--color-foreground)]">
         기존 워크스페이스로 참여하기
       </span>
-      <span className="text-xs text-[var(--color-muted-foreground)]">
-        초대받은 메일의 링크로 참여
+      <span className="text-xs text-[var(--color-primary)]">
+        워크스페이스 둘러보기 →
       </span>
-    </div>
+    </Link>
   );
 }

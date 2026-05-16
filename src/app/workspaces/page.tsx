@@ -48,10 +48,17 @@ export default async function WorkspacesPage() {
             </li>
           ))}
         </ul>
-        <div className="text-center">
+        <div className="flex flex-wrap items-center justify-center gap-4 text-sm">
+          <Link
+            href="/workspaces/discover"
+            className="text-[var(--color-primary)] underline"
+          >
+            다른 워크스페이스 둘러보기
+          </Link>
+          <span className="text-[var(--color-muted-foreground)]">·</span>
           <Link
             href="/workspaces/new"
-            className="text-sm text-[var(--color-primary)] underline"
+            className="text-[var(--color-primary)] underline"
           >
             새 워크스페이스 만들기
           </Link>

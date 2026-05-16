@@ -3,10 +3,22 @@
 
 이 파일은 DURE 프로젝트에서 Claude가 작업 전 현재 맥락(Context)을 빠르게 파악하기 위한 인수인계 문서입니다. 전반적인 개발 원칙과 도메인 지식은 `AGENTS.md`, `architecture.md`, `api-spec.md`를 최우선으로 따릅니다.
 
-## 📍 현재 진행 상태 (Phase 8 완료 — 매직 링크 초대 정식화)
+## 📍 현재 진행 상태 (Phase 8 + 8B 완료)
 
-**완료된 단계:** 1~8 모두 완료.
+**완료된 단계:** 1~8 + 8B(워크스페이스 참여 요청 흐름).
 **대기:** 9 (헤더 최근 활동, 자동 완료 cron).
+
+### 단계 8B 워크스페이스 참여 요청 (Join Request)
+
+`createInvite`(owner → invitee) 방향과는 별도로, 반대 방향(invitee → owner) 흐름을 추가했다. 두 경로 공존.
+
+- `/workspaces/discover`: 로그인 사용자는 등록된 모든 워크스페이스를 검색·페이지네이션으로 둘러보고 "참여 요청" 가능.
+- 신규 테이블 `workspace_join_requests` (pending/approved/rejected/canceled). 부분 unique index로 동시 pending 1개 보장.
+- `workspaces`에 디스커버 SELECT 정책 추가(`to authenticated using (true)`) — id/name/timezone만 노출, 자식 테이블은 기존 RLS 그대로.
+- `/workspaces/{id}/members`에 owner_admin 전용 "참여 요청" 섹션 — 수락 시 역할/그룹 확정, 거부 시 사유 입력.
+- 신규 서비스 [src/services/join-requests.ts](src/services/join-requests.ts): 6개 함수(`listDiscoverableWorkspaces`, `requestWorkspaceAccess`, `cancelMyJoinRequest`, `listWorkspaceJoinRequests`, `approveJoinRequest`, `rejectJoinRequest`).
+- 신규 validator [src/lib/validators/join-request.ts](src/lib/validators/join-request.ts) — `RequestAccessSchema`, `ApproveJoinRequestSchema`.
+- 신규 페이지: [discover/page.tsx](src/app/workspaces/discover/page.tsx), [discover-client.tsx](src/app/workspaces/discover/discover-client.tsx), [request-access-dialog.tsx](src/app/workspaces/discover/request-access-dialog.tsx), [approve-request-dialog.tsx](src/app/workspaces/[workspaceId]/(dashboard)/members/approve-request-dialog.tsx).
 
 ### 자료 업로드 흐름 (단계 6 후속에서 단순화)
 기존 `prepareMaterialUpload → 클라이언트 PUT to signed URL → completeMaterialUpload` 3단계 흐름이 SSR 환경에서 `"No suitable key or wrong key type"` 에러로 막혀, **server action에 FormData 직접 전송 + admin client `storage.upload()` 직접 호출** 흐름으로 통합되었습니다.
@@ -63,8 +75,9 @@ APP_URL=http://localhost:3000   # 초대 매직 링크 redirect base
 - `class_memos` upsert
 - `workspace_members` INSERT/UPDATE (초대 + 수락 시 활성화)
 - `invites` INSERT/UPDATE/SELECT (단계 8)
-- `workspace_member_groups` INSERT (group_admin 초대 시)
+- `workspace_member_groups` INSERT/DELETE (group_admin 초대 + join-request 수락 시)
 - `invite_courses` INSERT (instructor 초대 시)
+- `workspace_join_requests` INSERT/UPDATE/SELECT (단계 8B)
 
 새 service 작성 시 같은 RLS 패턴을 가진 테이블이라면 같은 우회 적용 + README "단계 X RLS / 스펙 충돌" 섹션에 보고.
 

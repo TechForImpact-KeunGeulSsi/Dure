@@ -1,7 +1,9 @@
 'use client';
 
-import { Mail, UserPlus } from 'lucide-react';
-import { useState } from 'react';
+import { Mail, MessageSquare, UserPlus } from 'lucide-react';
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,16 +16,21 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { workspaceRoleLabel } from '@/lib/api/labels';
 import type { GroupSummary, MemberStatus, WorkspaceRole } from '@/lib/api/types';
 import { cn } from '@/lib/utils';
+import { rejectJoinRequest } from '@/services/join-requests';
+import type { JoinRequestListItem } from '@/services/join-requests';
 import type { GetWorkspaceMembersOutput } from '@/services/workspace-members';
 
+import { ApproveRequestDialog } from './approve-request-dialog';
 import { InviteMemberDialog } from './invite-member-dialog';
 
 type Props = {
   workspaceId: string;
   initial: GetWorkspaceMembersOutput;
   groups: GroupSummary[];
+  pendingRequests: JoinRequestListItem[];
 };
 
 const ROLE_LABEL: Record<WorkspaceRole, string> = {
@@ -46,12 +53,33 @@ const STATUS_TONE: Record<MemberStatus, 'success' | 'warning' | 'neutral' | 'dan
   removed: 'danger',
 };
 
-export function MembersClient({ workspaceId, initial, groups }: Props) {
+export function MembersClient({ workspaceId, initial, groups, pendingRequests }: Props) {
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [approveTarget, setApproveTarget] = useState<JoinRequestListItem | null>(null);
+  const [rejectPending, startReject] = useTransition();
+  const router = useRouter();
 
   const instructorCount = initial.members.filter((m) => m.role === 'instructor').length;
   const activeCount = initial.members.filter((m) => m.status === 'active').length;
   const invitedCount = initial.members.filter((m) => m.status === 'invited').length;
+
+  function handleReject(req: JoinRequestListItem) {
+    if (!initial.canInviteMembers) return;
+    const reason = window.prompt(
+      `${req.user.displayName ?? req.user.email}의 요청을 거부합니다. 사유(선택)를 입력하세요.`,
+      '',
+    );
+    if (reason === null) return; // cancel
+    startReject(async () => {
+      const result = await rejectJoinRequest(workspaceId, req.id, reason || undefined);
+      if (!result.ok) {
+        toast.error(result.error.message);
+        return;
+      }
+      toast.success('참여 요청을 거부했습니다.');
+      router.refresh();
+    });
+  }
 
   return (
     <section className="space-y-6">
@@ -62,6 +90,59 @@ export function MembersClient({ workspaceId, initial, groups }: Props) {
         <StatCard label="강사" value={`${instructorCount}명`} tone="emerald" />
         <StatCard label="초대 대기" value={`${invitedCount}명`} tone="amber" />
       </div>
+
+      {initial.canInviteMembers && pendingRequests.length > 0 && (
+        <Card className="p-4">
+          <div className="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">참여 요청</h3>
+              <p className="mt-0.5 text-xs text-gray-500">
+                대기 중 {pendingRequests.length}건
+              </p>
+            </div>
+          </div>
+          <ul className="mt-3 divide-y divide-gray-100">
+            {pendingRequests.map((req) => (
+              <li
+                key={req.id}
+                className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-gray-900">
+                    <span className="font-medium">
+                      {req.user.displayName ?? req.user.email}
+                    </span>
+                    <Badge tone="warning">{workspaceRoleLabel(req.desiredRole)} 희망</Badge>
+                  </div>
+                  <p className="flex items-center gap-1.5 text-xs text-gray-500">
+                    <Mail className="h-3 w-3" />
+                    {req.user.email}
+                  </p>
+                  {req.message && (
+                    <p className="flex items-start gap-1.5 text-xs text-gray-600">
+                      <MessageSquare className="mt-0.5 h-3 w-3 shrink-0" />
+                      <span className="whitespace-pre-line">{req.message}</span>
+                    </p>
+                  )}
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={rejectPending}
+                    onClick={() => handleReject(req)}
+                  >
+                    거부
+                  </Button>
+                  <Button size="sm" onClick={() => setApproveTarget(req)}>
+                    수락
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <Card className="p-4">
         <div className="flex items-center justify-between gap-3">
@@ -131,6 +212,16 @@ export function MembersClient({ workspaceId, initial, groups }: Props) {
         workspaceId={workspaceId}
         groups={groups}
       />
+
+      <ApproveRequestDialog
+        request={approveTarget}
+        workspaceId={workspaceId}
+        groups={groups}
+        open={approveTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setApproveTarget(null);
+        }}
+      />
     </section>
   );
 }
@@ -140,7 +231,7 @@ function Banner() {
     <section className="rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 p-8 shadow-sm">
       <h2 className="text-2xl font-bold text-white">사용자 초대 / 권한 설정</h2>
       <p className="mt-1 text-sm text-blue-100">
-        강사와 그룹 운영자를 초대하세요. 매직 링크로 발송되며 수락 시 자동으로 활성화됩니다.
+        강사와 그룹 운영자를 초대하거나, 사용자가 보낸 참여 요청을 수락해 워크스페이스 멤버를 관리하세요.
       </p>
     </section>
   );

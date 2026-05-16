@@ -110,6 +110,7 @@ supabase/                  # DB migration
 | 6 | 자료 업로드, 공개 그룹, 확인 상태 | ✅ 완료 |
 | 7 | 강사 콘솔(자료/출석부/수업 메모) + 강사 초대 | ✅ 완료 |
 | 8 | 사용자 초대/권한 설정 정식화(그룹 운영자 초대, 매직 링크 발급) | ✅ 완료 |
+| 8B | 워크스페이스 참여 요청(Join Request) 흐름 — 사용자 → 운영자 방향 | ✅ 완료 |
 | 9 | 헤더 최근 활동과 자동 완료 cron | ⏳ 대기 |
 
 ### 단계 2~5 요약
@@ -196,6 +197,41 @@ api-spec.md §6 계약의 핵심을 정식화. `createInvite` + `acceptInvite` �
 - **만료 초대 정리 cron:** 단계 9의 자동 완료 cron과 함께 처리 예정.
 - **활동 로그(`activity_logs`) INSERT:** `createInvite`/`acceptInvite` 이벤트는 단계 9에서 일괄 추가.
 
+### 단계 8B에서 구현한 것 — 워크스페이스 참여 요청
+
+기존 단방향(owner → invitee) 매직 링크 초대 흐름에 더해, 반대 방향(user → owner) 참여 요청 흐름을 도입했다. 두 흐름은 자연스럽게 공존한다.
+
+- **신규 테이블 `workspace_join_requests`** ([supabase/migrations/20260516000000_workspace_join_requests.sql](supabase/migrations/20260516000000_workspace_join_requests.sql)):
+  - 컬럼: workspace_id, user_id, email, display_name, desired_role, message, status(`pending`|`approved`|`rejected`|`canceled`), reject_reason, reviewed_by/at, timestamps
+  - 부분 unique index `(workspace_id, user_id) where status='pending'` — 동시 pending 1개 보장
+  - RLS: 본인 요청 + owner_admin이 자기 워크스페이스 요청 SELECT 가능. INSERT는 본인. UPDATE는 admin client 우회.
+  - 같은 migration에서 `workspaces`에 디스커버용 SELECT 정책(`to authenticated using (true)`) 추가 — id/name/timezone만 의미 있는 노출.
+- **검증** [src/lib/validators/join-request.ts](src/lib/validators/join-request.ts): `RequestAccessSchema`(desiredRole + 이름/메시지 옵션), `ApproveJoinRequestSchema`(role + group_admin이면 groupIds ≥ 1).
+- **서비스** [src/services/join-requests.ts](src/services/join-requests.ts):
+  - `listDiscoverableWorkspaces({ search, page, pageSize })` — 이름 ilike 검색 + 페이지네이션. 본인 멤버십 상태, 멤버 수, pending 요청을 한 번에 매핑.
+  - `requestWorkspaceAccess(workspaceId, input)` — 본인 user_id로 INSERT, 중복(active/invited/pending) 차단.
+  - `cancelMyJoinRequest(requestId)` — 본인 pending → canceled.
+  - `listWorkspaceJoinRequests(workspaceId, { status })` — owner_admin 전용.
+  - `approveJoinRequest(workspaceId, requestId, { role, groupIds? })` — 기존 invited placeholder가 있으면 활성화, 없으면 신규 INSERT. group_admin이면 `workspace_member_groups` 동기화.
+  - `rejectJoinRequest(workspaceId, requestId, reason?)`.
+- **UI**:
+  - `/workspaces/discover` ([page](src/app/workspaces/discover/page.tsx) + [client](src/app/workspaces/discover/discover-client.tsx) + [dialog](src/app/workspaces/discover/request-access-dialog.tsx)): 검색 바(300ms 디바운스 URL `?q=` 동기화) + 카드 그리드 + 상태별 CTA(입장/초대 받음/요청 대기 중·취소/참여 요청) + 페이지네이션.
+  - `/workspaces` 페이지에 "다른 워크스페이스 둘러보기" 링크 추가, `/workspaces/new`의 `JoinExistingHint`를 디스커버 링크로 교체.
+  - `/workspaces/{id}/members`에 "참여 요청" 섹션(owner_admin & pending ≥ 1일 때) — 카드별 수락(역할/그룹 확정 다이얼로그) + 거부(사유 prompt).
+- **api-spec.md / architecture.md**: 정식 스펙은 미반영(스펙 외 추가 기능). 후속 plan에서 §6에 통합 검토.
+
+### 단계 8B RLS / 스펙 충돌 (보고 사항)
+
+- `workspaces` 테이블에 디스커버 SELECT 정책을 추가해 인증 사용자에게 워크스페이스 행이 노출됨. 노출 컬럼은 id/name/timezone/created_at. 자식 테이블(`groups`, `participants`, `courses`, `materials`, …)의 RLS는 그대로 유지되어 내부 데이터 보호.
+- `workspace_join_requests` INSERT/UPDATE는 admin client 우회 패턴 적용(기존 invites/materials와 동일). 권한 검증은 service 레이어.
+
+### 단계 8B에서 다루지 않은 것 (후속)
+
+- 워크스페이스별 public/private 토글 (현재는 전체 공개)
+- 거부 사유 사용자 노출 UI
+- 요청 알림(메일/푸시) — 현재는 멤버 페이지 폴링 기반
+- Activity log 연동(`join_requested`/`join_approved`/`join_rejected`)은 Phase 9에서 일괄
+
 ### 자주 발생하는 환경 이슈
 
 **`"No suitable key or wrong key type"`**: admin 호출(강사 초대 `listUsers`, 자료 storage upload 등)에서 동시에 발생하면 거의 항상 `.env.local`의 `SUPABASE_SERVICE_ROLE_KEY` 문제다. `supabase status` 출력과 비교해 정확히 매핑되어 있는지(특히 anon key와 혼동 여부) 확인하고 dev server를 재시작한다.
@@ -215,5 +251,5 @@ api-spec.md §6 계약의 핵심을 정식화. `createInvite` + `acceptInvite` �
 - `workspaceId`는 모든 업무 데이터 요청 입력에 포함.
 - `can*` boolean은 화면 제어용. 서버에서 권한을 다시 계산.
 - 라벨은 [lib/api/labels.ts](src/lib/api/labels.ts)를 통해 변환.
-- **admin client 우회 패턴**: `materials` INSERT/UPDATE/DELETE/storage, `material_groups` INSERT/DELETE, `attendance_records`/`class_memos` upsert, `workspace_members` INSERT(강사 초대). 새 RLS 패턴에서 같은 에러가 보이면 같은 방식 적용 + 보고 사항으로 README에 기록.
+- **admin client 우회 패턴**: `materials` INSERT/UPDATE/DELETE/storage, `material_groups` INSERT/DELETE, `attendance_records`/`class_memos` upsert, `workspace_members` INSERT/UPDATE, `invites`/`invite_groups`/`invite_courses`(단계 8), `workspace_join_requests` INSERT/UPDATE(단계 8B). 새 RLS 패턴에서 같은 에러가 보이면 같은 방식 적용 + 보고 사항으로 README에 기록.
 - UI는 [Figma 디자인](https://www.figma.com/design/44LjDxyubV8Q9B53WBMzSr/DURE) 기준.

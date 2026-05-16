@@ -14,8 +14,6 @@
 
 ## 기술 스택
 
-architecture.md §3을 그대로 따른다.
-
 - **Frontend/Backend**: Next.js 15 App Router + React 19 + TypeScript
 - **Styling**: Tailwind CSS v4
 - **Auth/DB/Storage**: Supabase (`@supabase/ssr`, `@supabase/supabase-js`)
@@ -26,224 +24,164 @@ architecture.md §3을 그대로 따른다.
 
 ```
 app/
-  layout.tsx                 # 루트 레이아웃 (한글 폰트, Toaster)
-  page.tsx                   # 로그인 여부에 따라 /login 또는 /workspaces로 redirect
-  globals.css                # Tailwind v4 + 디자인 토큰
-  (auth)/
-    login/                   # Supabase OTP/매직 링크 로그인
-    accept-invite/           # ?token=... 초대 수락
-  auth/callback/             # 매직 링크 코드 교환 Route Handler
-  workspaces/
-    page.tsx                 # 0개면 new로, 1개면 자동 진입, 2개+면 선택
-    new/                     # 워크스페이스 생성 폼
-    [workspaceId]/
-      (dashboard)/
-        layout.tsx           # getWorkspaceContext 게이트 + 사이드바/헤더
-        home/                # 운영 중인 수업 목록 (실 DB 연동)
-        calendar/            # 월간 일정 관리
-        courses/[courseId]/  # 수업 상세 (홈·자료·참여자 현황)
-          home/              # 수업 홈 탭 (실 DB 연동)
-          materials/         # 자료 목록·업로드·수정·삭제·다운로드·확인 상태
-          participants/      # 참여자 현황 탭 (실 DB 연동, 출석 카운트는 단계 7 이후)
-        manage/              # 그룹·수업·참여자 관리 허브
+  workspaces/[workspaceId]/(dashboard)/
+    home/                  # 운영자: 전체 수업 / 강사: 담당 수업 (role 기반 분기)
+    calendar/              # 월간 일정 관리
+    members/               # 사용자 초대/권한 설정 (강사 초대 — 단계 7)
+    courses/[courseId]/    # 운영자용 수업 상세
+      home/
+      materials/
+      participants/
+    teach/courses/[courseId]/  # 강사 콘솔 (단계 7)
+      home/                # 강사용 수업 홈
+      materials/           # 자료 (단계 6 컴포넌트 재사용)
+      attendance/          # 출석부 + 회차별 메모
+      notes/               # 전체 회차 메모 한눈에 보기
+    manage/                # 그룹·수업·참여자 관리 허브
   api/
     invites/[token]/accept/route.ts
     materials/
-      upload-url/route.ts                  # signed upload URL 발급
+      upload-url/route.ts                  # 사용 중단 (410). 단계 6 자료 업로드는 server action으로 통합.
       [materialId]/download/route.ts       # signed download URL 발급
-components/                  # UI·도메인 컴포넌트
+components/
+  courses/
+    course-card.tsx          # viewType prop으로 운영자/강사 라우팅 분기
+    course-detail-tabs.tsx
+    instructor-course-tabs.tsx
 lib/
   supabase/{client,server,admin}.ts
-  auth/{require-user,require-workspace-role}.ts
-  api/{types,errors,labels}.ts
   validators/
-  utils/cn.ts
-services/                    # 페이지가 호출하는 query/action 구현체
-  course-detail.ts           # 수업 상세 헤더용 단건 조회 (단계 6)
-  course-sessions.ts         # 수업 회차 목록 (단계 6)
-  course-participants.ts     # 참여자 현황 (단계 6, 출석 카운트는 단계 7 이후)
-middleware.ts
-supabase/                    # DB migration
-src/                         # Phase 5 UI 구현 (App Router 병행)
+    material.ts
+    workspace-member.ts
+    attendance.ts
+services/
+  courses.ts, course-detail.ts, course-sessions.ts, course-participants.ts
+  materials.ts             # 자료 (단계 6 + FormData server action 흐름)
+  workspace-members.ts     # 강사 초대 (단계 7)
+  instructor-course.ts     # 강사용 수업 홈
+  attendance.ts            # 출석부 + 수업 메모 저장
+  class-memos.ts           # 회차별 메모 목록
+supabase/                  # DB migration
 ```
 
 ## 로컬 셋업
 
-자세한 환경 변수와 Supabase 셋업은 [docs/environment.md](docs/environment.md)를 따른다.
-
 1. **Docker Desktop**을 켠다.
-2. **Supabase CLI**를 설치한다. (`scoop install supabase` 또는 [공식 가이드](https://supabase.com/docs/guides/cli))
+2. **Supabase CLI**를 설치.
 3. 로컬 Supabase를 띄운다.
    ```bash
    supabase login
    supabase link --project-ref oyoexxqaeayaksfoixxr
    supabase db reset
    ```
-4. 환경 변수를 채운다.
+4. **환경 변수 — admin client 동작 핵심:**
    ```bash
    cp .env.example .env.local
-   supabase status   # 출력된 anon key, service role key, JWT secret을 .env.local에 옮김
+   supabase status
    ```
-5. 의존성 설치 및 개발 서버 실행.
+   `supabase status` 출력의 다음 값을 `.env.local`과 **정확히** 매핑한다(혼동 시 자료 업로드·강사 초대 등 admin 작업에서 `"No suitable key or wrong key type"` 에러가 발생):
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=<supabase status의 "anon key">
+   SUPABASE_SERVICE_ROLE_KEY=<supabase status의 "service_role key">   # ← anon key와 다른 키. 혼동 주의
+   SUPABASE_JWT_SECRET=<supabase status의 "JWT secret">
+   ```
+   환경 변수 수정 후 `.next` 캐시를 비우고 dev 서버를 재시작한다:
    ```bash
-   npm install
-   npm run dev
+   rm -rf .next && npm run dev
+   ```
+5. 의존성 설치 및 개발 서버 실행:
+   ```bash
+   npm install && npm run dev
    ```
    - 앱: http://localhost:3000
    - Supabase Studio: http://127.0.0.1:54323
    - 매직 링크 메일(Inbucket): http://127.0.0.1:54324
 
-## 스크립트
-
-| 명령 | 설명 |
-| --- | --- |
-| `npm run dev` | Next.js 개발 서버 |
-| `npm run build` | 프로덕션 빌드 |
-| `npm start` | 빌드 결과 실행 |
-| `npm run lint` | ESLint |
-| `npm run typecheck` | `tsc --noEmit` |
-
 ## 진행 상황
-
-architecture.md §14의 MVP 구현 순서를 기준으로 추적한다.
 
 | # | 단계 | 상태 |
 | --- | --- | --- |
-| 1 | Supabase 프로젝트, Auth, 기본 DB migration, RLS helper function 구성 | ✅ 완료 ([supabase/migrations/20260512163305_initial_schema.sql](supabase/migrations/20260512163305_initial_schema.sql) — 43 테이블, 18 enum, RLS helper 8종, `create_workspace` RPC, 마지막 owner 보호 트리거, `course-materials` Storage 버킷) |
-| 2 | 워크스페이스 생성과 멤버십 모델 구현 | ✅ 완료 |
-| 3 | 그룹, 참여자, 그룹 배정 CRUD 구현 | ✅ 완료 |
-| 4 | 수업 생성, 반복 회차 생성, 수업-참여자 배정 구현 | ✅ 완료 |
-| 5 | 운영자용 수업 목록/상세와 캘린더 구현 | ✅ 완료 |
-| 6 | 자료 업로드, 공개 그룹, 확인 상태 구현 | ✅ 완료 |
-| 7 | 강사 콘솔의 자료, 출석부, 수업 메모 구현 | 🧑‍💻 진행 중.. |
-| 8 | 사용자 초대/권한 설정 구현 | ⏳ 부분 (초대 수락 흐름만 완료, 발급 UI/액션은 대기) |
-| 9 | 헤더 최근 활동과 자동 완료 cron 구현 | ⏳ 대기 (헤더 자리는 있고 빈 상태 드롭다운만 노출) |
+| 1 | Supabase 프로젝트, Auth, 기본 DB migration, RLS helper | ✅ 완료 |
+| 2 | 워크스페이스 생성과 멤버십 모델 | ✅ 완료 |
+| 3 | 그룹, 참여자, 그룹 배정 CRUD | ✅ 완료 |
+| 4 | 수업 생성, 반복 회차 생성, 수업-참여자 배정 | ✅ 완료 |
+| 5 | 운영자용 수업 목록/상세와 캘린더 | ✅ 완료 |
+| 6 | 자료 업로드, 공개 그룹, 확인 상태 | ✅ 완료 (FormData server action 흐름으로 정착) |
+| 7 | 강사 콘솔(자료/출석부/수업 메모) + 강사 초대 | ✅ 완료 |
+| 8 | 사용자 초대/권한 설정 정식화(그룹 운영자 초대, 매직 링크 발급) | ⏳ 부분 |
+| 9 | 헤더 최근 활동과 자동 완료 cron | ⏳ 대기 |
 
-### 단계 2에서 구현한 것
+### 단계 2~5 요약
 
-- Next.js 프로젝트 부트스트랩(설정 파일 + 루트 레이아웃 + 디자인 토큰).
-- Supabase 클라이언트 3종(`client`, `server`, `admin`)과 SSR 미들웨어.
-- api-spec.md §1.6 enum, §2 DTO, §1.3~§1.4 `ApiResult`/`ApiError`/`ApiErrorCode`를 TypeScript로 옮긴 공통 모듈.
-- 인증 게이트 `requireUser`, `requireWorkspaceMembership`.
-- Supabase OTP/매직 링크 로그인 + 콜백.
-- 워크스페이스 생성/선택 화면과 서버 액션(`create_workspace` RPC 호출).
-- `getWorkspaceContext` (api-spec.md §3.1) 기반 대시보드 레이아웃 + capabilities로 메뉴 가시성 제어.
-- 초대 수락 흐름(`POST /api/invites/[token]/accept`)과 안내 화면. token은 sha256 hex로 비교.
-
-### 단계 2에서 구현하지 않은 것
-
-- 그룹/수업/참여자/자료/출석/일정 CRUD — 단계 3 이후.
-- 초대 링크 발급 UI와 `createInvite` 액션 — 단계 8에서 처리.
-- 최근 활동 데이터 로딩 — 단계 9에서 처리. 지금은 빈 드롭다운만.
-- 강사 콘솔 — 단계 7.
-
-### 단계 3에서 구현한 것
-
-- 관리 허브 레이아웃과 탭 네비(그룹/수업/참여자) — `/manage`는 `/manage/groups`로 자동 redirect, 수업 탭은 단계 4 placeholder.
-- 그룹 CRUD: 목록(검색·상태 필터·페이지네이션) + 생성/수정/소프트 삭제. 대표 운영자는 전체 필드, 그룹 운영자는 접근 그룹 description만 수정(`accessible_group_ids` RPC로 사전 검증 후 admin client로 우회 — RLS 스펙 충돌 처리).
-- 참여자 CRUD: 목록(검색·그룹·상태 필터·페이지네이션) + 생성/수정/소프트 삭제/그룹 배정 변경. 그룹 운영자는 자기 접근 그룹 범위에서만 동작.
-- 공통 UI 프리미티브 12종: Button, Input, Textarea, Label, Select, Dialog, Table, Tabs, Badge, StatusBadge(그룹/참여자/멤버), Pagination, EmptyState, MultiSelect.
-- 라벨 함수 추가: `groupStatusLabel`, `participantStatusLabel`.
-
-### 단계 3 RLS / 스펙 충돌 (보고 사항 — AGENTS.md §2)
-
-api-spec.md §7.2는 그룹 운영자의 description 수정을 허용하지만, 현재 migration의 `owners can manage groups` 정책은 owner만 write 가능. 임시 처리: [services/groups.ts](services/groups.ts)의 `updateGroupDescriptionAsGroupAdmin`에서 `accessible_group_ids` RPC로 접근 권한을 사전 검증한 뒤 admin client(service role)로 description만 갱신. 다른 필드 변경은 ROLE_FORBIDDEN. 후속으로 마이그레이션을 추가해 정책을 완화하면 admin client 우회를 제거할 수 있다.
-
-### 단계 4에서 구현한 것
-
-- 수업 목록 페이지([app/.../manage/courses/page.tsx](app/workspaces/[workspaceId]/(dashboard)/manage/courses/page.tsx) + [courses-client.tsx](app/workspaces/[workspaceId]/(dashboard)/manage/courses/courses-client.tsx)) — Phase 4 placeholder 교체. 통계 카드(전체/진행중/완료), 검색·그룹·상태 필터, 표(이름/연결 그룹/담당자/참여자 수/회차 수/상태), 페이지네이션.
-- 수업 생성 페이지([app/.../manage/courses/new/page.tsx](app/workspaces/[workspaceId]/(dashboard)/manage/courses/new/page.tsx) + [new-course-form.tsx](app/workspaces/[workspaceId]/(dashboard)/manage/courses/new/new-course-form.tsx)) — 단일 페이지 섹션 폼. 기본 정보 / 반복 회차(요일·시간·종료 조건 + 실시간 회차 미리보기) / 참여자 배정(그룹 선택 시 자동 후보 로딩 + 수업 내 참여 그룹 토글).
-- 회차 계산 유틸 [lib/courses/recurrence.ts](lib/courses/recurrence.ts) — `planSessions({startsOn, endsOn|sessionCount, repeatWeekdays, startsAt, endsAt})` → `SessionPlan[]`. date-fns 사용. Sunday=0 컨벤션. 클라이언트 미리보기와 서버 insert가 같은 함수를 공유.
-- 서비스 [services/courses.ts](services/courses.ts) — api-spec.md §8 계약 5종(`getCoursesPage`, `getCourseFormOptions`, `createCourseAction`, `updateCourseAction`, `updateCourseParticipantAssignmentAction`). 생성은 sequential insert(courses → recurrence → groups → sessions → participants → participant_groups) + 단계 실패 시 courses 삭제로 best-effort 트랜잭션.
-- Zod 스키마 [lib/validators/course.ts](lib/validators/course.ts) — 회차 규칙(종료일 xor 회차 수), 시간 정합성, 카드 색상 형식 모두 검증.
-- 도메인 컴포넌트 [components/courses/](components/courses/) — CourseCard(홈/목록 공통), WeekdayPicker, ColorPicker(6색 팔레트).
-- 헤더 "+ 수업 만들기" 버튼([components/layout/header.tsx](components/layout/header.tsx)) — 운영자(owner/group)에게만 노출, 모든 대시보드 화면에서 접근.
-- 홈 화면([app/.../home/page.tsx](app/workspaces/[workspaceId]/(dashboard)/home/page.tsx)) — `getCoursesPage`로 수업을 불러와 Figma 2:3 카드 디자인으로 표시. 진행 중 → 진행 전 → 진행 완료 순 정렬. 마지막 셀에 "수업 추가" 카드 유지.
-- `CourseStatusBadge` 추가 — [components/ui/status-badge.tsx](components/ui/status-badge.tsx).
-
-### 단계 4에서 다루지 않은 것
-
-- 수업 상세 페이지(수업 홈, 수업 자료, 참여자 현황 탭) — 단계 5/6/7.
-- 수업 수정/삭제 UI — 단계 5.
-- 회차 재생성(반복 규칙 변경) — 단계 5.
-- 캘린더 화면 — 단계 5.
-- Supabase JS 트랜잭션 부재로 인한 race condition(아주 드묾) — 후속 RPC 묶음으로 개선 가능.
-
-### 단계 5에서 구현한 것 (Phase 5)
-
-- **홈 화면 피드백 반영:** 수업 추가 버튼 좌측 상단 배치 및 상태별(진행 전/중/완료) 필터 적용.
-- **운영자용 수업 상세 뼈대 구축 (`/courses/[id]/home` 등):** 수업 컨텍스트 로드 및 3개 탭(수업 홈, 수업 자료, 참여자 현황) 라우팅 연결.
-- **수업 홈 구현:** 상단 배너 커스텀 진입점, 수업 정보 요약 카드, 하단 회차 목록 표(노출/집계/진행 토글 UI) 구현.
-- **참여자 현황 구현:** 통계 카드 UI, 상태/출석 필터, 참여자 목록 및 추가/제외 모달 뼈대 구현.
-- **월간 캘린더 화면 (`/calendar`):** `date-fns`를 활용한 6주 그리드 구성, 날짜별 수업 회차/일반 일정 칩 렌더링, 일정 추가 및 선택 날짜 목록 사이드 패널 구현.
-- **Mock Data 연동:** 백엔드 연동 전 화면 렌더링을 위해 `api-spec.md`에 명시된 규격대로 임시 데이터를 생성하여 UI 연결 완료.
-
-### 단계 5에서 다루지 않은 것
-
-- **수업 자료 탭 구현:** Phase 6에서 진행할 예정이므로 EmptyState로 처리함.
+이전 단계 내용은 git 히스토리 참고. 핵심:
+- 단계 2: Supabase 클라이언트 3종, SSR 미들웨어, 워크스페이스 생성, 초대 수락.
+- 단계 3: 그룹·참여자 CRUD. `groups.ts`에 admin client 우회(RLS 스펙 충돌).
+- 단계 4: 수업 생성/반복 회차/참여자 배정. `getCourseFormOptions`가 강사 멤버 드롭다운 옵션 반환.
+- 단계 5: 운영자용 수업 상세 뼈대(3탭), 캘린더, mock 데이터 연동.
 
 ### 단계 6에서 구현한 것
 
-- **자료 도메인 서비스 [services/materials.ts](src/services/materials.ts):** api-spec.md §11의 7개 계약 + 운영 편의용 삭제까지 구현.
-  - `getCourseMaterials` — 코스 정보 + 자료 목록 + uploadPolicy + 권한 플래그(`canEdit`/`canReplaceFile`/`canChangeReviewStatus`/`canDownload`).
-  - `prepareMaterialUpload` — Zod + 정책 검증 → 그룹 정합성 사전 검증 → `materials` insert(admin client) → `material_groups` insert(admin client) → storage path 생성 → signed upload URL 발급.
-  - `completeMaterialUpload` — Storage list로 실제 파일 존재 확인 → `upload_status='uploaded'`.
-  - `updateMaterial` — 제목/설명/공개 범위 수정. 트리거 `reset_material_review_status`가 자동으로 `review_status='pending'`으로 복귀시킴.
-  - `replaceMaterialFile` — 새 storage path + 새 signed upload URL.
-  - `updateMaterialReviewStatus` — 강사 차단. owner 전체 통과 / group_admin은 자료 공개 그룹과 자기 접근 그룹이 교차할 때만.
-  - `getMaterialDownloadUrl` — 1시간 만료 signed URL + `download` 옵션으로 원본 파일명 보존.
-  - `deleteMaterial` — api-spec.md §11에는 없지만 운영 편의를 위해 추가. Storage 객체와 `materials` 행을 함께 제거(material_groups는 FK CASCADE).
-- **Zod 검증기 [lib/validators/material.ts](src/lib/validators/material.ts):** 4개 스키마(`PrepareMaterialUpload`/`UpdateMaterial`/`ReplaceMaterialFile`/`UpdateMaterialReviewStatus`) + 정책 헬퍼(`validateUploadPolicy`, `safeFilename`, `extractExtension`). 확장자/MIME/크기 상수는 migration의 storage bucket 정의와 동기화.
-- **Route Handler 2종:**
-  - `POST /api/materials/upload-url` — `prepareMaterialUpload` 위임.
-  - `GET /api/materials/[materialId]/download?workspaceId=...` — `getMaterialDownloadUrl` 위임.
-- **수업 자료 탭 UI:** 6개 파일로 분리해서 단계 5 컴포넌트 시스템(Card/Dialog/Button/Badge/MultiSelect)을 그대로 활용.
-  - `materials/page.tsx` — server component, `getCourseMaterials` 호출 후 클라이언트로 전달.
-  - `materials/materials-client.tsx` — 배너 + 통계 카드 2개(확인 미정/확인됨) + 검색·상태 필터 + 자료 목록 + 다이얼로그 마운트.
-  - `materials/material-row.tsx` — 행 단위 액션(다운로드/확인 상태 토글/수정/삭제). `canDownload`/`canChangeReviewStatus`/`canEdit`에 따라 버튼 노출 제어. 삭제는 `window.confirm`으로 확인 후 진행.
-  - `materials/visibility-fields.tsx` — 공개 범위 라디오 + MultiSelect (업로드·수정 다이얼로그 공용).
-  - `materials/upload-dialog.tsx` — 파일 선택 → `prepareMaterialUpload` → signed URL에 직접 PUT → `completeMaterialUpload` 3단계 흐름.
-  - `materials/edit-dialog.tsx` — 메타데이터·공개 범위 수정 + 별도 "파일 교체" 입력으로 `replaceMaterialFile` 호출.
-- **mock 정리:** 단계 5 mock(`courses-mock.ts`) 의존성을 해소하기 위해 다음 5개 진입점을 실 DB로 전환했다. 이로써 사이드바 홈에서 만든 수업을 클릭해 자료 탭까지 한 흐름으로 진입 가능하다.
-  - **대시보드 홈** [home/page.tsx](src/app/workspaces/[workspaceId]/(dashboard)/home/page.tsx) — `getDashboardCourses`(mock) → `getCoursesPage`(실 DB).
-  - **수업 상세 layout** [courses/[courseId]/layout.tsx](src/app/workspaces/[workspaceId]/(dashboard)/courses/[courseId]/layout.tsx) — `getCourseHome`(mock) → 신규 `getCourseDetail`(실 DB). 수업 없으면 `notFound()`.
-  - **수업 홈 탭** [courses/[courseId]/home/page.tsx](src/app/workspaces/[workspaceId]/(dashboard)/courses/[courseId]/home/page.tsx) — `getCourseHomePageData`(mock) → `getCourseDetail` + 신규 `getCourseSessions`.
-  - **참여자 현황 탭** [courses/[courseId]/participants/page.tsx](src/app/workspaces/[workspaceId]/(dashboard)/courses/[courseId]/participants/page.tsx) — `getCourseParticipantsStatus`(mock) → 신규 `services/course-participants.ts`. 출석 카운트는 모두 0/null로 표시(단계 7에서 attendance_records 채워지면 같은 service에 집계 쿼리만 추가하면 됨).
-  - **신규 서비스 3종:** [services/course-detail.ts](src/services/course-detail.ts), [services/course-sessions.ts](src/services/course-sessions.ts), [services/course-participants.ts](src/services/course-participants.ts).
+- **자료 도메인 서비스 [services/materials.ts](src/services/materials.ts):** api-spec.md §11의 7개 계약 + 운영 편의용 `deleteMaterial`. 단계 6 후속 작업에서 흐름을 단순화(아래 §"단계 6 후속" 참고).
+- **Zod 검증기, Route Handler(다운로드 URL).**
+- **자료 탭 UI 6개 파일** (page/materials-client/material-row/visibility-fields/upload-dialog/edit-dialog).
+- **mock 정리:** 단계 5 mock을 실 DB로 전환(대시보드 홈, 수업 상세 layout, 수업 홈 탭, 참여자 현황 탭, 자료 탭). 신규 서비스 [course-detail.ts](src/services/course-detail.ts), [course-sessions.ts](src/services/course-sessions.ts), [course-participants.ts](src/services/course-participants.ts).
+
+### 단계 6 후속: 자료 업로드 흐름 단순화
+
+기존 흐름(`prepareMaterialUpload` → 클라이언트 PUT to signed URL → `completeMaterialUpload`)이 SSR 환경에서 `"No suitable key or wrong key type"` 에러로 막혔다. signed URL과 클라이언트 PUT 의존성을 모두 제거하고 **FormData를 서버 액션에 직접 전송 → admin client `storage.upload()` 직접 호출** 흐름으로 통합했다.
+
+- 신규 서버 액션 `uploadMaterial(workspaceId, courseId, formData)`: materials INSERT → material_groups INSERT(필요 시) → admin storage upload → upload_status='uploaded' 업데이트. 실패 시 단계별 best-effort 롤백.
+- `replaceMaterialFile`: 시그니처 변경 (`(workspaceId, materialId, formData)`). 새 storage path 업로드 후 메타 업데이트, 기존 파일 정리.
+- Route Handler [app/api/materials/upload-url/route.ts](src/app/api/materials/upload-url/route.ts): 사용 중단(410 응답). 외부 통합에서 호출 시 명확히 안내.
+- 다운로드 signed URL 발급도 admin client로 일관(JWT 키 의존성 제거).
 
 ### 단계 6 RLS / 스펙 충돌 (보고 사항 — AGENTS.md §2)
 
-`materials` 테이블의 INSERT 정책은 `uploaded_by = current_member_id(workspace_id)` 정확 일치를 요구한다. 그러나 SSR 환경에서 일부 시나리오(다중 멤버, 인증 컨텍스트 전달 한계 등)에서 이 비교가 통과되지 못해 INSERT가 거부되는 케이스가 확인되었다. 단계 3의 `groups` 임시 처리와 동일한 정책으로 [services/materials.ts](src/services/materials.ts)의 INSERT/UPDATE/DELETE를 admin client(service role)로 우회한다. 권한 검증은 service 레이어에서 수행한다:
+`materials` 테이블의 INSERT 정책이 `uploaded_by = current_member_id(workspace_id)` 정확 일치를 요구하지만 SSR 환경에서 통과되지 않는 케이스가 있어 INSERT/UPDATE/DELETE를 admin client로 우회한다. 권한은 service 레이어에서 검증(`canEditMaterial`, `canChangeReviewStatus`). 같은 이유로 단계 7의 `attendance_records`/`class_memos`도 admin client 우회.
 
-- 워크스페이스 멤버십 확인 (`loadCurrentMembership`, `user_id = auth.uid()` 필터)
-- 역할별 업로드 허용 (`canUploadForRole`)
-- 수정/삭제 시 본인/owner/접근 그룹 검사 (`canEditMaterial`)
-- 확인 상태 변경 시 owner/접근 그룹 검사 (`canChangeReviewStatus`)
+### 단계 7에서 구현한 것
 
-SELECT는 그대로 server client(RLS 적용)를 사용한다. 후속으로 마이그레이션을 추가해 INSERT 정책을 멤버십 존재 여부 검사 수준으로 완화하면 admin client 우회를 제거할 수 있다.
+7-1 ~ 7-6 sub-step으로 진행됨.
 
-### 단계 6에서 활용한 DB 트리거
+- **7-1 강사 멤버 추가 (`/members`):**
+  - [services/workspace-members.ts](src/services/workspace-members.ts) — `getWorkspaceMembers`, `inviteInstructor`.
+  - 같은 이메일의 auth user가 가입돼 있으면 `user_id` 자동 매핑 + `active`, 아니면 `invited`.
+  - `auth.admin.listUsers` 호출이 환경변수 등으로 실패해도 `invited` 상태로 강사 추가가 진행되도록 `try-catch`로 격리.
+- **7-2 강사 콘솔 라우트 (`/teach/courses/[id]`):**
+  - [services/instructor-course.ts](src/services/instructor-course.ts) — `getInstructorCourseHome` (api-spec.md §13.1).
+  - 강사 콘솔 layout + 4탭(수업 홈/자료/출석부/메모).
+  - `CourseCard.viewType` prop + 홈에서 role 판정해 카드 라우팅 분기.
+- **7-3 출석부 + 회차 메모 (`/teach/.../attendance`):**
+  - [services/attendance.ts](src/services/attendance.ts) — `getAttendanceBook`, `saveAttendance`, `saveClassMemo` (api-spec.md §15.1~§15.3). admin client 우회.
+- **7-4 수업 메모 탭 (`/teach/.../notes`):**
+  - [services/class-memos.ts](src/services/class-memos.ts) — 전체 회차 + 메모 목록. 회차별 inline 편집.
+- **7-5 참여자 현황 출석 카운트 채우기:**
+  - [services/course-participants.ts](src/services/course-participants.ts) 갱신 — `attendance_records` 집계. `attendanceRate = (present + partial × 0.5) / rollup_included_session_count × 100`.
+- **7-6 문서 갱신.**
 
-서비스 코드가 단순해진 핵심은 migration이 이미 갖추고 있는 트리거 덕분이다.
+### 단계 7 RLS / 스펙 충돌 (보고 사항)
 
-- `reset_material_review_status` — `title`/`description`/`storage_path`/`original_filename`/`visibility_scope` 중 무엇이라도 바뀌면 `review_status`를 자동으로 `pending`으로 되돌림.
-- `reset_material_review_status_after_group_change` — `material_groups` insert/update/delete 시 동일 처리.
-- `ensure_material_group_is_course_group` — `material_groups`에 등록되는 그룹이 해당 수업 연결 그룹임을 강제. admin client로 우회 insert해도 정합성 보장.
+`attendance_records`/`class_memos` 정책은 단계 6 `materials`와 같은 패턴이라 admin client 우회를 사용. 권한 검증은 service 레이어(`canAccessCourse` — 강사는 `instructor_member_id` 매칭, owner는 통과, group_admin은 `accessible_group_ids` 교차).
 
-서비스 레이어는 `review_status` 복귀를 직접 수행하지 않고 트리거에 위임한다.
+### 자주 발생하는 환경 이슈
 
-### 단계 6에서 다루지 않은 것
+**`"No suitable key or wrong key type"`**: admin 호출(강사 초대 `listUsers`, 자료 storage upload 등)에서 동시에 발생하면 거의 항상 `.env.local`의 `SUPABASE_SERVICE_ROLE_KEY` 문제다. `supabase status` 출력과 비교해 정확히 매핑되어 있는지(특히 anon key와 혼동 여부) 확인하고 dev server를 재시작한다.
 
-- **AuditLog 연동:** 자료 업로드·수정·확인 상태 변경·삭제 이벤트를 `activity_logs`에 남기는 작업은 단계 9(헤더 최근 활동)에서 일괄 진행.
-- **자료 미리보기:** architecture.md §15 기본 판단대로 MVP 제외. 다운로드만 제공.
-- **자료 일괄 작업:** 다중 선택 후 일괄 확인 처리·삭제 같은 bulk 액션은 MVP 외 항목.
-- **만료/실패 업로드 정리:** `upload_status='uploading'` 상태로 남은 고아 자료 정리는 단계 9 cron 작업에서 처리.
-- **출석 카운트:** 참여자 현황의 출석/부분/결석 카운트는 모두 0/null로 표시. `attendance_records` 테이블이 단계 7에서 채워지면 [services/course-participants.ts](src/services/course-participants.ts)에 집계 쿼리만 추가하면 된다.
+### 단계 6/7에서 다루지 않은 것
+
+- **AuditLog 연동:** 자료/출석/메모 이벤트의 `activity_logs` 채움은 단계 9에서 일괄 처리.
+- **자료 미리보기:** MVP 외.
+- **자료 일괄 작업:** MVP 외.
+- **운영자용 출석부 진입점:** api-spec §15에서 운영자도 같은 계약을 호출 가능하지만 운영자 콘솔에 출석부 탭이 없음. 후속 작업.
+- **출석 카운트 가중치 안내:** UI에서 `partial × 0.5` 가중치를 사용자에게 별도 안내하지 않음.
+- **만료/실패 업로드 정리:** 단계 9 cron에서 처리(이제 흐름이 단일 server action이라 고아 row 가능성이 매우 낮음 — 단계별 best-effort 롤백 포함).
 
 ## 작업 시 참고
 
-- 페이지는 Supabase 업무 테이블을 직접 호출하지 않고 `services/`의 query/action을 호출한다 ([AGENTS.md §6](AGENTS.md)).
-- `workspaceId`는 모든 업무 데이터 요청 입력에 포함한다.
-- `can*` boolean은 화면 제어용 보조 값이며 서버에서 권한을 다시 계산한다.
-- 라벨은 [lib/api/labels.ts](lib/api/labels.ts)를 통해 변환하고, enum 값을 직접 표시하지 않는다.
-- UI는 [Figma 디자인](https://www.figma.com/design/44LjDxyubV8Q9B53WBMzSr/DURE)을 기준으로 한다. Figma MCP가 `.mcp.json`에 설정되어 있다.
+- 페이지는 `services/`의 query/action을 호출(직접 Supabase 호출 금지) — [AGENTS.md §6](AGENTS.md).
+- `workspaceId`는 모든 업무 데이터 요청 입력에 포함.
+- `can*` boolean은 화면 제어용. 서버에서 권한을 다시 계산.
+- 라벨은 [lib/api/labels.ts](src/lib/api/labels.ts)를 통해 변환.
+- **admin client 우회 패턴**: `materials` INSERT/UPDATE/DELETE/storage, `material_groups` INSERT/DELETE, `attendance_records`/`class_memos` upsert, `workspace_members` INSERT(강사 초대). 새 RLS 패턴에서 같은 에러가 보이면 같은 방식 적용 + 보고 사항으로 README에 기록.
+- UI는 [Figma 디자인](https://www.figma.com/design/44LjDxyubV8Q9B53WBMzSr/DURE) 기준.

@@ -1,6 +1,7 @@
 'use client';
 
 import { Plus } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
 import { CourseCard } from '@/components/courses/course-card';
@@ -21,9 +22,18 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
 type DashboardHomeClientProps = {
   workspaceId: string;
   courses: DashboardCourseItem[];
+  /** 'manager' 운영자 카드 → /courses/[id]/home, 'instructor' 강사 카드 → /teach/courses/[id]/home */
+  viewType: 'manager' | 'instructor';
+  canCreateCourse: boolean;
 };
 
-export function DashboardHomeClient({ workspaceId, courses }: DashboardHomeClientProps) {
+export function DashboardHomeClient({
+  workspaceId,
+  courses,
+  viewType,
+  canCreateCourse,
+}: DashboardHomeClientProps) {
+  const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const filteredCourses = useMemo(() => {
@@ -31,19 +41,29 @@ export function DashboardHomeClient({ workspaceId, courses }: DashboardHomeClien
     return courses.filter((course) => course.status === statusFilter);
   }, [courses, statusFilter]);
 
+  const headerTitle = viewType === 'instructor' ? '담당 수업' : '운영 중인 수업';
+  const headerSubtitle =
+    viewType === 'instructor'
+      ? '담당하는 수업에 진입해 자료, 출석부, 메모를 관리합니다.'
+      : '수업과 참여자 진행 현황을 관리합니다.';
+
   return (
     <div className="p-8">
       <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">운영 중인 수업</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            수업과 참여자 진행 현황을 관리합니다.
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">{headerTitle}</h1>
+          <p className="mt-1 text-sm text-gray-500">{headerSubtitle}</p>
         </div>
-        <Button type="button" className="flex-shrink-0 gap-2 self-start">
-          <Plus className="h-4 w-4" />
-          수업 만들기
-        </Button>
+        {canCreateCourse && (
+          <Button
+            type="button"
+            className="flex-shrink-0 gap-2 self-start"
+            onClick={() => router.push(`/workspaces/${workspaceId}/manage/courses/new`)}
+          >
+            <Plus className="h-4 w-4" />
+            수업 만들기
+          </Button>
+        )}
       </header>
 
       <Tabs
@@ -62,7 +82,11 @@ export function DashboardHomeClient({ workspaceId, courses }: DashboardHomeClien
 
       {filteredCourses.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-200 bg-white py-16 text-center">
-          <p className="text-sm text-gray-500">해당 상태의 수업이 없습니다.</p>
+          <p className="text-sm text-gray-500">
+            {viewType === 'instructor'
+              ? '담당하는 수업이 없습니다.'
+              : '해당 상태의 수업이 없습니다.'}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -78,6 +102,7 @@ export function DashboardHomeClient({ workspaceId, courses }: DashboardHomeClien
               groupNames={course.groups.map((g) => g.name)}
               participantCount={course.participantCount}
               instructorName={course.instructor?.displayName ?? undefined}
+              viewType={viewType}
             />
           ))}
         </div>

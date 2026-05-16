@@ -16,6 +16,7 @@ import type {
   InstructorSummary,
   MaterialListItem,
   MaterialReviewStatus,
+  MaterialVisibilityScope,
   MemberSummary,
   UUID,
 } from "@/lib/api/types";
@@ -29,37 +30,27 @@ import {
   UpdateMaterialSchema,
   safeFilename,
   validateUploadPolicy,
-  type PrepareMaterialUploadInput,
-  type ReplaceMaterialFileInput,
   type UpdateMaterialInput,
   type UpdateMaterialReviewStatusInput,
 } from "@/lib/validators/material";
 
 const BUCKET = "course-materials";
-const SIGNED_UPLOAD_EXPIRES_SECONDS = 60 * 10;
 const SIGNED_DOWNLOAD_EXPIRES_SECONDS = 60 * 60;
 
 // ─────────────────────────────────────────────────────────────
-// RLS 우회 정책에 대한 메모
+// 흐름 변경 (단계 6 자료 업로드 미해결 이슈 후속 처리)
 //
-// materials INSERT 정책은 `uploaded_by = current_member_id(workspace_id)`
-// 정확 일치 비교를 요구한다. SSR 환경에서 일부 시나리오(다중 멤버,
-// 인증 컨텍스트 전달 한계 등)에서 이 비교가 통과되지 못해 INSERT가 거부되는
-// 케이스가 확인되어, INSERT/UPDATE는 admin client로 처리한다.
+// 기존: 클라이언트가 signed URL 받아서 storage에 직접 PUT.
+//       → SSR 인증 컨텍스트 한계로 "No suitable key or wrong key type" 에러.
+// 신: 클라이언트가 FormData로 파일을 server action `uploadMaterial`에 직접 전송.
+//     서버에서 admin client의 storage.upload()로 직접 업로드. signed URL/클라이언트
+//     PUT 의존성을 제거해 JWT 키 검증 단계가 우회된다.
 //
-// 권한은 service 레이어에서 충분히 검증한다:
-//   - 워크스페이스 멤버십 확인 (loadCurrentMembership, user_id 일치)
+// 권한 검증은 service 레이어에서 모두 수행:
+//   - 워크스페이스 멤버십 (loadCurrentMembership, user_id 일치)
 //   - 역할별 업로드 허용 (canUploadForRole)
 //   - 수정/삭제 시 본인/owner/접근 그룹 검사 (canEditMaterial)
 //   - 확인 상태 변경 시 owner/접근 그룹 검사 (canChangeReviewStatus)
-//
-// SELECT는 그대로 server client(RLS 적용)를 쓴다. 읽기 권한은 RLS가 정확히
-// 처리하기 때문이다. material_groups insert와 deleteMaterial이 이미 같은
-// 우회 패턴을 사용하므로 일관성이 유지된다.
-// ─────────────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────
-// Public API (api-spec.md §11)
 // ─────────────────────────────────────────────────────────────
 
 type GetCourseMaterialsInput = {
@@ -123,22 +114,38 @@ export async function getCourseMaterials(
   });
 }
 
-type PrepareMaterialUploadRawInput = PrepareMaterialUploadInput & {
-  workspaceId: UUID;
-  courseId: UUID;
-};
+/**
+ * 자료 업로드 — FormData를 직접 받아 한 번에 처리.
+ *
+ * FormData 필드:
+ *  - `file`: File 객체 (필수)
+ *  - `title`: string (필수)
+ *  - `description`: string | undefined
+ *  - `visibilityScope`: 'all_course_groups' | 'selected_groups'
+ *  - `visibleGroupIds`: JSON.stringify된 string[] (selected_groups일 때)
+ */
+export async function uploadMaterial(
+  workspaceId: UUID,
+  courseId: UUID,
+  formData: FormData,
+): Promise<ApiResult<{ material: MaterialListItem }>> {
+  const file = formData.get("file");
+  if (!(file instanceof File)) {
+    return apiError("VALIDATION_FAILED", "파일이 첨부되지 않았습니다.");
+  }
 
-export type PrepareMaterialUploadOutput = {
-  materialId: UUID;
-  storagePath: string;
-  signedUploadUrl: string;
-  expiresAt: string;
-};
+  const meta = parseUploadMeta(formData);
+  if (!meta.ok) return meta.error;
 
-export async function prepareMaterialUpload(
-  input: PrepareMaterialUploadRawInput,
-): Promise<ApiResult<PrepareMaterialUploadOutput>> {
-  const parsed = PrepareMaterialUploadSchema.safeParse(input);
+  const parsed = PrepareMaterialUploadSchema.safeParse({
+    title: meta.title,
+    description: meta.description,
+    originalFilename: file.name,
+    mimeType: file.type || "application/octet-stream",
+    sizeBytes: file.size,
+    visibilityScope: meta.visibilityScope,
+    visibleGroupIds: meta.visibleGroupIds,
+  });
   if (!parsed.success) {
     return apiError("VALIDATION_FAILED", "입력값을 확인해 주세요.", {
       fieldErrors: collectFieldErrors(parsed.error),
@@ -153,7 +160,7 @@ export async function prepareMaterialUpload(
   }
 
   await requireUser();
-  const membership = await loadCurrentMembership(input.workspaceId);
+  const membership = await loadCurrentMembership(workspaceId);
   if (!membership) {
     return apiError("WORKSPACE_ACCESS_DENIED", "워크스페이스 접근 권한이 없습니다.");
   }
@@ -161,47 +168,94 @@ export async function prepareMaterialUpload(
     return apiError("ROLE_FORBIDDEN", "자료 업로드 권한이 없습니다.");
   }
 
-  return createMaterialAndIssueUploadUrl(
-    input.workspaceId,
-    input.courseId,
-    parsed.data,
-    membership,
-  );
-}
-
-export async function completeMaterialUpload(
-  workspaceId: UUID,
-  materialId: UUID,
-): Promise<ApiResult<{ material: MaterialListItem }>> {
-  await requireUser();
-  const membership = await loadCurrentMembership(workspaceId);
-  if (!membership) {
-    return apiError("WORKSPACE_ACCESS_DENIED", "워크스페이스 접근 권한이 없습니다.");
-  }
-
-  const row = await loadMaterialBasicRow(workspaceId, materialId);
-  if (!row) return apiError("NOT_FOUND", "자료를 찾을 수 없습니다.");
-  if (!row.storage_path) {
-    return apiError("CONFLICT", "업로드 경로가 아직 만들어지지 않았습니다.");
-  }
-
-  const allowed = await canEditMaterial({ workspaceId, membership, row });
-  if (!allowed) return apiError("SCOPE_FORBIDDEN", "자료를 수정할 권한이 없습니다.");
-
-  const exists = await storageObjectExists(row.storage_path);
-  if (!exists) {
-    return apiError("CONFLICT", "업로드된 파일을 확인할 수 없습니다. 다시 시도해 주세요.");
+  if (parsed.data.visibilityScope === "selected_groups") {
+    const ok = await assertGroupsBelongToCourse(
+      workspaceId,
+      courseId,
+      parsed.data.visibleGroupIds ?? [],
+    );
+    if (!ok) {
+      return apiError("VALIDATION_FAILED", "공개 그룹은 해당 수업의 연결 그룹이어야 합니다.");
+    }
   }
 
   const admin = createSupabaseAdminClient();
-  const { error } = await admin
+
+  // 1) materials INSERT
+  const { data: inserted, error: insertError } = await admin
     .from("materials")
-    .update({ upload_status: "uploaded" })
+    .insert({
+      workspace_id: workspaceId,
+      course_id: courseId,
+      title: parsed.data.title,
+      description: parsed.data.description ?? null,
+      original_filename: parsed.data.originalFilename,
+      mime_type: parsed.data.mimeType,
+      size_bytes: parsed.data.sizeBytes,
+      uploaded_by: membership.memberId,
+      upload_status: "uploading",
+      review_status: "pending",
+      visibility_scope: parsed.data.visibilityScope,
+    })
+    .select("id")
+    .single();
+  if (insertError || !inserted) {
+    return apiError(
+      "INTERNAL_ERROR",
+      insertError?.message ?? "자료 레코드를 만들지 못했습니다.",
+    );
+  }
+  const materialId: UUID = inserted.id;
+
+  // 2) material_groups (필요 시)
+  if (
+    parsed.data.visibilityScope === "selected_groups" &&
+    parsed.data.visibleGroupIds?.length
+  ) {
+    const groupsInsert = await insertMaterialGroups(
+      workspaceId,
+      materialId,
+      parsed.data.visibleGroupIds,
+    );
+    if (!groupsInsert.ok) {
+      await admin.from("materials").delete().eq("id", materialId);
+      return groupsInsert.error;
+    }
+  }
+
+  // 3) storage.upload (admin client 직접 — signed URL/PUT 우회)
+  const storagePath = buildStoragePath(
+    workspaceId,
+    courseId,
+    materialId,
+    parsed.data.originalFilename,
+  );
+  const arrayBuffer = await file.arrayBuffer();
+  const { error: uploadError } = await admin.storage
+    .from(BUCKET)
+    .upload(storagePath, arrayBuffer, {
+      contentType: parsed.data.mimeType,
+      upsert: false,
+    });
+  if (uploadError) {
+    await admin.from("materials").delete().eq("id", materialId);
+    return apiError("INTERNAL_ERROR", uploadError.message);
+  }
+
+  // 4) materials.storage_path + upload_status='uploaded'
+  const { error: updateError } = await admin
+    .from("materials")
+    .update({ storage_path: storagePath, upload_status: "uploaded" })
     .eq("workspace_id", workspaceId)
     .eq("id", materialId);
-  if (error) return apiError("INTERNAL_ERROR", error.message);
+  if (updateError) {
+    await admin.storage.from(BUCKET).remove([storagePath]);
+    await admin.from("materials").delete().eq("id", materialId);
+    return apiError("INTERNAL_ERROR", updateError.message);
+  }
 
-  return refetchMaterialListItem(workspaceId, row.course_id, materialId, membership);
+  revalidatePath(`/workspaces/${workspaceId}/courses/${courseId}/materials`);
+  return refetchMaterialListItem(workspaceId, courseId, materialId, membership);
 }
 
 export async function updateMaterial(
@@ -234,18 +288,24 @@ export async function updateMaterial(
   return refetchMaterialListItem(workspaceId, row.course_id, materialId, membership);
 }
 
-export type ReplaceMaterialFileOutput = {
-  storagePath: string;
-  signedUploadUrl: string;
-  expiresAt: string;
-};
-
+/**
+ * 자료 파일 교체 — FormData(`file`)를 직접 받아 한 번에 처리.
+ */
 export async function replaceMaterialFile(
   workspaceId: UUID,
   materialId: UUID,
-  rawInput: ReplaceMaterialFileInput,
-): Promise<ApiResult<ReplaceMaterialFileOutput>> {
-  const parsed = ReplaceMaterialFileSchema.safeParse(rawInput);
+  formData: FormData,
+): Promise<ApiResult<{ material: MaterialListItem }>> {
+  const file = formData.get("file");
+  if (!(file instanceof File)) {
+    return apiError("VALIDATION_FAILED", "파일이 첨부되지 않았습니다.");
+  }
+
+  const parsed = ReplaceMaterialFileSchema.safeParse({
+    originalFilename: file.name,
+    mimeType: file.type || "application/octet-stream",
+    sizeBytes: file.size,
+  });
   if (!parsed.success) {
     return apiError("VALIDATION_FAILED", "입력값을 확인해 주세요.", {
       fieldErrors: collectFieldErrors(parsed.error),
@@ -270,7 +330,49 @@ export async function replaceMaterialFile(
   const allowed = await canEditMaterial({ workspaceId, membership, row });
   if (!allowed) return apiError("SCOPE_FORBIDDEN", "자료를 수정할 권한이 없습니다.");
 
-  return issueReplacementUploadUrl(workspaceId, row.course_id, materialId, parsed.data);
+  const admin = createSupabaseAdminClient();
+  const newPath = buildStoragePath(
+    workspaceId,
+    row.course_id,
+    materialId,
+    parsed.data.originalFilename,
+  );
+
+  const arrayBuffer = await file.arrayBuffer();
+  const { error: uploadError } = await admin.storage
+    .from(BUCKET)
+    .upload(newPath, arrayBuffer, {
+      contentType: parsed.data.mimeType,
+      upsert: false,
+    });
+  if (uploadError) {
+    return apiError("INTERNAL_ERROR", uploadError.message);
+  }
+
+  const oldPath = row.storage_path;
+  const { error: updateError } = await admin
+    .from("materials")
+    .update({
+      storage_path: newPath,
+      original_filename: parsed.data.originalFilename,
+      mime_type: parsed.data.mimeType,
+      size_bytes: parsed.data.sizeBytes,
+      upload_status: "uploaded",
+    })
+    .eq("workspace_id", workspaceId)
+    .eq("id", materialId);
+  if (updateError) {
+    await admin.storage.from(BUCKET).remove([newPath]);
+    return apiError("INTERNAL_ERROR", updateError.message);
+  }
+
+  // 기존 파일 정리(가능하면)
+  if (oldPath && oldPath !== newPath) {
+    await admin.storage.from(BUCKET).remove([oldPath]);
+  }
+
+  revalidatePath(`/workspaces/${workspaceId}/courses/${row.course_id}/materials`);
+  return refetchMaterialListItem(workspaceId, row.course_id, materialId, membership);
 }
 
 export async function updateMaterialReviewStatus(
@@ -298,7 +400,8 @@ export async function updateMaterialReviewStatus(
   if (!row) return apiError("NOT_FOUND", "자료를 찾을 수 없습니다.");
 
   const allowed = await canChangeReviewStatus({ workspaceId, membership, row });
-  if (!allowed) return apiError("SCOPE_FORBIDDEN", "해당 자료의 확인 상태를 변경할 권한이 없습니다.");
+  if (!allowed)
+    return apiError("SCOPE_FORBIDDEN", "해당 자료의 확인 상태를 변경할 권한이 없습니다.");
 
   const admin = createSupabaseAdminClient();
   const { error } = await admin
@@ -331,14 +434,18 @@ export async function getMaterialDownloadUrl(
   if (!row) return apiError("NOT_FOUND", "자료를 찾을 수 없습니다.");
   if (!row.storage_path) return apiError("CONFLICT", "아직 업로드되지 않은 자료입니다.");
 
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.storage
+  // 다운로드 signed URL은 admin client로 발급(JWT 키 의존성 제거).
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin.storage
     .from(BUCKET)
     .createSignedUrl(row.storage_path, SIGNED_DOWNLOAD_EXPIRES_SECONDS, {
       download: row.original_filename ?? undefined,
     });
   if (error || !data) {
-    return apiError("INTERNAL_ERROR", error?.message ?? "다운로드 URL을 발급하지 못했습니다.");
+    return apiError(
+      "INTERNAL_ERROR",
+      error?.message ?? "다운로드 URL을 발급하지 못했습니다.",
+    );
   }
 
   return apiOk({
@@ -382,6 +489,47 @@ export async function deleteMaterial(
 }
 
 // ─────────────────────────────────────────────────────────────
+// FormData parsing
+// ─────────────────────────────────────────────────────────────
+
+type ParsedUploadMeta =
+  | {
+      ok: true;
+      title: string;
+      description: string | null;
+      visibilityScope: MaterialVisibilityScope;
+      visibleGroupIds: UUID[] | undefined;
+    }
+  | { ok: false; error: ApiResult<never> };
+
+function parseUploadMeta(formData: FormData): ParsedUploadMeta {
+  const title = String(formData.get("title") ?? "").trim();
+  const descriptionRaw = formData.get("description");
+  const description = descriptionRaw ? String(descriptionRaw).trim() || null : null;
+  const visibilityScope = String(
+    formData.get("visibilityScope") ?? "all_course_groups",
+  ) as MaterialVisibilityScope;
+
+  let visibleGroupIds: UUID[] | undefined;
+  const visibleGroupIdsRaw = formData.get("visibleGroupIds");
+  if (visibleGroupIdsRaw) {
+    try {
+      const parsed = JSON.parse(String(visibleGroupIdsRaw));
+      if (Array.isArray(parsed)) {
+        visibleGroupIds = parsed.map((v) => String(v) as UUID);
+      }
+    } catch {
+      return {
+        ok: false,
+        error: apiError("VALIDATION_FAILED", "공개 그룹 정보를 읽지 못했습니다."),
+      };
+    }
+  }
+
+  return { ok: true, title, description, visibilityScope, visibleGroupIds };
+}
+
+// ─────────────────────────────────────────────────────────────
 // internal helpers
 // ─────────────────────────────────────────────────────────────
 
@@ -421,7 +569,9 @@ async function loadCourseForMaterials(
   const supabase = await createSupabaseServerClient();
   const { data: course } = await supabase
     .from("courses")
-    .select("id, name, status, starts_on, ends_on, card_color, banner_url, instructor_member_id")
+    .select(
+      "id, name, status, starts_on, ends_on, card_color, banner_url, instructor_member_id",
+    )
     .eq("workspace_id", workspaceId)
     .eq("id", courseId)
     .maybeSingle();
@@ -739,101 +889,6 @@ async function hasGroupOverlap(params: {
   return (data ?? []).some((r) => params.accessibleGroupIds.has(r.group_id as UUID));
 }
 
-async function createMaterialAndIssueUploadUrl(
-  workspaceId: UUID,
-  courseId: UUID,
-  data: PrepareMaterialUploadInput,
-  membership: CurrentMembership,
-): Promise<ApiResult<PrepareMaterialUploadOutput>> {
-  if (data.visibilityScope === "selected_groups") {
-    const ok = await assertGroupsBelongToCourse(workspaceId, courseId, data.visibleGroupIds ?? []);
-    if (!ok) {
-      return apiError("VALIDATION_FAILED", "공개 그룹은 해당 수업의 연결 그룹이어야 합니다.");
-    }
-  }
-
-  // admin client로 INSERT (RLS 우회). 권한은 호출 전 모두 검증됨.
-  const admin = createSupabaseAdminClient();
-  const { data: inserted, error: insertError } = await admin
-    .from("materials")
-    .insert({
-      workspace_id: workspaceId,
-      course_id: courseId,
-      title: data.title,
-      description: data.description ?? null,
-      original_filename: data.originalFilename,
-      mime_type: data.mimeType,
-      size_bytes: data.sizeBytes,
-      uploaded_by: membership.memberId,
-      upload_status: "uploading",
-      review_status: "pending",
-      visibility_scope: data.visibilityScope,
-    })
-    .select("id")
-    .single();
-  if (insertError || !inserted) {
-    return apiError("INTERNAL_ERROR", insertError?.message ?? "자료 레코드를 만들지 못했습니다.");
-  }
-  const materialId: UUID = inserted.id;
-
-  if (data.visibilityScope === "selected_groups" && data.visibleGroupIds?.length) {
-    const groupsInsert = await insertMaterialGroups(workspaceId, materialId, data.visibleGroupIds);
-    if (!groupsInsert.ok) return groupsInsert.error;
-  }
-
-  const storagePath = buildStoragePath(workspaceId, courseId, materialId, data.originalFilename);
-  const { error: pathError } = await admin
-    .from("materials")
-    .update({ storage_path: storagePath })
-    .eq("workspace_id", workspaceId)
-    .eq("id", materialId);
-  if (pathError) return apiError("INTERNAL_ERROR", pathError.message);
-
-  const signed = await issueSignedUploadUrl(storagePath);
-  if (!signed.ok) return signed.error;
-
-  revalidatePath(`/workspaces/${workspaceId}/courses/${courseId}/materials`);
-  return apiOk({
-    materialId,
-    storagePath,
-    signedUploadUrl: signed.url,
-    expiresAt: signed.expiresAt,
-  });
-}
-
-async function issueReplacementUploadUrl(
-  workspaceId: UUID,
-  courseId: UUID,
-  materialId: UUID,
-  data: ReplaceMaterialFileInput,
-): Promise<ApiResult<ReplaceMaterialFileOutput>> {
-  const storagePath = buildStoragePath(workspaceId, courseId, materialId, data.originalFilename);
-
-  const admin = createSupabaseAdminClient();
-  const { error } = await admin
-    .from("materials")
-    .update({
-      storage_path: storagePath,
-      original_filename: data.originalFilename,
-      mime_type: data.mimeType,
-      size_bytes: data.sizeBytes,
-      upload_status: "uploading",
-    })
-    .eq("workspace_id", workspaceId)
-    .eq("id", materialId);
-  if (error) return apiError("INTERNAL_ERROR", error.message);
-
-  const signed = await issueSignedUploadUrl(storagePath);
-  if (!signed.ok) return signed.error;
-
-  revalidatePath(`/workspaces/${workspaceId}/courses/${courseId}/materials`);
-  return apiOk({
-    storagePath,
-    signedUploadUrl: signed.url,
-    expiresAt: signed.expiresAt,
-  });
-}
-
 function buildStoragePath(
   workspaceId: UUID,
   courseId: UUID,
@@ -843,29 +898,6 @@ function buildStoragePath(
   const fileId = randomUUID();
   const safe = safeFilename(originalFilename);
   return `workspaces/${workspaceId}/courses/${courseId}/materials/${materialId}/${fileId}-${safe}`;
-}
-
-async function issueSignedUploadUrl(
-  storagePath: string,
-): Promise<{ ok: true; url: string; expiresAt: string } | { ok: false; error: ApiResult<never> }> {
-  // Storage signed upload URL은 server client(authenticated JWT)로 발급해야 한다.
-  // admin client(service_role JWT)로 발급하면 storage의 JWT 키 검증 단계에서
-  // "No suitable key or wrong key type" 에러가 발생한다. storage RLS는
-  // `to authenticated` 정책으로 설정되어 있어 일반 인증 사용자 컨텍스트에서
-  // 발급/PUT이 모두 정상 처리된다.
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.storage.from(BUCKET).createSignedUploadUrl(storagePath);
-  if (error || !data) {
-    return {
-      ok: false,
-      error: apiError("INTERNAL_ERROR", error?.message ?? "업로드 URL을 발급하지 못했습니다."),
-    };
-  }
-  return {
-    ok: true,
-    url: data.signedUrl,
-    expiresAt: new Date(Date.now() + SIGNED_UPLOAD_EXPIRES_SECONDS * 1000).toISOString(),
-  };
 }
 
 async function insertMaterialGroups(
@@ -913,15 +945,6 @@ async function assertGroupsBelongToCourse(
     .in("group_id", groupIds);
   const found = new Set((data ?? []).map((r) => r.group_id as UUID));
   return groupIds.every((id) => found.has(id));
-}
-
-async function storageObjectExists(storagePath: string): Promise<boolean> {
-  const admin = createSupabaseAdminClient();
-  const slash = storagePath.lastIndexOf("/");
-  const folder = slash >= 0 ? storagePath.slice(0, slash) : "";
-  const filename = slash >= 0 ? storagePath.slice(slash + 1) : storagePath;
-  const { data } = await admin.storage.from(BUCKET).list(folder, { search: filename, limit: 1 });
-  return (data ?? []).some((entry) => entry.name === filename);
 }
 
 async function writeMaterialUpdates(

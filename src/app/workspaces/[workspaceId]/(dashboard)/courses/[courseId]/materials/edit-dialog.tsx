@@ -14,11 +14,7 @@ import type {
   MaterialListItem,
   MaterialVisibilityScope,
 } from '@/lib/api/types';
-import {
-  completeMaterialUpload,
-  replaceMaterialFile,
-  updateMaterial,
-} from '@/services/materials';
+import { replaceMaterialFile, updateMaterial } from '@/services/materials';
 
 import { VisibilityFields } from './visibility-fields';
 
@@ -40,7 +36,6 @@ export function EditDialog({
   open,
   onOpenChange,
   workspaceId,
-  courseId,
   material,
   availableGroups,
   uploadPolicy,
@@ -63,7 +58,10 @@ export function EditDialog({
     setError(null);
     const result = await updateMaterial(workspaceId, material.id, {
       title: title.trim() === material.title ? undefined : title.trim(),
-      description: description.trim() === (material.description ?? '') ? undefined : (description.trim() || null),
+      description:
+        description.trim() === (material.description ?? '')
+          ? undefined
+          : description.trim() || null,
       visibilityScope: scope === material.visibilityScope ? undefined : scope,
       visibleGroupIds: scope === 'selected_groups' ? groupIds : undefined,
     });
@@ -85,31 +83,15 @@ export function EditDialog({
     setReplacing(true);
     setError(null);
 
-    const prep = await replaceMaterialFile(workspaceId, material.id, {
-      originalFilename: f.name,
-      mimeType: f.type,
-      sizeBytes: f.size,
-    });
-    if (!prep.ok) {
-      setReplacing(false);
-      setError(prep.error.message);
-      return;
-    }
+    const formData = new FormData();
+    formData.append('file', f);
 
-    const uploaded = await putFileToSignedUrl(prep.data.signedUploadUrl, f);
-    if (!uploaded) {
-      setReplacing(false);
-      setError('파일 업로드에 실패했습니다.');
-      return;
-    }
-
-    const done = await completeMaterialUpload(workspaceId, material.id);
+    const result = await replaceMaterialFile(workspaceId, material.id, formData);
     setReplacing(false);
-    if (!done.ok) {
-      setError(done.error.message);
+    if (!result.ok) {
+      setError(result.error.message);
       return;
     }
-
     toast.success('파일을 교체했습니다.');
     router.refresh();
   };
@@ -175,20 +157,4 @@ export function EditDialog({
       </DialogFooter>
     </Dialog>
   );
-}
-
-async function putFileToSignedUrl(url: string, file: File): Promise<boolean> {
-  try {
-    const res = await fetch(url, {
-      method: 'PUT',
-      body: file,
-      headers: {
-        'Content-Type': file.type || 'application/octet-stream',
-        'x-upsert': 'true',
-      },
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
 }

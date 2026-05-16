@@ -14,6 +14,12 @@ type CourseCardProps = {
   groupNames?: string[];
   participantCount?: number;
   instructorName?: string;
+  /**
+   * 카드 클릭 시 이동 라우트.
+   * - 'manager' (기본): /courses/[id]/home (운영자용)
+   * - 'instructor': /teach/courses/[id]/home (강사 콘솔)
+   */
+  viewType?: 'manager' | 'instructor';
 };
 
 export function CourseCard({
@@ -26,8 +32,12 @@ export function CourseCard({
   groupNames = [],
   participantCount,
   instructorName,
+  viewType = 'manager',
 }: CourseCardProps) {
-  const href = `/workspaces/${workspaceId}/courses/${courseId}/home`;
+  const href =
+    viewType === 'instructor'
+      ? `/workspaces/${workspaceId}/teach/courses/${courseId}/home`
+      : `/workspaces/${workspaceId}/courses/${courseId}/home`;
   const accent = cardColor ?? '#2563EB';
   const isInProgress = status === 'in_progress';
   const instructorInitial = instructorName?.slice(0, 1) ?? 'M';

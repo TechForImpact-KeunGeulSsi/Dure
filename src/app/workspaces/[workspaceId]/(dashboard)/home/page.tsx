@@ -1,4 +1,6 @@
 import { EmptyState } from '@/components/courses/empty-state';
+import { requireUser } from '@/lib/auth/require-user';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCoursesPage } from '@/services/courses';
 import type { DashboardCourseItem } from '@/types/course';
 
@@ -10,15 +12,33 @@ type Props = {
 
 export default async function DashboardHomePage({ params }: Props) {
   const { workspaceId } = await params;
-  const result = await getCoursesPage({ workspaceId, pageSize: 100 });
 
+  await requireUser();
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: me } = user
+    ? await supabase
+        .from('workspace_members')
+        .select('role')
+        .eq('workspace_id', workspaceId)
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .maybeSingle()
+    : { data: null };
+
+  const role = (me?.role ?? 'instructor') as 'owner_admin' | 'group_admin' | 'instructor';
+  const viewType: 'manager' | 'instructor' =
+    role === 'instructor' ? 'instructor' : 'manager';
+  const canCreateCourse = role === 'owner_admin' || role === 'group_admin';
+
+  const result = await getCoursesPage({ workspaceId, pageSize: 100 });
   if (!result.ok) {
     return <EmptyState message={result.error.message} />;
   }
 
-  // home-client는 단계 5에서 DashboardCourseItem 형태를 기대한다.
-  // nextSession / pendingMaterialCount 는 단계 5 카드 UI에서 사용하지 않으므로
-  // null/0 으로 채워 호환성을 유지한다(단계 7에서 실 데이터로 보강 예정).
   const courses: DashboardCourseItem[] = result.data.courses.map((c) => ({
     id: c.id,
     name: c.name,
@@ -35,5 +55,12 @@ export default async function DashboardHomePage({ params }: Props) {
     pendingMaterialCount: 0,
   }));
 
-  return <DashboardHomeClient workspaceId={workspaceId} courses={courses} />;
+  return (
+    <DashboardHomeClient
+      workspaceId={workspaceId}
+      courses={courses}
+      viewType={viewType}
+      canCreateCourse={canCreateCourse}
+    />
+  );
 }

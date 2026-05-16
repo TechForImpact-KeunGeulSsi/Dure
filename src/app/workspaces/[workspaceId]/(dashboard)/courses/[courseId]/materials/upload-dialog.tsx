@@ -13,10 +13,7 @@ import type {
   GroupSummary,
   MaterialVisibilityScope,
 } from '@/lib/api/types';
-import {
-  completeMaterialUpload,
-  prepareMaterialUpload,
-} from '@/services/materials';
+import { uploadMaterial } from '@/services/materials';
 
 import { VisibilityFields } from './visibility-fields';
 
@@ -84,34 +81,20 @@ export function UploadDialog({
     setSubmitting(true);
     setError(null);
 
-    const prep = await prepareMaterialUpload({
-      workspaceId,
-      courseId,
-      title: title.trim(),
-      description: description.trim() || null,
-      originalFilename: file.name,
-      mimeType: file.type,
-      sizeBytes: file.size,
-      visibilityScope: scope,
-      visibleGroupIds: scope === 'selected_groups' ? groupIds : undefined,
-    });
-    if (!prep.ok) {
-      setSubmitting(false);
-      setError(prep.error.message);
-      return;
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('title', title.trim());
+    if (description.trim()) formData.append('description', description.trim());
+    formData.append('visibilityScope', scope);
+    if (scope === 'selected_groups') {
+      formData.append('visibleGroupIds', JSON.stringify(groupIds));
     }
 
-    const uploaded = await putFileToSignedUrl(prep.data.signedUploadUrl, file);
-    if (!uploaded) {
-      setSubmitting(false);
-      setError('파일 업로드에 실패했습니다.');
-      return;
-    }
-
-    const done = await completeMaterialUpload(workspaceId, prep.data.materialId);
+    const result = await uploadMaterial(workspaceId, courseId, formData);
     setSubmitting(false);
-    if (!done.ok) {
-      setError(done.error.message);
+
+    if (!result.ok) {
+      setError(result.error.message);
       return;
     }
 
@@ -184,22 +167,6 @@ export function UploadDialog({
       </DialogFooter>
     </Dialog>
   );
-}
-
-async function putFileToSignedUrl(url: string, file: File): Promise<boolean> {
-  try {
-    const res = await fetch(url, {
-      method: 'PUT',
-      body: file,
-      headers: {
-        'Content-Type': file.type || 'application/octet-stream',
-        'x-upsert': 'true',
-      },
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
 }
 
 function formatMB(bytes: number): string {

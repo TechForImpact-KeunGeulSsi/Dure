@@ -8,7 +8,9 @@ import {
   Trash2,
   XCircle,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,10 +26,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import {
+  addCourseParticipants,
+  excludeCourseParticipant,
+  type GetCourseParticipantsStatusResult,
+} from '@/services/course-participants';
 import type {
   AttendanceStatus,
   CourseParticipantStatusItem,
-  GetCourseParticipantsStatusOutput,
   ParticipantRowStatus,
 } from '@/types/course';
 import {
@@ -35,8 +41,10 @@ import {
   PARTICIPANT_ROW_STATUS_LABEL,
 } from '@/types/course';
 
-type ParticipantsStatusClientProps = {
-  data: GetCourseParticipantsStatusOutput;
+type Props = {
+  workspaceId: string;
+  courseId: string;
+  data: GetCourseParticipantsStatusResult;
 };
 
 type AttendanceFilter = 'all' | AttendanceStatus;
@@ -61,15 +69,18 @@ function getInitials(name: string) {
   return name.slice(0, 1);
 }
 
-export function ParticipantsStatusClient({ data }: ParticipantsStatusClientProps) {
+export function ParticipantsStatusClient({ workspaceId, courseId, data }: Props) {
+  const router = useRouter();
   const accent = data.course.cardColor ?? '#2563EB';
   const [search, setSearch] = useState('');
   const [attendanceFilter, setAttendanceFilter] = useState<AttendanceFilter>('all');
-  const [participants, setParticipants] = useState(data.participants);
   const [addOpen, setAddOpen] = useState(false);
+  const [selectedToAdd, setSelectedToAdd] = useState<Set<string>>(new Set());
+  const [adding, setAdding] = useState(false);
+  const [excludingId, setExcludingId] = useState<string | null>(null);
 
   const filteredParticipants = useMemo(() => {
-    return participants.filter((item) => {
+    return data.participants.filter((item) => {
       const matchesSearch =
         search.trim() === '' ||
         item.participant.name.toLowerCase().includes(search.trim().toLowerCase());
@@ -80,16 +91,54 @@ export function ParticipantsStatusClient({ data }: ParticipantsStatusClientProps
         (attendanceFilter === 'absent' && item.absentCount > 0);
       return matchesSearch && matchesAttendance;
     });
-  }, [participants, search, attendanceFilter]);
+  }, [data.participants, search, attendanceFilter]);
 
-  const handleExclude = (courseParticipantId: string) => {
-    setParticipants((prev) =>
-      prev.map((item) =>
-        item.courseParticipantId === courseParticipantId
-          ? { ...item, assignmentStatus: 'excluded' as const }
-          : item,
-      ),
+  const handleExclude = async (courseParticipantId: string, name: string) => {
+    if (!window.confirm(`'${name}' 참여자를 이 수업에서 제외할까요?`)) return;
+    setExcludingId(courseParticipantId);
+    const result = await excludeCourseParticipant(workspaceId, courseParticipantId);
+    setExcludingId(null);
+    if (!result.ok) {
+      toast.error(result.error.message);
+      return;
+    }
+    toast.success(`'${name}' 참여자를 제외했습니다.`);
+    router.refresh();
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedToAdd((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const closeAddDialog = () => {
+    setAddOpen(false);
+    setTimeout(() => setSelectedToAdd(new Set()), 200);
+  };
+
+  const handleAdd = async () => {
+    if (selectedToAdd.size === 0) {
+      toast.error('추가할 참여자를 1명 이상 선택해 주세요.');
+      return;
+    }
+    setAdding(true);
+    const result = await addCourseParticipants(
+      workspaceId,
+      courseId,
+      Array.from(selectedToAdd),
     );
+    setAdding(false);
+    if (!result.ok) {
+      toast.error(result.error.message);
+      return;
+    }
+    toast.success(`참여자 ${result.data.addedCount}명을 추가했습니다.`);
+    closeAddDialog();
+    router.refresh();
   };
 
   return (
@@ -113,7 +162,11 @@ export function ParticipantsStatusClient({ data }: ParticipantsStatusClientProps
               </span>
               <div>
                 <CardTitle>전체 출석률</CardTitle>
-                <p className="mt-1 text-2xl font-bold text-gray-900">—</p>
+                <p className="mt-1 text-2xl font-bold text-gray-900">
+                  {data.summary.attendanceRate !== null
+                    ? `${data.summary.attendanceRate}%`
+                    : '—'}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -125,7 +178,7 @@ export function ParticipantsStatusClient({ data }: ParticipantsStatusClientProps
               <div>
                 <CardTitle>부분 출석</CardTitle>
                 <p className="mt-1 text-2xl font-bold text-gray-900">
-                  {data.summary.partialCount}명
+                  {data.summary.partialCount}건
                 </p>
               </div>
             </CardContent>
@@ -138,15 +191,12 @@ export function ParticipantsStatusClient({ data }: ParticipantsStatusClientProps
               <div>
                 <CardTitle>결석</CardTitle>
                 <p className="mt-1 text-2xl font-bold text-gray-900">
-                  {data.summary.absentCount}명
+                  {data.summary.absentCount}건
                 </p>
               </div>
             </CardContent>
           </Card>
         </div>
-        <p className="text-center text-xs text-gray-400">
-          출석 데이터는 단계 7 이후 채워집니다
-        </p>
       </section>
 
       <Card className="p-4">
@@ -188,7 +238,7 @@ export function ParticipantsStatusClient({ data }: ParticipantsStatusClientProps
         <header className="border-b border-gray-100 px-6 py-4">
           <h3 className="text-base font-semibold text-gray-900">참여자별 출석 현황</h3>
           <p className="mt-0.5 text-sm text-gray-500">
-            총 {participants.length}명 · 최근 출석 기준
+            총 {data.participants.length}명 · 최근 출석 기준
           </p>
         </header>
 
@@ -223,7 +273,11 @@ export function ParticipantsStatusClient({ data }: ParticipantsStatusClientProps
                         </span>
                         <div>
                           <p className="font-medium text-gray-900">{item.participant.name}</p>
-                          <p className="text-xs text-gray-400">{item.participant.email}</p>
+                          {item.assignmentGroups.length > 0 && (
+                            <p className="text-xs text-gray-400">
+                              {item.assignmentGroups.map((g) => g.name).join(', ')}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </TableCell>
@@ -249,8 +303,12 @@ export function ParticipantsStatusClient({ data }: ParticipantsStatusClientProps
                         variant="ghost"
                         size="sm"
                         className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                        disabled={item.assignmentStatus === 'excluded' || !item.canEditAssignment}
-                        onClick={() => handleExclude(item.courseParticipantId)}
+                        disabled={
+                          item.assignmentStatus === 'excluded' ||
+                          !item.canEditAssignment ||
+                          excludingId === item.courseParticipantId
+                        }
+                        onClick={() => handleExclude(item.courseParticipantId, item.participant.name)}
                         aria-label={`${item.participant.name} 제외`}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -265,14 +323,62 @@ export function ParticipantsStatusClient({ data }: ParticipantsStatusClientProps
         </Table>
       </Card>
 
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogHeader title="참여자 추가" description="수업에 배정할 참여자를 선택합니다. (임시 모달)" />
+      <Dialog open={addOpen} onOpenChange={closeAddDialog}>
+        <DialogHeader
+          title="참여자 추가"
+          description="이 수업의 연결 그룹에 속한 참여자 중 아직 배정되지 않은 사람을 선택합니다."
+        />
         <DialogBody>
-          <p className="text-sm text-gray-500">참여자 추가 모달 영역</p>
+          {data.eligibleParticipants.length === 0 ? (
+            <p className="py-6 text-center text-sm text-gray-500">
+              추가할 수 있는 참여자가 없습니다. 운영 메뉴에서 참여자를 먼저 그룹에 배정해
+              주세요.
+            </p>
+          ) : (
+            <div className="max-h-80 space-y-1 overflow-y-auto">
+              {data.eligibleParticipants.map((p) => {
+                const checked = selectedToAdd.has(p.id);
+                return (
+                  <label
+                    key={p.id}
+                    className={cn(
+                      'flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2 transition-colors',
+                      checked
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 bg-white hover:border-gray-300',
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleSelect(p.id)}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-900">{p.name}</p>
+                      <p className="truncate text-xs text-gray-500">
+                        {p.groups.map((g) => g.name).join(', ')}
+                      </p>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+          <p className="mt-3 text-xs text-gray-500">
+            선택됨: {selectedToAdd.size}명
+          </p>
         </DialogBody>
         <DialogFooter>
-          <Button type="button" variant="secondary" onClick={() => setAddOpen(false)}>
-            닫기
+          <Button type="button" variant="secondary" onClick={closeAddDialog} disabled={adding}>
+            취소
+          </Button>
+          <Button
+            type="button"
+            onClick={handleAdd}
+            disabled={adding || selectedToAdd.size === 0}
+          >
+            {adding ? '추가 중...' : `${selectedToAdd.size}명 추가`}
           </Button>
         </DialogFooter>
       </Dialog>

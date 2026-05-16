@@ -222,10 +222,16 @@ async function loadCurrentMembership(
   workspaceId: UUID,
 ): Promise<CurrentMembership | null> {
   const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
   const { data } = await supabase
     .from("workspace_members")
     .select("id, role")
     .eq("workspace_id", workspaceId)
+    .eq("user_id", user.id)
     .eq("status", "active")
     .maybeSingle();
 

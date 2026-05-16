@@ -85,10 +85,7 @@ export async function inviteInstructor(
   workspaceId: UUID,
   rawInput: InviteInstructorInput,
 ): Promise<ApiResult<{ memberId: UUID; status: MemberStatus }>> {
-  console.log('[DEBUG] SERVICE_ROLE_KEY prefix:', process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 40));
-  console.log('[DEBUG] SERVICE_ROLE_KEY length:', process.env.SUPABASE_SERVICE_ROLE_KEY?.length);
-  console.log('[DEBUG] SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
-  
+
   const parsed = InviteInstructorSchema.safeParse(rawInput);
   if (!parsed.success) {
     return apiError("VALIDATION_FAILED", "입력값을 확인해 주세요.");

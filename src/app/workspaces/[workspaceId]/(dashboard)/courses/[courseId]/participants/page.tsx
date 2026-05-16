@@ -3,11 +3,13 @@ import { getCourseParticipantsStatus } from '@/services/course-participants';
 
 import { ParticipantsStatusClient } from './participants-status-client';
 
-type Props = {
+type CourseParticipantsPageProps = {
   params: Promise<{ workspaceId: string; courseId: string }>;
 };
 
-export default async function CourseParticipantsPage({ params }: Props) {
+export default async function CourseParticipantsPage({
+  params,
+}: CourseParticipantsPageProps) {
   const { workspaceId, courseId } = await params;
   const result = await getCourseParticipantsStatus(workspaceId, courseId);
 
@@ -15,5 +17,11 @@ export default async function CourseParticipantsPage({ params }: Props) {
     return <EmptyState message={result.error.message} />;
   }
 
-  return <ParticipantsStatusClient data={result.data} />;
+  return (
+    <ParticipantsStatusClient
+      workspaceId={workspaceId}
+      courseId={courseId}
+      data={result.data}
+    />
+  );
 }

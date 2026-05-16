@@ -37,11 +37,20 @@ export async function listMyWorkspaces(): Promise<MyWorkspaceListItem[]> {
   await requireUser();
   const supabase = await createSupabaseServerClient();
 
+  // 본인 user_id를 명시적으로 필터링한다. workspace_members RLS는 워크스페이스의
+  // 모든 멤버를 볼 수 있게 허용하므로, 필터 없이는 같은 워크스페이스에 여러 멤버가
+  // 있을 때 같은 workspace_id가 여러 번 반환되어 React key 충돌이 발생한다.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
   const { data, error } = await supabase
     .from("workspace_members")
     .select(
       "role, workspace:workspaces!inner ( id, name, timezone )",
     )
+    .eq("user_id", user.id)
     .eq("status", "active");
 
   if (error || !data) {
@@ -155,12 +164,20 @@ export async function getWorkspaceContext(
   await requireUser();
   const supabase = await createSupabaseServerClient();
 
-  const { data: memberRow, error: memberError } = await supabase
-    .from("workspace_members")
-    .select("id, email, display_name, role, status")
-    .eq("workspace_id", workspaceId)
-    .eq("status", "active")
-    .maybeSingle();
+  const {
+  data: { user },
+} = await supabase.auth.getUser();
+if (!user) {
+  return apiError("AUTH_REQUIRED", "로그인이 필요합니다.");
+}
+
+const { data: memberRow, error: memberError } = await supabase
+  .from("workspace_members")
+  .select("id, email, display_name, role, status")
+  .eq("workspace_id", workspaceId)
+  .eq("user_id", user.id)
+  .eq("status", "active")
+  .maybeSingle();
 
   if (memberError || !memberRow) {
     return apiError(

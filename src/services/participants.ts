@@ -5,6 +5,7 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/auth/require-user";
 import { apiError, apiOk, type ApiResult } from "@/lib/api/errors";
 import type {
@@ -20,6 +21,15 @@ import {
   type UpdateParticipantGroupsInput,
   type UpsertParticipantInput,
 } from "@/lib/validators/participant";
+
+// ─────────────────────────────────────────────────────────────
+// participants / participant_groups의 INSERT/UPDATE/DELETE는
+// `materials`와 동일한 RLS 패턴(created_by = current_member_id) 때문에
+// SSR에서 통과되지 않는 케이스가 있어 admin client로 우회한다.
+// 권한 검증은 service 레이어에서 수행: 워크스페이스 멤버십, owner/group_admin
+// 분기, 접근 그룹 교차 검사.
+// SELECT는 server client(RLS 적용) 유지.
+// ─────────────────────────────────────────────────────────────
 
 type GetParticipantsPageInput = {
   workspaceId: UUID;
@@ -54,7 +64,6 @@ export async function getParticipantsPage(
   const supabase = await createSupabaseServerClient();
   const accessibleGroupIds = await loadAccessibleGroupIds(input.workspaceId);
 
-  // groupId 필터링을 위해 참여자 ID 사전 후보군을 구함.
   let candidateIds: UUID[] | null = null;
   if (input.groupId) {
     const { data: pgRows, error: pgError } = await supabase
@@ -70,12 +79,7 @@ export async function getParticipantsPage(
     if (candidateIds.length === 0) {
       return apiOk({
         participants: [],
-        pageInfo: {
-          page,
-          pageSize,
-          totalCount: 0,
-          hasNextPage: false,
-        },
+        pageInfo: { page, pageSize, totalCount: 0, hasNextPage: false },
       });
     }
   }
@@ -95,7 +99,6 @@ export async function getParticipantsPage(
   if (input.status) {
     query = query.eq("status", input.status);
   } else {
-    // 기본은 deleted 제외.
     query = query.in("status", ["active", "inactive"]);
   }
   if (candidateIds) {
@@ -126,8 +129,7 @@ export async function getParticipantsPage(
       isOwner ||
       (row.created_by === membership.memberId && inOnlyAccessibleGroups);
     const canRemoveFromAccessibleGroups =
-      isOwner ||
-      [...groupIds].some((gid) => accessibleGroupIds.has(gid));
+      isOwner || [...groupIds].some((gid) => accessibleGroupIds.has(gid));
 
     return {
       id: row.id,
@@ -173,6 +175,7 @@ export async function upsertParticipantAction(
     return apiError("WORKSPACE_ACCESS_DENIED", "워크스페이스 접근 권한이 없습니다.");
   }
   const supabase = await createSupabaseServerClient();
+  const admin = createSupabaseAdminClient();
   const accessibleGroupIds = await loadAccessibleGroupIds(workspaceId);
   const isOwner = membership.role === "owner_admin";
   const isGroupAdmin = membership.role === "group_admin";
@@ -191,7 +194,6 @@ export async function upsertParticipantAction(
     }
 
     if (!isOwner) {
-      // group_admin: 자신이 만든 참여자 + 모든 소속 그룹이 접근 그룹 내일 때만 수정.
       if (existing.created_by !== membership.memberId) {
         return apiError("ROLE_FORBIDDEN", "이 참여자를 수정할 권한이 없습니다.");
       }
@@ -213,7 +215,7 @@ export async function upsertParticipantAction(
       updates.status = input.status;
     }
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await admin
       .from("participants")
       .update(updates)
       .eq("workspace_id", workspaceId)
@@ -246,7 +248,7 @@ export async function upsertParticipantAction(
     return apiError("ROLE_FORBIDDEN", "참여자 생성 권한이 없습니다.");
   }
 
-  const { data: created, error: createError } = await supabase
+  const { data: created, error: createError } = await admin
     .from("participants")
     .insert({
       workspace_id: workspaceId,
@@ -272,7 +274,7 @@ export async function upsertParticipantAction(
       group_id: groupId,
       status: "active" as const,
     }));
-    const { error: linkError } = await supabase
+    const { error: linkError } = await admin
       .from("participant_groups")
       .insert(rows);
     if (linkError) {
@@ -302,6 +304,7 @@ export async function updateParticipantGroupsAction(
     return apiError("WORKSPACE_ACCESS_DENIED", "워크스페이스 접근 권한이 없습니다.");
   }
   const supabase = await createSupabaseServerClient();
+  const admin = createSupabaseAdminClient();
   const accessibleGroupIds = await loadAccessibleGroupIds(workspaceId);
   const isOwner = membership.role === "owner_admin";
 
@@ -317,7 +320,6 @@ export async function updateParticipantGroupsAction(
     toActivate = parsed.data.groupIds.filter((id) => !currentSet.has(id));
     toRemove = currentGroupIds.filter((id) => !targetSet.has(id));
   } else {
-    // group_admin: 자기 접근 그룹만 토글. 다른 그룹은 보존.
     if (!parsed.data.groupIds.every((id) => accessibleGroupIds.has(id))) {
       return apiError(
         "SCOPE_FORBIDDEN",
@@ -331,7 +333,7 @@ export async function updateParticipantGroupsAction(
   }
 
   if (toRemove.length > 0) {
-    const { error } = await supabase
+    const { error } = await admin
       .from("participant_groups")
       .update({ status: "removed", updated_at: now })
       .eq("workspace_id", workspaceId)
@@ -341,7 +343,6 @@ export async function updateParticipantGroupsAction(
   }
 
   if (toActivate.length > 0) {
-    // 이전에 removed 상태로 남아있던 행은 활성화, 처음이면 insert.
     const { data: existingRemoved, error: fetchError } = await supabase
       .from("participant_groups")
       .select("group_id")
@@ -357,7 +358,7 @@ export async function updateParticipantGroupsAction(
     const toInsert = toActivate.filter((id) => !existingSet.has(id));
 
     if (toUpdate.length > 0) {
-      const { error } = await supabase
+      const { error } = await admin
         .from("participant_groups")
         .update({ status: "active", updated_at: now })
         .eq("workspace_id", workspaceId)
@@ -372,7 +373,7 @@ export async function updateParticipantGroupsAction(
         group_id: groupId,
         status: "active" as const,
       }));
-      const { error } = await supabase.from("participant_groups").insert(rows);
+      const { error } = await admin.from("participant_groups").insert(rows);
       if (error) return apiError("INTERNAL_ERROR", error.message);
     }
   }
@@ -395,9 +396,9 @@ export async function deleteParticipantAction(
     return apiError("ROLE_FORBIDDEN", "참여자 삭제는 대표 운영자만 가능합니다.");
   }
 
-  const supabase = await createSupabaseServerClient();
+  const admin = createSupabaseAdminClient();
   const now = new Date().toISOString();
-  const { error } = await supabase
+  const { error } = await admin
     .from("participants")
     .update({ status: "deleted", deleted_at: now, updated_at: now })
     .eq("workspace_id", workspaceId)
@@ -419,10 +420,16 @@ async function loadCurrentMembership(
   workspaceId: UUID,
 ): Promise<CurrentMembership | null> {
   const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
   const { data } = await supabase
     .from("workspace_members")
     .select("id, role")
     .eq("workspace_id", workspaceId)
+    .eq("user_id", user.id)
     .eq("status", "active")
     .maybeSingle();
   if (!data) return null;

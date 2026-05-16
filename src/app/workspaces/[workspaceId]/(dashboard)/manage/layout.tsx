@@ -14,7 +14,7 @@ export default async function ManageLayout({
     <div className="mx-auto max-w-6xl space-y-6">
       <header>
         <h1 className="text-xl font-semibold text-[var(--color-foreground)]">
-          그룹 · 수업 · 참여자
+          구성원·수업 관리
         </h1>
         <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
           운영 단위와 참여자를 등록하고 관리합니다.

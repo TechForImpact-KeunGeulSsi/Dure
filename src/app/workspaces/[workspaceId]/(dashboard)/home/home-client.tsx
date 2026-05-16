@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
 import { CourseCard } from '@/components/courses/course-card';
+import { useNavigationProgress } from '@/components/layout/navigation-progress';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { CourseStatus, DashboardCourseItem } from '@/types/course';
@@ -35,6 +36,7 @@ export function DashboardHomeClient({
   canCreateCourse,
 }: DashboardHomeClientProps) {
   const router = useRouter();
+  const { start: startNavigation } = useNavigationProgress();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const filteredCourses = useMemo(() => {
@@ -59,7 +61,10 @@ export function DashboardHomeClient({
           <Button
             type="button"
             className="flex-shrink-0 gap-2 self-start"
-            onClick={() => router.push(`/workspaces/${workspaceId}/manage/courses/new`)}
+            onClick={() => {
+              startNavigation();
+              router.push(`/workspaces/${workspaceId}/manage/courses/new`);
+            }}
           >
             <Plus className="h-4 w-4" />
             수업 만들기

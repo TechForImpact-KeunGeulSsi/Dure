@@ -6,6 +6,7 @@ import {
   CalendarDays,
   Home,
   LayoutGrid,
+  Receipt,
   UserCog,
   type LucideIcon,
 } from "lucide-react";
@@ -58,6 +59,13 @@ export function Sidebar({ workspace, capabilities }: SidebarProps) {
       icon: LayoutGrid,
       visible: workspace.currentMember.role !== "instructor",
       match: (p) => p.startsWith(`${base}/manage`),
+    },
+    {
+      href: `${base}/settlements`,
+      label: "정산 요청",
+      icon: Receipt,
+      visible: workspace.currentMember.role !== "instructor",
+      match: (p) => p.startsWith(`${base}/settlements`),
     },
   ];
 

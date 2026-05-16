@@ -19,14 +19,14 @@ export function ManageTabs({ workspaceId }: ManageTabsProps) {
       active: pathname.startsWith(`${base}/groups`),
     },
     {
-      href: `${base}/courses`,
-      label: "수업 관리",
-      active: pathname.startsWith(`${base}/courses`),
-    },
-    {
       href: `${base}/participants`,
       label: "참여자 관리",
       active: pathname.startsWith(`${base}/participants`),
+    },
+    {
+      href: `${base}/courses`,
+      label: "수업 관리",
+      active: pathname.startsWith(`${base}/courses`),
     },
   ];
 

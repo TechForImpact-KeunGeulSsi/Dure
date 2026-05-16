@@ -129,7 +129,7 @@ function ProgressBar({ phase }: { phase: Phase }) {
       style={{ opacity, transition: opacityTransition }}
     >
       <div
-        className="h-full bg-[var(--color-primary)]"
+        className="h-full bg-[var(--color-primary)] opacity-70"
         style={{ width, transition: widthTransition }}
       />
     </div>

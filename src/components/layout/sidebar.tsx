@@ -6,6 +6,7 @@ import {
   CalendarDays,
   Home,
   LayoutGrid,
+  MessageSquare,
   Receipt,
   UserCog,
   type LucideIcon,
@@ -66,6 +67,13 @@ export function Sidebar({ workspace, capabilities }: SidebarProps) {
       icon: Receipt,
       visible: workspace.currentMember.role !== "instructor",
       match: (p) => p.startsWith(`${base}/settlements`),
+    },
+    {
+      href: `${base}/feedback`,
+      label: "의견 수렴",
+      icon: MessageSquare,
+      visible: workspace.currentMember.role !== "instructor",
+      match: (p) => p.startsWith(`${base}/feedback`),
     },
   ];
 

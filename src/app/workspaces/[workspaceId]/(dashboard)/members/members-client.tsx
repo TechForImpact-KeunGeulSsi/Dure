@@ -21,9 +21,13 @@ import type { GroupSummary, MemberStatus, WorkspaceRole } from '@/lib/api/types'
 import { cn } from '@/lib/utils';
 import { rejectJoinRequest } from '@/services/join-requests';
 import type { JoinRequestListItem } from '@/services/join-requests';
-import type { GetWorkspaceMembersOutput } from '@/services/workspace-members';
+import type {
+  GetWorkspaceMembersOutput,
+  WorkspaceMemberListItem,
+} from '@/services/workspace-members';
 
 import { ApproveRequestDialog } from './approve-request-dialog';
+import { EditMemberDialog } from './edit-member-dialog';
 import { InviteMemberDialog } from './invite-member-dialog';
 
 type Props = {
@@ -56,8 +60,10 @@ const STATUS_TONE: Record<MemberStatus, 'success' | 'warning' | 'neutral' | 'dan
 export function MembersClient({ workspaceId, initial, groups, pendingRequests }: Props) {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [approveTarget, setApproveTarget] = useState<JoinRequestListItem | null>(null);
+  const [editTarget, setEditTarget] = useState<WorkspaceMemberListItem | null>(null);
   const [rejectPending, startReject] = useTransition();
   const router = useRouter();
+  const canEdit = initial.canInviteMembers;
 
   const instructorCount = initial.members.filter((m) => m.role === 'instructor').length;
   const activeCount = initial.members.filter((m) => m.status === 'active').length;
@@ -178,13 +184,29 @@ export function MembersClient({ workspaceId, initial, groups, pendingRequests }:
             </TableHeader>
             <TableBody>
               {initial.members.map((m) => (
-                <TableRow key={m.id}>
+                <TableRow
+                  key={m.id}
+                  onClick={canEdit ? () => setEditTarget(m) : undefined}
+                  className={
+                    canEdit
+                      ? 'cursor-pointer hover:bg-gray-50'
+                      : undefined
+                  }
+                >
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-gray-900">
                         {m.displayName ?? '—'}
                       </span>
                       {m.isCurrentUser && <Badge tone="primary">나</Badge>}
+                      {m.memo && (
+                        <span
+                          className="text-xs text-gray-400"
+                          title={m.memo}
+                        >
+                          · 메모 있음
+                        </span>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -220,6 +242,16 @@ export function MembersClient({ workspaceId, initial, groups, pendingRequests }:
         open={approveTarget !== null}
         onOpenChange={(open) => {
           if (!open) setApproveTarget(null);
+        }}
+      />
+
+      <EditMemberDialog
+        member={editTarget}
+        workspaceId={workspaceId}
+        groups={groups}
+        open={editTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditTarget(null);
         }}
       />
     </section>

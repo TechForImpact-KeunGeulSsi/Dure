@@ -36,7 +36,7 @@ export function InstructorHomeClient({ workspaceId, courseId, data }: Props) {
           icon={FileText}
         />
         <StatCard
-          label="확인 미정 자료"
+          label="미확인 자료"
           value={`${data.pendingMaterialCount}건`}
           tone="amber"
           icon={ClipboardCheck}

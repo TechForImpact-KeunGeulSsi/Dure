@@ -112,7 +112,8 @@ supabase/                  # DB migration
 | 8 | 사용자 초대/권한 설정 정식화(그룹 운영자 초대, 매직 링크 발급) | ✅ 완료 |
 | 8B | 워크스페이스 참여 요청(Join Request) 흐름 — 사용자 → 운영자 방향 | ✅ 완료 |
 | 9 | 헤더 최근 활동(activity_logs) | ✅ 완료 |
-| 9B | 수업 자동 완료 cron | 작업중-박수현 |
+| 9B | 수업 자동 완료 cron | ⏳ 보류 |
+| 10 | 캘린더 백엔드 연동 + 일반 일정 CRUD | ✅ 완료 |
 
 ### 단계 2~5 요약
 
@@ -270,6 +271,46 @@ api-spec.md §16 `getRecentActivity` 정식 구현 + 7개 service에 logging 훅
 - **목록에 편집 버튼** [courses-client.tsx](src/app/workspaces/[workspaceId]/(dashboard)/manage/courses/courses-client.tsx) — `canManageFullCourse=true`인 행만 노출.
 - **validator** [course.ts](src/lib/validators/course.ts) `UpdateCourseSchema`에 `groupIds: z.array(uuid).min(1).optional()` 추가.
 - 권한: owner_admin 또는 수업의 모든 연결 그룹이 본인 접근 범위 안인 group_admin만. 그 외엔 페이지 진입 시 거부 화면, 서버 액션은 `SCOPE_FORBIDDEN`.
+
+### 멤버 정보 수정 다이얼로그 (members 페이지)
+
+`/workspaces/[id]/members`에서 owner_admin이 멤버 행을 클릭하면 표시 이름·역할·상태·그룹 스코프·메모를 한 번에 수정하는 dialog가 뜬다. api-spec.md §6.3 `updateMember` 정식화.
+
+- **신규 migration** [supabase/migrations/20260516010000_workspace_members_memo.sql](supabase/migrations/20260516010000_workspace_members_memo.sql) — `workspace_members.memo` 컬럼 추가(nullable text). `participants.memo`와 동일 패턴.
+- **신규 validator** [UpdateMemberSchema](src/lib/validators/workspace-member.ts) — displayName / memo / role / status(active|disabled|removed) / groupIds. `invited`는 placeholder 상태라 dialog에서 변경 불가.
+- **`getWorkspaceMembers` 확장** [src/services/workspace-members.ts](src/services/workspace-members.ts) — 반환 타입에 `memo`, `groupIds` 추가. `workspace_member_groups` 일괄 lookup으로 채움.
+- **신규 `updateMember`** — Zod 검증 → owner_admin 권한 → 대상 조회 → **마지막 활성 owner_admin 보호**(역할/상태 변경 시 다른 active owner가 없으면 `CONFLICT`) → group 검증 → `workspace_members` patch → `workspace_member_groups` 동기화(role이 group_admin이 아닌 다른 값으로 바뀌면 기존 매핑 전부 삭제, group_admin이고 groupIds 명시되면 delete-then-insert). admin client 우회 유지.
+- **신규 dialog** [edit-member-dialog.tsx](src/app/workspaces/[workspaceId]/(dashboard)/members/edit-member-dialog.tsx) — 이메일(읽기 전용), 표시 이름, 메모(500자 Textarea), 역할 Select, 상태 Select(invited는 disabled), group_admin일 때만 그룹 MultiSelect. 변경된 필드만 diff 후 전송. `removed`로 변경 시 confirm prompt.
+- **목록 행 클릭** [members-client.tsx](src/app/workspaces/[workspaceId]/(dashboard)/members/members-client.tsx) — owner_admin이면 행 `cursor-pointer hover:bg-gray-50`, 클릭 시 dialog 오픈. 메모가 있는 멤버는 행에 `· 메모 있음` 작은 라벨 표시(전체 메모는 hover title로 노출).
+
+### 캘린더 백엔드 연동 + 일반 일정 CRUD
+
+`/workspaces/[id]/calendar` 페이지가 이전엔 mock 데이터로만 표시됐고 사이드 패널 일정 추가는 로컬 state에만 머물렀음. 이번 작업으로 실제 DB 연동 + 일반 일정 CRUD 정식화. api-spec.md §5.1, §5.2 구현.
+
+- **`getCalendarMonth` 재작성** [src/services/calendar.ts](src/services/calendar.ts):
+  - `course_sessions` 월 범위 조회 + `courses`/`course_groups`/instructor `workspace_members` join
+  - `general_schedule_items` + `general_schedule_item_groups` join (RLS가 owner/접근 그룹 매핑 자동 필터)
+  - 권한 필터: owner_admin은 전체 통과, group_admin은 수업 연결 그룹이 본인 `accessible_group_ids`와 교집합 있는 회차만
+  - `canUpdateSessionDisplay`/`canEdit`/`canDelete` 계산
+  - 반환 타입을 `ApiResult<GetCalendarMonthOutput>`으로 변경 — caller(page.tsx) 함께 갱신
+- **신규 `upsertGeneralScheduleItem` / `deleteGeneralScheduleItem`** — Zod 검증 → role 확인 → group_admin이면 접근 그룹 범위 검증 → admin client로 `general_schedule_items` + `general_schedule_item_groups` 다대다 동기화(delete-then-insert). 삭제는 owner_admin 또는 `created_by=본인`만 가능, FK cascade로 그룹 매핑 자동 정리.
+- **신규 validator** [src/lib/validators/schedule.ts](src/lib/validators/schedule.ts) `UpsertGeneralScheduleItemSchema` — title/date/시간/그룹. `endsAt`이 있으면 `startsAt`도 필수 + `endsAt > startsAt` 강제. 그룹 ≥ 1.
+- **page.tsx** — `getCalendarMonth` + `getGroupsPage`(활성 그룹) + `getWorkspaceContext` 병렬 로드. instructor 권한 차단(URL 직접 접근 → 홈으로 redirect).
+- **calendar-client.tsx** — 로컬 state 기반 낙관적 갱신 제거, SSR `router.refresh()` 의존으로 단순화. props에 `groupOptions: GroupSummary[]` 추가.
+- **schedule-side-panel.tsx 재작성** — hardcoded `group-001`/`group-002` 제거 → `MultiSelect`로 실제 그룹 옵션 노출. 서버 액션 호출, 입력 검증, 실패 시 inline error + toast. 회차 항목의 trash 버튼은 숨김(기존 버그 수정 — 회차는 calendar에서 삭제할 수 없음). 일반 일정 삭제 시 confirm prompt.
+
+#### 단계 캘린더 RLS / 스펙 충돌 (보고 사항)
+
+- `general_schedule_items` / `general_schedule_item_groups` INSERT/UPDATE/DELETE를 admin client 우회. 권한은 service 레이어에서 owner_admin / created_by=본인 / group_admin 접근 그룹 교차로 검증.
+- `course_sessions`/`courses`/`course_groups`/`workspace_members` SELECT는 admin client 사용 — 그룹 정보를 일관 조회하기 위함(SSR에서 RLS 정책 분기 회피).
+
+#### 이번 plan 범위 밖 (후속)
+
+- **일반 일정 편집 UI** — service `upsert`는 id 처리 지원, 사이드 패널 아이템 클릭 시 dialog로 수정 화면 추가 가능.
+- **회차 상태 변경(api-spec §5.3)** — 회차 칩 클릭 → 가시성/집계/진행 상태 토글.
+- **그룹 필터 select** — 상단에서 그룹 골라 좁히기 (URL `?groupId=` 동기화).
+- **색상 선택** — 현재 모든 일반 일정 color는 `#F97316` 고정. ColorPicker 재사용 검토.
+- **Google Calendar 양방향 sync** — 연동 시점에 `general_schedule_items`에 `external_source`/`external_id` 컬럼 migration으로 추가.
 
 ### 자주 발생하는 환경 이슈
 

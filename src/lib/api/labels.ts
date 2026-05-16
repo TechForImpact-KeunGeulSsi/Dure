@@ -69,7 +69,7 @@ export function courseStatusLabel(status: CourseStatus): string {
 export function materialReviewStatusLabel(status: MaterialReviewStatus): string {
   switch (status) {
     case "pending":
-      return "확인 미정";
+      return "미확인";
     case "reviewed":
       return "확인됨";
   }

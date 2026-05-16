@@ -9,12 +9,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { MonthGrid } from '@/components/calendar/month-grid';
 import { ScheduleSidePanel } from '@/components/calendar/schedule-side-panel';
 import { Button } from '@/components/ui/button';
-import type { CalendarItem, GetCalendarMonthOutput } from '@/types/calendar';
+import type { GroupSummary } from '@/types/course';
+import type { GetCalendarMonthOutput } from '@/types/calendar';
 
 type CalendarClientProps = {
   workspaceId: string;
   month: string;
   initialData: GetCalendarMonthOutput;
+  groupOptions: GroupSummary[];
 };
 
 function defaultSelectedDate(month: string) {
@@ -23,16 +25,19 @@ function defaultSelectedDate(month: string) {
   return `${month}-01`;
 }
 
-export function CalendarClient({ month, initialData }: CalendarClientProps) {
+export function CalendarClient({
+  workspaceId,
+  month,
+  initialData,
+  groupOptions,
+}: CalendarClientProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const [items, setItems] = useState<CalendarItem[]>(initialData.items);
   const [selectedDate, setSelectedDate] = useState(() => defaultSelectedDate(month));
 
   useEffect(() => {
-    setItems(initialData.items);
     setSelectedDate(defaultSelectedDate(month));
-  }, [month, initialData]);
+  }, [month]);
 
   const monthLabel = useMemo(
     () => format(parse(`${month}-01`, 'yyyy-MM-dd', new Date()), 'yyyy년 M월', { locale: ko }),
@@ -43,19 +48,6 @@ export function CalendarClient({ month, initialData }: CalendarClientProps) {
     const next = addMonths(parse(`${month}-01`, 'yyyy-MM-dd', new Date()), offset);
     const nextMonth = format(next, 'yyyy-MM');
     router.push(`${pathname}?month=${nextMonth}`);
-  };
-
-  const handleRemoveItem = (id: string) => {
-    setItems((prev) =>
-      prev.filter((item) => {
-        const itemId = item.kind === 'course_session' ? item.session.id : item.item.id;
-        return itemId !== id;
-      }),
-    );
-  };
-
-  const handleAddItem = (item: CalendarItem) => {
-    setItems((prev) => [...prev, item]);
   };
 
   return (
@@ -85,15 +77,15 @@ export function CalendarClient({ month, initialData }: CalendarClientProps) {
       <div className="grid flex-1 grid-cols-1 gap-6 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_360px]">
         <MonthGrid
           month={month}
-          items={items}
+          items={initialData.items}
           selectedDate={selectedDate}
           onSelectDate={setSelectedDate}
         />
         <ScheduleSidePanel
+          workspaceId={workspaceId}
           selectedDate={selectedDate}
-          items={items}
-          onRemoveItem={handleRemoveItem}
-          onAddItem={handleAddItem}
+          items={initialData.items}
+          groupOptions={groupOptions}
         />
       </div>
     </div>

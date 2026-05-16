@@ -3,19 +3,28 @@
 import { CalendarCheck, Plus, Trash2 } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useMemo, useState, useTransition } from 'react';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { MultiSelect } from '@/components/ui/multi-select';
+import {
+  deleteGeneralScheduleItem,
+  upsertGeneralScheduleItem,
+} from '@/services/calendar';
 import type { CalendarItem } from '@/types/calendar';
+import type { GroupSummary } from '@/types/course';
 
 type ScheduleSidePanelProps = {
+  workspaceId: string;
   selectedDate: string;
   items: CalendarItem[];
-  onRemoveItem: (id: string) => void;
-  onAddItem: (item: CalendarItem) => void;
+  groupOptions: GroupSummary[];
 };
+
+const DEFAULT_COLOR = '#F97316';
 
 function formatTimeRange(startsAt: string | null, endsAt: string | null) {
   if (!startsAt) return '시간 미정';
@@ -47,15 +56,19 @@ function getAssignee(item: CalendarItem) {
 }
 
 export function ScheduleSidePanel({
+  workspaceId,
   selectedDate,
   items,
-  onRemoveItem,
-  onAddItem,
+  groupOptions,
 }: ScheduleSidePanelProps) {
+  const router = useRouter();
   const [title, setTitle] = useState('');
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
-  const [groupId, setGroupId] = useState('group-001');
+  const [groupIds, setGroupIds] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, startSubmit] = useTransition();
+  const [deletingId, startDelete] = useTransition();
 
   const selectedLabel = format(parse(selectedDate, 'yyyy-MM-dd', new Date()), 'M월 d일', {
     locale: ko,
@@ -70,36 +83,77 @@ export function ScheduleSidePanel({
     [items, selectedDate],
   );
 
-  const handleAdd = () => {
-    if (!title.trim()) return;
+  const groupSelectOptions = useMemo(
+    () => groupOptions.map((g) => ({ id: g.id, label: g.name })),
+    [groupOptions],
+  );
 
-    onAddItem({
-      kind: 'general_schedule_item',
-      item: {
-        id: `gs-local-${Date.now()}`,
+  function resetForm() {
+    setTitle('');
+    setStartsAt('');
+    setEndsAt('');
+    setGroupIds([]);
+    setError(null);
+  }
+
+  function handleAdd() {
+    setError(null);
+
+    if (!title.trim()) {
+      setError('일정명을 입력해 주세요.');
+      return;
+    }
+    if (groupIds.length === 0) {
+      setError('그룹을 1개 이상 선택해 주세요.');
+      return;
+    }
+    if (endsAt && !startsAt) {
+      setError('시작 시간을 입력해 주세요.');
+      return;
+    }
+    if (startsAt && endsAt && endsAt <= startsAt) {
+      setError('종료 시간은 시작 시간 이후여야 합니다.');
+      return;
+    }
+
+    startSubmit(async () => {
+      const result = await upsertGeneralScheduleItem(workspaceId, {
         title: title.trim(),
         date: selectedDate,
         startsAt: startsAt ? `${startsAt}:00` : null,
         endsAt: endsAt ? `${endsAt}:00` : null,
         description: null,
-        color: '#F97316',
-        groups: [
-          {
-            id: groupId,
-            name: groupId === 'group-001' ? '햇살 그룹' : '바람 그룹',
-            description: null,
-            status: 'active',
-          },
-        ],
-        canEdit: true,
-        canDelete: true,
-      },
+        color: DEFAULT_COLOR,
+        groupIds,
+      });
+      if (!result.ok) {
+        setError(result.error.message);
+        toast.error(result.error.message);
+        return;
+      }
+      toast.success('일정을 추가했습니다.');
+      resetForm();
+      router.refresh();
     });
+  }
 
-    setTitle('');
-    setStartsAt('');
-    setEndsAt('');
-  };
+  function handleDelete(item: CalendarItem) {
+    if (item.kind !== 'general_schedule_item') return;
+    if (!item.item.canDelete) return;
+    const confirmed = window.confirm(
+      `'${item.item.title}' 일정을 삭제하시겠어요?`,
+    );
+    if (!confirmed) return;
+    startDelete(async () => {
+      const result = await deleteGeneralScheduleItem(workspaceId, item.item.id);
+      if (!result.ok) {
+        toast.error(result.error.message);
+        return;
+      }
+      toast.success('일정을 삭제했습니다.');
+      router.refresh();
+    });
+  }
 
   return (
     <aside className="flex h-full flex-col rounded-xl border border-gray-100 bg-white shadow-sm">
@@ -113,13 +167,15 @@ export function ScheduleSidePanel({
 
       <section className="border-b border-gray-100 bg-gray-50 px-5 py-4">
         <h3 className="text-sm font-semibold text-gray-900">일정 추가</h3>
-        <p className="mt-0.5 text-xs text-gray-500">일정명과 시간을 입력해 빠르게 추가합니다.</p>
+        <p className="mt-0.5 text-xs text-gray-500">선택한 날짜에 일반 일정을 등록합니다.</p>
 
         <div className="mt-4 space-y-3">
           <Input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             placeholder="일정명 입력"
+            maxLength={120}
+            disabled={submitting}
           />
           <div className="grid grid-cols-2 gap-2">
             <div>
@@ -128,6 +184,7 @@ export function ScheduleSidePanel({
                 type="time"
                 value={startsAt}
                 onChange={(event) => setStartsAt(event.target.value)}
+                disabled={submitting}
               />
             </div>
             <div>
@@ -136,19 +193,31 @@ export function ScheduleSidePanel({
                 type="time"
                 value={endsAt}
                 onChange={(event) => setEndsAt(event.target.value)}
+                disabled={submitting}
               />
             </div>
           </div>
           <div>
             <label className="mb-1 block text-xs text-gray-500">그룹</label>
-            <Select value={groupId} onChange={(event) => setGroupId(event.target.value)}>
-              <option value="group-001">햇살 그룹</option>
-              <option value="group-002">바람 그룹</option>
-            </Select>
+            <MultiSelect
+              options={groupSelectOptions}
+              selectedIds={groupIds}
+              onChange={setGroupIds}
+              placeholder={
+                groupOptions.length === 0 ? '등록된 그룹이 없습니다' : '그룹을 선택하세요'
+              }
+              disabled={submitting || groupOptions.length === 0}
+            />
           </div>
-          <Button type="button" className="w-full" onClick={handleAdd}>
+          {error && <p className="text-xs text-rose-600">{error}</p>}
+          <Button
+            type="button"
+            className="w-full"
+            onClick={handleAdd}
+            disabled={submitting}
+          >
             <Plus className="h-4 w-4" />
-            추가하기
+            {submitting ? '추가 중…' : '추가하기'}
           </Button>
         </div>
       </section>
@@ -162,37 +231,37 @@ export function ScheduleSidePanel({
               등록된 일정이 없습니다.
             </li>
           ) : (
-            dayItems.map((item) => (
-              <li
-                key={getItemId(item)}
-                className="flex items-start justify-between gap-3 rounded-lg border border-gray-100 bg-white p-3 shadow-sm"
-              >
-                <div className="min-w-0">
-                  <p className="text-xs text-gray-400">{getItemTime(item)}</p>
-                  <p className="mt-0.5 font-semibold text-gray-900">{getItemTitle(item)}</p>
-                  <p className="mt-0.5 text-xs text-gray-500">담당: {getAssignee(item)}</p>
-                </div>
-                {(item.kind === 'general_schedule_item' && item.item.canDelete) ||
-                item.kind === 'course_session' ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="flex-shrink-0 text-red-500 hover:bg-red-50 hover:text-red-600"
-                    onClick={() => onRemoveItem(getItemId(item))}
-                    aria-label="일정 삭제"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                ) : null}
-              </li>
-            ))
+            dayItems.map((item) => {
+              const showDelete =
+                item.kind === 'general_schedule_item' && item.item.canDelete;
+              return (
+                <li
+                  key={getItemId(item)}
+                  className="flex items-start justify-between gap-3 rounded-lg border border-gray-100 bg-white p-3 shadow-sm"
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-400">{getItemTime(item)}</p>
+                    <p className="mt-0.5 font-semibold text-gray-900">{getItemTitle(item)}</p>
+                    <p className="mt-0.5 text-xs text-gray-500">담당: {getAssignee(item)}</p>
+                  </div>
+                  {showDelete ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="flex-shrink-0 text-red-500 hover:bg-red-50 hover:text-red-600"
+                      onClick={() => handleDelete(item)}
+                      disabled={deletingId}
+                      aria-label="일정 삭제"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  ) : null}
+                </li>
+              );
+            })
           )}
         </ul>
-
-        <p className="mt-3 text-center text-[11px] text-gray-400">
-          필요한 일정은 계속 추가할 수 있습니다.
-        </p>
       </section>
     </aside>
   );

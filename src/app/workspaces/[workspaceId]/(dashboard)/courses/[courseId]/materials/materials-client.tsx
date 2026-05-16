@@ -31,7 +31,7 @@ type ReviewFilter = 'all' | MaterialReviewStatus;
 
 const REVIEW_FILTERS: { value: ReviewFilter; label: string; activeClassName?: string }[] = [
   { value: 'all', label: '전체' },
-  { value: 'pending', label: '확인 미정', activeClassName: 'text-amber-600' },
+  { value: 'pending', label: '미확인', activeClassName: 'text-amber-600' },
   { value: 'reviewed', label: '확인됨', activeClassName: 'text-emerald-600' },
 ];
 
@@ -81,7 +81,7 @@ export function MaterialsClient({ workspaceId, courseId, initial }: Props) {
       <Banner accent={accent} />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <StatCard label="확인 미정" value={`${pendingCount}건`} tone="amber" />
+        <StatCard label="미확인" value={`${pendingCount}건`} tone="amber" />
         <StatCard label="확인됨" value={`${reviewedCount}건`} tone="emerald" />
       </div>
 

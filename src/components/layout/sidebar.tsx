@@ -47,14 +47,14 @@ export function Sidebar({ workspace, capabilities }: SidebarProps) {
     },
     {
       href: `${base}/members`,
-      label: "사용자 초대/권한 설정",
+      label: "강사·운영자 관리",
       icon: UserCog,
       visible: capabilities.canManageMembers,
       match: (p) => p.startsWith(`${base}/members`),
     },
     {
       href: `${base}/manage/groups`,
-      label: "구성원·수업 관리",
+      label: "참여자·수업 관리",
       icon: LayoutGrid,
       visible: workspace.currentMember.role !== "instructor",
       match: (p) => p.startsWith(`${base}/manage`),

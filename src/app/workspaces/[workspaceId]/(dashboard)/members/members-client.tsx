@@ -261,7 +261,7 @@ export function MembersClient({ workspaceId, initial, groups, pendingRequests }:
 function Banner() {
   return (
     <section className="rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 p-8 shadow-sm">
-      <h2 className="text-2xl font-bold text-white">사용자 초대 / 권한 설정</h2>
+      <h2 className="text-2xl font-bold text-white">강사·운영자 관리</h2>
       <p className="mt-1 text-sm text-blue-100">
         강사와 그룹 운영자를 초대하거나, 사용자가 보낸 참여 요청을 수락해 워크스페이스 멤버를 관리하세요.
       </p>

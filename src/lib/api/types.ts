@@ -194,3 +194,29 @@ export type GetWorkspaceContextOutput = {
   accessibleGroups: GroupSummary[];
   capabilities: WorkspaceCapabilities;
 };
+
+// --- Activity log (api-spec.md §16) ---
+
+export type ActivityTarget =
+  | { type: "course"; courseId: UUID; href: string }
+  | { type: "course_material"; courseId: UUID; materialId: UUID; href: string }
+  | { type: "attendance"; courseId: UUID; sessionId: UUID; href: string }
+  | { type: "class_memo"; courseId: UUID; sessionId: UUID; href: string }
+  | { type: "member"; memberId: UUID; href: string };
+
+export type ActivityItem = {
+  id: UUID;
+  eventType: string;
+  title: string;
+  description: string | null;
+  actor: MemberSummary | null;
+  target: ActivityTarget;
+  createdAt: ISODateTime;
+};
+
+export type LoggableTargetType =
+  | "material"
+  | "attendance"
+  | "class_memo"
+  | "member"
+  | "course";

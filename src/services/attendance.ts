@@ -23,6 +23,8 @@ import {
   type SaveClassMemoInput,
 } from "@/lib/validators/attendance";
 
+import { logActivity } from "./activity";
+
 // ─────────────────────────────────────────────────────────────
 // Types (api-spec.md §15)
 // ─────────────────────────────────────────────────────────────
@@ -171,6 +173,19 @@ export async function saveAttendance(
   if (error) return apiError("INTERNAL_ERROR", error.message);
 
   const saved = await loadAttendanceRecordsBySession(workspaceId, parsed.data.sessionId);
+
+  await logActivity({
+    workspaceId,
+    actorMemberId: membership.memberId,
+    eventType: "attendance_saved",
+    targetType: "attendance",
+    targetId: parsed.data.sessionId,
+    metadata: {
+      courseId: session.course_id,
+      recordCount: rowsToUpsert.length,
+    },
+  });
+
   revalidatePath(`/workspaces/${workspaceId}/teach/courses/${session.course_id}/attendance`);
   return apiOk({ records: saved });
 }
@@ -214,6 +229,16 @@ export async function saveClassMemo(
   if (error) return apiError("INTERNAL_ERROR", error.message);
 
   const memo = await loadClassMemo(workspaceId, parsed.data.sessionId);
+
+  await logActivity({
+    workspaceId,
+    actorMemberId: membership.memberId,
+    eventType: "class_memo_saved",
+    targetType: "class_memo",
+    targetId: parsed.data.sessionId,
+    metadata: { courseId: session.course_id },
+  });
+
   revalidatePath(`/workspaces/${workspaceId}/teach/courses/${session.course_id}/attendance`);
   return apiOk(memo);
 }

@@ -16,6 +16,8 @@ import {
   type CreateInviteInput,
 } from "@/lib/validators/workspace-member";
 
+import { logActivity } from "./activity";
+
 export type AcceptInviteOutput = {
   workspaceId: UUID;
 };
@@ -52,7 +54,7 @@ export async function acceptInvite(
 
   const { data: invite, error: inviteError } = await admin
     .from("invites")
-    .select("id, workspace_id, member_id, expires_at, accepted_at")
+    .select("id, workspace_id, member_id, expires_at, accepted_at, role")
     .eq("token_hash", tokenHash)
     .maybeSingle();
 
@@ -92,6 +94,18 @@ export async function acceptInvite(
   if (inviteUpdateError) {
     return apiError("INTERNAL_ERROR", inviteUpdateError.message);
   }
+
+  await logActivity({
+    workspaceId: invite.workspace_id,
+    actorMemberId: invite.member_id,
+    eventType: "invite_accepted",
+    targetType: "member",
+    targetId: invite.member_id,
+    metadata: {
+      email: user.email ?? "",
+      role: invite.role,
+    },
+  });
 
   return apiOk({ workspaceId: invite.workspace_id });
 }
@@ -319,6 +333,18 @@ export async function createInvite(
       err instanceof Error ? err.message : "매직 링크 발송에 실패했습니다.";
     return apiError("INTERNAL_ERROR", message);
   }
+
+  await logActivity({
+    workspaceId,
+    actorMemberId: me.id,
+    eventType: "invite_created",
+    targetType: "member",
+    targetId: memberId,
+    metadata: {
+      email: input.email,
+      role: input.role,
+    },
+  });
 
   revalidatePath(`/workspaces/${workspaceId}/members`);
 

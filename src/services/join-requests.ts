@@ -22,6 +22,8 @@ import {
   type RequestAccessInput,
 } from "@/lib/validators/join-request";
 
+import { logActivity } from "./activity";
+
 // --- Public DTOs ---------------------------------------------------------
 
 export type DiscoverableMembership = "active" | "invited" | "none";
@@ -212,6 +214,22 @@ export async function requestWorkspaceAccess(
       insertError?.message ?? "참여 요청을 보내지 못했습니다.",
     );
   }
+
+  // 요청자는 아직 워크스페이스 멤버가 아니므로 actor_member_id는 null.
+  // 헤더 알림은 owner_admin에게만 노출되도록 target_type='member' 재사용.
+  await logActivity({
+    workspaceId,
+    actorMemberId: null,
+    eventType: "join_requested",
+    targetType: "member",
+    targetId: inserted.id,
+    metadata: {
+      email: user.email ?? "",
+      displayName,
+      desiredRole: input.desiredRole,
+      ...(input.message ? { message: input.message } : {}),
+    },
+  });
 
   revalidatePath("/workspaces/discover");
   revalidatePath(`/workspaces/${workspaceId}/members`);

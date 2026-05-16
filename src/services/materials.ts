@@ -34,6 +34,8 @@ import {
   type UpdateMaterialReviewStatusInput,
 } from "@/lib/validators/material";
 
+import { logActivity } from "./activity";
+
 const BUCKET = "course-materials";
 const SIGNED_DOWNLOAD_EXPIRES_SECONDS = 60 * 60;
 
@@ -254,6 +256,19 @@ export async function uploadMaterial(
     return apiError("INTERNAL_ERROR", updateError.message);
   }
 
+  await logActivity({
+    workspaceId,
+    actorMemberId: membership.memberId,
+    eventType: "material_uploaded",
+    targetType: "material",
+    targetId: materialId,
+    metadata: {
+      courseId,
+      title: parsed.data.title,
+      originalFilename: parsed.data.originalFilename,
+    },
+  });
+
   revalidatePath(`/workspaces/${workspaceId}/courses/${courseId}/materials`);
   return refetchMaterialListItem(workspaceId, courseId, materialId, membership);
 }
@@ -284,6 +299,18 @@ export async function updateMaterial(
 
   const writeError = await writeMaterialUpdates(workspaceId, row, parsed.data);
   if (writeError) return writeError;
+
+  await logActivity({
+    workspaceId,
+    actorMemberId: membership.memberId,
+    eventType: "material_updated",
+    targetType: "material",
+    targetId: materialId,
+    metadata: {
+      courseId: row.course_id,
+      ...(parsed.data.title ? { title: parsed.data.title } : {}),
+    },
+  });
 
   return refetchMaterialListItem(workspaceId, row.course_id, materialId, membership);
 }
@@ -370,6 +397,18 @@ export async function replaceMaterialFile(
   if (oldPath && oldPath !== newPath) {
     await admin.storage.from(BUCKET).remove([oldPath]);
   }
+
+  await logActivity({
+    workspaceId,
+    actorMemberId: membership.memberId,
+    eventType: "material_file_replaced",
+    targetType: "material",
+    targetId: materialId,
+    metadata: {
+      courseId: row.course_id,
+      originalFilename: parsed.data.originalFilename,
+    },
+  });
 
   revalidatePath(`/workspaces/${workspaceId}/courses/${row.course_id}/materials`);
   return refetchMaterialListItem(workspaceId, row.course_id, materialId, membership);

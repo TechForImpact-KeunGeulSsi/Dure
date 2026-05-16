@@ -3,10 +3,10 @@
 
 이 파일은 DURE 프로젝트에서 Claude가 작업 전 현재 맥락(Context)을 빠르게 파악하기 위한 인수인계 문서입니다. 전반적인 개발 원칙과 도메인 지식은 `AGENTS.md`, `architecture.md`, `api-spec.md`를 최우선으로 따릅니다.
 
-## 📍 현재 진행 상태 (Phase 8 + 8B 완료)
+## 📍 현재 진행 상태 (Phase 9 완료 — 자동 완료 cron(9B)만 보류)
 
-**완료된 단계:** 1~8 + 8B(워크스페이스 참여 요청 흐름).
-**대기:** 9 (헤더 최근 활동, 자동 완료 cron).
+**완료된 단계:** 1~9 (헤더 최근 활동 포함).
+**보류:** 9B (수업 자동 완료 cron).
 
 ### 단계 8B 워크스페이스 참여 요청 (Join Request)
 
@@ -65,6 +65,8 @@ APP_URL=http://localhost:3000   # 초대 매직 링크 redirect base
 | 7-5 출석 카운트 | `services/course-participants.ts` 갱신 |
 | 6 후속 자료 업로드 | `services/materials.ts`(`uploadMaterial`, `replaceMaterialFile` 시그니처 변경), `app/.../materials/upload-dialog.tsx`, `app/.../materials/edit-dialog.tsx`, `app/api/materials/upload-url/route.ts`(410) |
 | 8 초대 정식화 | `src/lib/invites/token.ts`(신규), `services/invites.ts`(`createInvite` 추가), `lib/validators/workspace-member.ts`(`CreateInviteSchema`), `app/.../members/invite-member-dialog.tsx`(신규), `members-client.tsx`/`page.tsx` 갱신 |
+| 8B 참여 요청 | `supabase/migrations/20260516000000_workspace_join_requests.sql`(신규), `services/join-requests.ts`(신규), `lib/validators/join-request.ts`(신규), `app/workspaces/discover/*`(신규), `app/.../members/approve-request-dialog.tsx`(신규) |
+| 9 헤더 최근 활동 | `services/activity.ts`(신규), `services/access.ts`(신규 공통 헬퍼), `lib/api/types.ts`(ActivityItem 추가), `components/layout/header.tsx`(드롭다운 실데이터 연결), `services/materials.ts`/`attendance.ts`/`invites.ts`(7곳 `logActivity` 훅) |
 
 ### admin client 우회 패턴 일관 적용
 다음 테이블·작업은 모두 admin client를 사용합니다. RLS의 `... = current_member_id(workspace_id)` 정확 일치 비교가 SSR에서 통과되지 않는 케이스 회피용. 권한은 service 레이어에서 검증.
@@ -78,6 +80,7 @@ APP_URL=http://localhost:3000   # 초대 매직 링크 redirect base
 - `workspace_member_groups` INSERT/DELETE (group_admin 초대 + join-request 수락 시)
 - `invite_courses` INSERT (instructor 초대 시)
 - `workspace_join_requests` INSERT/UPDATE/SELECT (단계 8B)
+- `activity_logs` INSERT/SELECT (단계 9)
 
 새 service 작성 시 같은 RLS 패턴을 가진 테이블이라면 같은 우회 적용 + README "단계 X RLS / 스펙 충돌" 섹션에 보고.
 

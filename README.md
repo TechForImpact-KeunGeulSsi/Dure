@@ -111,7 +111,8 @@ supabase/                  # DB migration
 | 7 | 강사 콘솔(자료/출석부/수업 메모) + 강사 초대 | ✅ 완료 |
 | 8 | 사용자 초대/권한 설정 정식화(그룹 운영자 초대, 매직 링크 발급) | ✅ 완료 |
 | 8B | 워크스페이스 참여 요청(Join Request) 흐름 — 사용자 → 운영자 방향 | ✅ 완료 |
-| 9 | 헤더 최근 활동과 자동 완료 cron | 구현중-박수현 |
+| 9 | 헤더 최근 활동(activity_logs) | ✅ 완료 |
+| 9B | 수업 자동 완료 cron | ⏳ 보류 |
 
 ### 단계 2~5 요약
 
@@ -230,7 +231,34 @@ api-spec.md §6 계약의 핵심을 정식화. `createInvite` + `acceptInvite` �
 - 워크스페이스별 public/private 토글 (현재는 전체 공개)
 - 거부 사유 사용자 노출 UI
 - 요청 알림(메일/푸시) — 현재는 멤버 페이지 폴링 기반
-- Activity log 연동(`join_requested`/`join_approved`/`join_rejected`)은 Phase 9에서 일괄
+- Activity log 연동(`join_requested`/`join_approved`/`join_rejected`)은 Phase 9 이후 추가
+
+### 단계 9에서 구현한 것 — 헤더 최근 활동 (activity_logs)
+
+api-spec.md §16 `getRecentActivity` 정식 구현 + 7개 service에 logging 훅. 모든 활성 멤버가 권한 필터링된 활동 피드를 헤더 종 아이콘 드롭다운에서 본다.
+
+- **신규 [src/services/activity.ts](src/services/activity.ts):**
+  - `logActivity(...)`: fire-and-forget. admin client로 `activity_logs` INSERT, 실패해도 절대 throw 안 함(console.warn만). 호출 측 비즈니스 로직 보호.
+  - `getRecentActivity({ workspaceId, limit })`: 최근 활동 fetch + 권한별 필터 + title/description/href 포맷팅. 멤버 대상 이벤트는 owner_admin만, 그 외 course-bound 이벤트는 `canAccessCourse` 통과한 사용자만.
+- **신규 [src/services/access.ts](src/services/access.ts):** 공통 `loadCurrentMembership` + `canAccessCourse`. activity.ts와 향후 service들이 공유. attendance.ts의 기존 private 복사본은 점진 마이그레이션 대상으로 그대로 유지.
+- **logging 훅 추가 (7곳):**
+  - [materials.ts](src/services/materials.ts): `uploadMaterial`(`material_uploaded`), `updateMaterial`(`material_updated`), `replaceMaterialFile`(`material_file_replaced`)
+  - [attendance.ts](src/services/attendance.ts): `saveAttendance`(`attendance_saved`), `saveClassMemo`(`class_memo_saved`)
+  - [invites.ts](src/services/invites.ts): `createInvite`(`invite_created`), `acceptInvite`(`invite_accepted`)
+- **[헤더 UI](src/components/layout/header.tsx) 갱신:** Bell 드롭다운이 실제 데이터로 채워짐. lazy fetch(첫 open 시 1회), actor 이니셜 아바타 + 제목 + 보조설명 + 상대 시간(방금 전 / N분 전 / N시간 전 / N일 전) + 클릭 시 `target.href`로 이동.
+- **공통 타입은 [src/lib/api/types.ts](src/lib/api/types.ts)에 `ActivityItem`, `ActivityTarget`, `LoggableTargetType` 추가** — client component가 server action 파일에서 직접 type import 시 발생하는 빌드 이슈 회피.
+
+### 단계 9 RLS / 스펙 충돌 (보고 사항)
+
+`activity_logs` SELECT 정책은 owner_admin만 허용하지만 api-spec.md §16은 모든 멤버에게 권한 필터링된 노출을 정의. SELECT/INSERT 모두 admin client 우회. 권한 필터는 service 레이어 `canAccessCourse` + role 분기로 수행. 기존 materials/attendance/invites와 동일 패턴.
+
+### 단계 9에서 다루지 않은 것 (후속 / 9B로 별도 추적)
+
+- **자동 완료 cron** (`/api/cron/complete-courses`, api-spec §17) — 사용자 결정으로 보류. Vercel Cron / Supabase Edge Function 인프라 선택 후속.
+- **참여 요청(Phase 8B) 이벤트** — `join_requested` / `join_approved` / `join_rejected` 로깅 추가 가능.
+- **자료 확인 상태 변경** / **자료 삭제** 로그 — 운영자 액션이라 후순위.
+- **"오늘 진행 회차" 합성 이벤트** — api-spec §16에서 언급된 derived item. 현재는 미포함.
+- **읽음/안읽음** 상태 — MVP 범위 밖.
 
 ### 자주 발생하는 환경 이슈
 
@@ -251,5 +279,5 @@ api-spec.md §6 계약의 핵심을 정식화. `createInvite` + `acceptInvite` �
 - `workspaceId`는 모든 업무 데이터 요청 입력에 포함.
 - `can*` boolean은 화면 제어용. 서버에서 권한을 다시 계산.
 - 라벨은 [lib/api/labels.ts](src/lib/api/labels.ts)를 통해 변환.
-- **admin client 우회 패턴**: `materials` INSERT/UPDATE/DELETE/storage, `material_groups` INSERT/DELETE, `attendance_records`/`class_memos` upsert, `workspace_members` INSERT/UPDATE, `invites`/`invite_groups`/`invite_courses`(단계 8), `workspace_join_requests` INSERT/UPDATE(단계 8B). 새 RLS 패턴에서 같은 에러가 보이면 같은 방식 적용 + 보고 사항으로 README에 기록.
+- **admin client 우회 패턴**: `materials` INSERT/UPDATE/DELETE/storage, `material_groups` INSERT/DELETE, `attendance_records`/`class_memos` upsert, `workspace_members` INSERT/UPDATE, `invites`/`invite_groups`/`invite_courses`(단계 8), `workspace_join_requests` INSERT/UPDATE(단계 8B), `activity_logs` INSERT/SELECT(단계 9). 새 RLS 패턴에서 같은 에러가 보이면 같은 방식 적용 + 보고 사항으로 README에 기록.
 - UI는 [Figma 디자인](https://www.figma.com/design/44LjDxyubV8Q9B53WBMzSr/DURE) 기준.

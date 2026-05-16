@@ -100,8 +100,14 @@ export function MonthGrid({ month, items, selectedDate, onSelectDate }: MonthGri
                   className={cn(
                     'mb-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium',
                     !inMonth && 'text-gray-300',
-                    inMonth && (isTodayDate ? 'bg-blue-600 text-white' : 'text-gray-700'),
-                    inMonth && isSelected && !isTodayDate && 'bg-blue-600 text-white',
+                    // 오늘: 진한 파란 채움
+                    inMonth && isTodayDate && 'bg-blue-600 text-white',
+                    // 오늘이면서 선택: 채움 + 외곽 ring으로 두 표시 모두 노출
+                    inMonth && isTodayDate && isSelected && 'ring-2 ring-offset-1 ring-blue-300',
+                    // 선택(오늘 아님): 테두리 outline
+                    inMonth && !isTodayDate && isSelected && 'border border-blue-600 text-blue-600',
+                    // 평범한 날
+                    inMonth && !isTodayDate && !isSelected && 'text-gray-700',
                   )}
                 >
                   {format(day, 'd')}

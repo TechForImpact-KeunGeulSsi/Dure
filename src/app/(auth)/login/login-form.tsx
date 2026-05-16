@@ -10,15 +10,11 @@ type LoginFormProps = {
   next: string;
 };
 
-type Mode = "password" | "magic_link";
-
 export function LoginForm({ next }: LoginFormProps) {
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>("password");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [keepSignedIn, setKeepSignedIn] = useState(false);
-  const [magicSent, setMagicSent] = useState(false);
   const [pending, startTransition] = useTransition();
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -30,138 +26,93 @@ export function LoginForm({ next }: LoginFormProps) {
       toast.error("이메일을 입력해 주세요.");
       return;
     }
-
-    if (mode === "password") {
-      if (!password) {
-        toast.error("비밀번호를 입력해 주세요.");
-        return;
-      }
-      startTransition(async () => {
-        const supabase = createSupabaseBrowserClient();
-        const { error } = await supabase.auth.signInWithPassword({
-          email: trimmedEmail,
-          password,
-        });
-        if (error) {
-          toast.error(translateAuthError(error.message));
-          return;
-        }
-        router.replace(next);
-        router.refresh();
-      });
+    if (!password) {
+      toast.error("비밀번호를 입력해 주세요.");
       return;
     }
 
-    // mode === "magic_link"
     startTransition(async () => {
       const supabase = createSupabaseBrowserClient();
-      const emailRedirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
-      const { error } = await supabase.auth.signInWithOtp({
+      const { error } = await supabase.auth.signInWithPassword({
         email: trimmedEmail,
-        options: { emailRedirectTo },
+        password,
       });
       if (error) {
-        toast.error(error.message);
+        toast.error(translateAuthError(error.message));
         return;
       }
-      setMagicSent(true);
+      router.replace(next);
+      router.refresh();
     });
   }
 
   return (
     <div className="space-y-6">
       <h1 className="text-center text-2xl font-bold tracking-tight text-white">
-        {mode === "password" ? "로그인" : "매직 링크 로그인"}
+        로그인
       </h1>
 
-      {magicSent ? (
-        <div className="rounded-[var(--radius-md)] bg-white/10 px-4 py-6 text-center text-sm text-white">
-          <p className="font-medium">{email}로 로그인 링크를 보냈어요.</p>
-          <p className="mt-1 text-white/70">받은 메일의 링크를 눌러 로그인하세요.</p>
+      <form className="space-y-5" onSubmit={handleSubmit}>
+        <UnderlineField
+          id="login-email"
+          label="이메일"
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          required
+        />
+        <UnderlineField
+          id="login-password"
+          label="비밀번호"
+          type="password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          required
+        />
+
+        <div className="flex items-center justify-between text-xs text-white/90">
+          <label className="inline-flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={keepSignedIn}
+              onChange={(event) => setKeepSignedIn(event.target.checked)}
+              className="size-3.5 accent-white"
+            />
+            <span>로그인 상태 유지</span>
+          </label>
           <button
             type="button"
-            className="mt-4 text-xs font-medium text-white underline"
-            onClick={() => {
-              setMagicSent(false);
-              setMode("password");
-            }}
+            className="font-semibold text-white"
+            onClick={() => toast.info("비밀번호 찾기는 곧 제공될 예정입니다.")}
           >
-            비밀번호로 로그인
+            비밀번호 찾기
           </button>
         </div>
-      ) : (
-        <form className="space-y-5" onSubmit={handleSubmit}>
-          <UnderlineField
-            id="login-email"
-            label="이메일"
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-          {mode === "password" && (
-            <UnderlineField
-              id="login-password"
-              label="비밀번호"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-            />
-          )}
 
-          {mode === "password" && (
-            <div className="flex items-center justify-between text-xs text-white/90">
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={keepSignedIn}
-                  onChange={(event) => setKeepSignedIn(event.target.checked)}
-                  className="size-3.5 accent-white"
-                />
-                <span>로그인 상태 유지</span>
-              </label>
-              <button
-                type="button"
-                className="font-semibold text-white"
-                onClick={() => toast.info("비밀번호 찾기는 곧 제공될 예정입니다.")}
-              >
-                비밀번호 찾기
-              </button>
-            </div>
-          )}
+        <div className="pt-2">
+          <button
+            type="submit"
+            disabled={pending}
+            className="mx-auto block min-w-[140px] rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-[var(--color-primary)] shadow-sm transition hover:bg-white/90 disabled:opacity-70"
+          >
+            {pending ? "처리 중…" : "로그인"}
+          </button>
+        </div>
 
-          <div className="pt-2">
-            <button
-              type="submit"
-              disabled={pending}
-              className="mx-auto block min-w-[140px] rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-[var(--color-primary)] shadow-sm transition hover:bg-white/90 disabled:opacity-70"
-            >
-              {pending
-                ? "처리 중…"
-                : mode === "password"
-                  ? "로그인"
-                  : "링크 보내기"}
-            </button>
-          </div>
-
-          <div className="text-center">
-            <button
-              type="button"
-              className="text-xs text-white/80 underline"
-              onClick={() => {
-                setMode(mode === "password" ? "magic_link" : "password");
-              }}
-            >
-              {mode === "password"
-                ? "비밀번호 없이 로그인 (매직 링크)"
-                : "비밀번호로 로그인"}
-            </button>
-          </div>
-        </form>
-      )}
+        <div className="text-center">
+          <button
+            type="button"
+            className="text-xs text-white/80 underline"
+            onClick={() =>
+              toast.info("로그인 없이 둘러보기는 곧 제공될 예정입니다.")
+            }
+          >
+            로그인 없이 둘러보기
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

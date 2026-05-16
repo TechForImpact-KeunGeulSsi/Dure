@@ -14,15 +14,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import type { MemberStatus, WorkspaceRole } from '@/lib/api/types';
+import type { GroupSummary, MemberStatus, WorkspaceRole } from '@/lib/api/types';
 import { cn } from '@/lib/utils';
 import type { GetWorkspaceMembersOutput } from '@/services/workspace-members';
 
-import { InviteInstructorDialog } from './invite-instructor-dialog';
+import { InviteMemberDialog } from './invite-member-dialog';
 
 type Props = {
   workspaceId: string;
   initial: GetWorkspaceMembersOutput;
+  groups: GroupSummary[];
 };
 
 const ROLE_LABEL: Record<WorkspaceRole, string> = {
@@ -45,7 +46,7 @@ const STATUS_TONE: Record<MemberStatus, 'success' | 'warning' | 'neutral' | 'dan
   removed: 'danger',
 };
 
-export function MembersClient({ workspaceId, initial }: Props) {
+export function MembersClient({ workspaceId, initial, groups }: Props) {
   const [inviteOpen, setInviteOpen] = useState(false);
 
   const instructorCount = initial.members.filter((m) => m.role === 'instructor').length;
@@ -70,10 +71,10 @@ export function MembersClient({ workspaceId, initial }: Props) {
               활성 {activeCount}명 · 전체 {initial.members.length}명
             </p>
           </div>
-          {initial.canInviteInstructor && (
+          {initial.canInviteMembers && (
             <Button type="button" onClick={() => setInviteOpen(true)}>
               <UserPlus className="h-4 w-4" />
-              강사 초대
+              멤버 초대
             </Button>
           )}
         </div>
@@ -124,10 +125,11 @@ export function MembersClient({ workspaceId, initial }: Props) {
         </Card>
       )}
 
-      <InviteInstructorDialog
+      <InviteMemberDialog
         open={inviteOpen}
         onOpenChange={setInviteOpen}
         workspaceId={workspaceId}
+        groups={groups}
       />
     </section>
   );
@@ -138,8 +140,7 @@ function Banner() {
     <section className="rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 p-8 shadow-sm">
       <h2 className="text-2xl font-bold text-white">사용자 초대 / 권한 설정</h2>
       <p className="mt-1 text-sm text-blue-100">
-        강사를 초대하고 수업에 배정하세요. 이미 가입된 이메일이면 즉시 활성, 아니면 초대 대기
-        상태로 보관됩니다.
+        강사와 그룹 운영자를 초대하세요. 매직 링크로 발송되며 수락 시 자동으로 활성화됩니다.
       </p>
     </section>
   );

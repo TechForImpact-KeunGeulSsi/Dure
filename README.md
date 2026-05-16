@@ -109,7 +109,7 @@ supabase/                  # DB migration
 | 5 | 운영자용 수업 목록/상세와 캘린더 | ✅ 완료 |
 | 6 | 자료 업로드, 공개 그룹, 확인 상태 | ✅ 완료 |
 | 7 | 강사 콘솔(자료/출석부/수업 메모) + 강사 초대 | ✅ 완료 |
-| 8 | 사용자 초대/권한 설정 정식화(그룹 운영자 초대, 매직 링크 발급) | ⏳ 부분 |
+| 8 | 사용자 초대/권한 설정 정식화(그룹 운영자 초대, 매직 링크 발급) | ✅ 완료 |
 | 9 | 헤더 최근 활동과 자동 완료 cron | ⏳ 대기 |
 
 ### 단계 2~5 요약
@@ -163,6 +163,38 @@ supabase/                  # DB migration
 ### 단계 7 RLS / 스펙 충돌 (보고 사항)
 
 `attendance_records`/`class_memos` 정책은 단계 6 `materials`와 같은 패턴이라 admin client 우회를 사용. 권한 검증은 service 레이어(`canAccessCourse` — 강사는 `instructor_member_id` 매칭, owner는 통과, group_admin은 `accessible_group_ids` 교차).
+
+### 단계 8에서 구현한 것
+
+api-spec.md §6 계약의 핵심을 정식화. `createInvite` + `acceptInvite` 양방향이 함께 동작한다.
+
+- **토큰 유틸 [src/lib/invites/token.ts](src/lib/invites/token.ts):** `generateInviteToken`(crypto.randomBytes 32바이트, base64url) + `hashInviteToken`(sha256 hex). 동일 해싱이 `acceptInvite` lookup에 재사용된다.
+- **Validator [src/lib/validators/workspace-member.ts](src/lib/validators/workspace-member.ts):** `CreateInviteSchema` — role + groupIds + courseIds. `group_admin` → groupIds 1개 이상 필수 검증(superRefine).
+- **`createInvite` 액션 [src/services/invites.ts](src/services/invites.ts):**
+  1. Zod 검증 → owner_admin 권한 확인 → role-scoped IDs 워크스페이스 소속 검증 → 중복 이메일 검증
+  2. `workspace_members` placeholder (status='invited', user_id=null)
+  3. role별 부수 효과: `group_admin` → `workspace_member_groups` insert, `instructor` → `invite_courses` insert
+  4. `invites` insert (token_hash, expires_at=now+7d, role)
+  5. `admin.auth.admin.generateLink({ type: 'magiclink' | 'invite', email, options: { redirectTo } })` — 기존 auth 사용자면 `magiclink`, 미가입이면 `invite` (계정 자동 생성)
+  6. `redirectTo = ${APP_URL}/auth/callback?next=/accept-invite?token=<raw>` — 기존 `auth/callback`이 code exchange 후 `/accept-invite`로 보냄
+  7. 실패 시 단계별 best-effort 롤백 (invite_courses → invites → workspace_member_groups → workspace_members)
+- **수락 흐름은 기존 [`acceptInvite`](src/services/invites.ts) + [`/api/invites/[token]/accept`](src/app/api/invites/[token]/accept/route.ts) 재사용** — placeholder의 user_id 채우고 status='active'.
+- **UI [invite-member-dialog.tsx](src/app/workspaces/[workspaceId]/\(dashboard\)/members/invite-member-dialog.tsx):**
+  - 역할(강사/그룹 운영자), 이메일, 이름 입력 + group_admin 선택 시 그룹 다중 선택
+  - 성공 후 inviteUrl 표시 + 복사 버튼 — 로컬은 Inbucket(http://127.0.0.1:54324)에서 메일 확인, 운영자가 직접 전달도 가능
+- **기존 `inviteInstructor` 제거.** `workspace-members.ts`는 목록 조회만 유지 + `canInviteMembers` 플래그.
+
+### 단계 8 RLS / 스펙 충돌 (보고 사항)
+
+`invites`, `invite_groups`, `invite_courses`, `workspace_members` 모두 admin client 우회 — 정책이 owner_admin SELECT만 허용하거나 SSR에서 `current_member_id` 비교가 통과되지 않는 패턴. 권한은 service 레이어에서 owner_admin 활성 멤버십 확인으로 검증.
+
+### 단계 8에서 다루지 않은 것 (후속)
+
+- **`getMembersPage` 정식화:** 페이지네이션/검색/role/status 필터. 현재는 `getWorkspaceMembers`가 전체 반환.
+- **`updateMember`:** 역할 변경/비활성화/그룹 재배정 UI. 마지막 owner_admin 보호 룰 포함.
+- **`courseIds` 사전 배정:** instructor 초대 시 담당 수업 미리 지정 UI. validator/service는 이미 지원, UI만 미완.
+- **만료 초대 정리 cron:** 단계 9의 자동 완료 cron과 함께 처리 예정.
+- **활동 로그(`activity_logs`) INSERT:** `createInvite`/`acceptInvite` 이벤트는 단계 9에서 일괄 추가.
 
 ### 자주 발생하는 환경 이슈
 

@@ -25,6 +25,7 @@ export default async function CourseHomePage({ params }: Props) {
 
   return (
     <CourseHomeClient
+      workspaceId={workspaceId}
       data={{
         course: courseResult.data,
         sessions: sessionsResult.data,

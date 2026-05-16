@@ -67,9 +67,18 @@ export type CreateCourseInput = z.infer<typeof CreateCourseSchema>;
 
 // api-spec.md §8.4
 export const UpdateCourseSchema = z.object({
-  name: z.string().trim().min(1).max(80).optional(),
+  name: z
+    .string()
+    .trim()
+    .min(1, "수업 이름을 입력해 주세요.")
+    .max(80, "수업 이름은 80자 이하로 입력해 주세요.")
+    .optional(),
   status: z.enum(["planned", "in_progress", "completed"]).optional(),
   instructorMemberId: z.string().uuid().nullable().optional(),
+  groupIds: z
+    .array(z.string().uuid())
+    .min(1, "연결 그룹을 1개 이상 선택해 주세요.")
+    .optional(),
   cardColor: z
     .string()
     .regex(CARD_COLOR_REGEX, "#RRGGBB 형식의 색상을 사용해 주세요.")

@@ -56,7 +56,7 @@ export function Sidebar({ workspace, capabilities }: SidebarProps) {
       href: `${base}/manage/groups`,
       label: "그룹 · 수업 · 참여자",
       icon: LayoutGrid,
-      visible: true,
+      visible: workspace.currentMember.role !== "instructor",
       match: (p) => p.startsWith(`${base}/manage`),
     },
   ];

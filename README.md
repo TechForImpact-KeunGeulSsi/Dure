@@ -260,6 +260,17 @@ api-spec.md §16 `getRecentActivity` 정식 구현 + 7개 service에 logging 훅
 - **"오늘 진행 회차" 합성 이벤트** — api-spec §16에서 언급된 derived item. 현재는 미포함.
 - **읽음/안읽음** 상태 — MVP 범위 밖.
 
+### 수업 정보 수정 UI (manage/courses 편집)
+
+`/manage/courses` 목록에서 수업 행 끝 "편집" 버튼으로 진입하는 전용 페이지. api-spec.md §8.4 `updateCourse` 계약 정식화.
+
+- **신규 페이지** [/manage/courses/[courseId]/edit/page.tsx](src/app/workspaces/[workspaceId]/(dashboard)/manage/courses/[courseId]/edit/page.tsx) + [edit-course-form.tsx](src/app/workspaces/[workspaceId]/(dashboard)/manage/courses/[courseId]/edit/edit-course-form.tsx) — 이름 / 운영 상태 / 연결 그룹(MultiSelect) / 담당 강사 / 카드 색상 / 배너 URL. 회차·참여자 배정은 폼에 노출 안 함.
+- **`updateCourseAction` 확장** [src/services/courses.ts](src/services/courses.ts) — `groupIds` 변경 지원 + group_admin 권한 재검증. 그룹 제거 시 `course_participant_groups` 명시적 정리(이 테이블은 `groups`를 직접 참조하므로 `course_groups` 삭제 cascade로 자동 정리되지 않음). 참여자의 `course_participants.status`는 그대로 두고 그룹 0개 상태도 허용 — 사용자 결정.
+- **신규 `getCourseEditData`** — 편집 폼이 한 번에 가져갈 수업 + 옵션 + `canManageFullCourse` 묶음.
+- **목록에 편집 버튼** [courses-client.tsx](src/app/workspaces/[workspaceId]/(dashboard)/manage/courses/courses-client.tsx) — `canManageFullCourse=true`인 행만 노출.
+- **validator** [course.ts](src/lib/validators/course.ts) `UpdateCourseSchema`에 `groupIds: z.array(uuid).min(1).optional()` 추가.
+- 권한: owner_admin 또는 수업의 모든 연결 그룹이 본인 접근 범위 안인 group_admin만. 그 외엔 페이지 진입 시 거부 화면, 서버 액션은 `SCOPE_FORBIDDEN`.
+
 ### 자주 발생하는 환경 이슈
 
 **`"No suitable key or wrong key type"`**: admin 호출(강사 초대 `listUsers`, 자료 storage upload 등)에서 동시에 발생하면 거의 항상 `.env.local`의 `SUPABASE_SERVICE_ROLE_KEY` 문제다. `supabase status` 출력과 비교해 정확히 매핑되어 있는지(특히 anon key와 혼동 여부) 확인하고 dev server를 재시작한다.

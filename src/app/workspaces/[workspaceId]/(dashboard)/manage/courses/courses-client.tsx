@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -163,6 +163,7 @@ export function CoursesClient({
                 <Th className="text-right">참여자</Th>
                 <Th className="text-right">회차</Th>
                 <Th>상태</Th>
+                <Th className="text-right">작업</Th>
               </Tr>
             </THead>
             <TBody>
@@ -206,6 +207,22 @@ export function CoursesClient({
                   </Td>
                   <Td>
                     <CourseStatusBadge status={course.status as CourseStatus} />
+                  </Td>
+                  <Td className="text-right">
+                    {course.canManageFullCourse ? (
+                      <Link
+                        href={`/workspaces/${workspaceId}/manage/courses/${course.id}/edit`}
+                        className="inline-flex items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-white px-2.5 py-1 text-xs font-medium text-[var(--color-foreground)] hover:bg-[var(--color-muted)]"
+                        aria-label={`${course.name} 편집`}
+                      >
+                        <Pencil className="size-3.5" />
+                        편집
+                      </Link>
+                    ) : (
+                      <span className="text-xs text-[var(--color-muted-foreground)]">
+                        —
+                      </span>
+                    )}
                   </Td>
                 </Tr>
               ))}

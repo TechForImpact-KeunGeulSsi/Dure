@@ -1,13 +1,14 @@
 'use client';
 
+import Link from 'next/link';
 import { Pencil } from 'lucide-react';
 
 import { SessionList } from '@/components/courses/session-list';
-import { Button } from '@/components/ui/button';
 import type { CourseHomePageData } from '@/types/course';
 import { COURSE_STATUS_LABEL } from '@/types/course';
 
 type CourseHomeClientProps = {
+  workspaceId: string;
   data: CourseHomePageData;
 };
 
@@ -28,7 +29,7 @@ function darkenHex(hex: string, amount = 0.15) {
   return `#${channels.map((value) => value.toString(16).padStart(2, '0')).join('')}`;
 }
 
-export function CourseHomeClient({ data }: CourseHomeClientProps) {
+export function CourseHomeClient({ workspaceId, data }: CourseHomeClientProps) {
   const { course, sessions, sessionCount } = data;
   const accent = course.cardColor ?? '#2563EB';
   const gradientEnd = darkenHex(accent, 0.2);
@@ -61,15 +62,13 @@ export function CourseHomeClient({ data }: CourseHomeClientProps) {
             <p className="mt-1 text-sm text-blue-100">{groupLabel}</p>
           </div>
           {course.canUpdateVisuals ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+            <Link
+              href={`/workspaces/${workspaceId}/manage/courses/${course.id}/edit`}
+              className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-md)] border border-white/30 bg-white/10 px-3 text-xs font-medium text-white hover:bg-white/20"
             >
               <Pencil className="h-3.5 w-3.5" />
               맞춤설정
-            </Button>
+            </Link>
           ) : null}
         </div>
       </section>

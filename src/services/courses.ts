@@ -472,6 +472,130 @@ export async function updateCourseAction(
   }
 
   const supabase = await createSupabaseServerClient();
+
+  // 수업 존재 + 현재 연결 그룹 조회 (권한 재검증용)
+  const { data: courseRow, error: courseFetchError } = await supabase
+    .from("courses")
+    .select("id")
+    .eq("workspace_id", workspaceId)
+    .eq("id", courseId)
+    .maybeSingle();
+  if (courseFetchError) {
+    return apiError("INTERNAL_ERROR", courseFetchError.message);
+  }
+  if (!courseRow) return apiError("NOT_FOUND", "수업을 찾을 수 없습니다.");
+
+  const { data: currentGroupRows, error: currentGroupsError } = await supabase
+    .from("course_groups")
+    .select("group_id")
+    .eq("workspace_id", workspaceId)
+    .eq("course_id", courseId);
+  if (currentGroupsError) {
+    return apiError("INTERNAL_ERROR", currentGroupsError.message);
+  }
+  const currentGroupIds = new Set<UUID>(
+    (currentGroupRows ?? []).map((row) => row.group_id as UUID),
+  );
+
+  // group_admin이면 현재 수업의 모든 연결 그룹이 본인 접근 범위 안이어야 수정 가능
+  const accessibleGroupIds = await loadAccessibleGroupIds(workspaceId);
+  const isOwner = membership.role === "owner_admin";
+  if (!isOwner) {
+    const allInAccess = [...currentGroupIds].every((id) =>
+      accessibleGroupIds.has(id),
+    );
+    if (!allInAccess) {
+      return apiError(
+        "SCOPE_FORBIDDEN",
+        "이 수업의 일부 그룹에 접근 권한이 없어 수정할 수 없습니다.",
+      );
+    }
+  }
+
+  // 1) groupIds 변경 처리 (선택값일 때만)
+  if (parsed.data.groupIds !== undefined) {
+    const nextGroupIds = new Set<UUID>(parsed.data.groupIds);
+    const toRemove = [...currentGroupIds].filter((id) => !nextGroupIds.has(id));
+    const toAdd = [...nextGroupIds].filter((id) => !currentGroupIds.has(id));
+
+    if (toAdd.length > 0) {
+      // 추가 그룹이 워크스페이스 활성 그룹인지 확인 + group_admin이면 접근 범위
+      const { data: addRows, error: addLookupError } = await supabase
+        .from("groups")
+        .select("id, name")
+        .eq("workspace_id", workspaceId)
+        .is("deleted_at", null)
+        .in("id", toAdd);
+      if (addLookupError) {
+        return apiError("INTERNAL_ERROR", addLookupError.message);
+      }
+      const foundIds = new Set((addRows ?? []).map((row) => row.id as UUID));
+      if (foundIds.size !== toAdd.length) {
+        return apiError(
+          "VALIDATION_FAILED",
+          "선택한 그룹 중 일부를 찾을 수 없습니다.",
+        );
+      }
+      if (!isOwner && !toAdd.every((id) => accessibleGroupIds.has(id))) {
+        return apiError(
+          "SCOPE_FORBIDDEN",
+          "접근 권한이 있는 그룹만 연결할 수 있습니다.",
+        );
+      }
+
+      const insertRows = (addRows ?? []).map((row) => ({
+        workspace_id: workspaceId,
+        course_id: courseId,
+        group_id: row.id,
+        group_name_snapshot: row.name,
+      }));
+      const { error: groupInsertError } = await supabase
+        .from("course_groups")
+        .insert(insertRows);
+      if (groupInsertError) {
+        return apiError("INTERNAL_ERROR", groupInsertError.message);
+      }
+    }
+
+    if (toRemove.length > 0) {
+      // 이 수업의 course_participants id 모음 — course_participant_groups를
+      // 정확히 좁히기 위한 IN 절. (course_participant_groups.group_id는
+      // groups를 직접 참조하므로 course_groups 삭제로 cascade되지 않음.)
+      const { data: cpRows, error: cpFetchError } = await supabase
+        .from("course_participants")
+        .select("id")
+        .eq("workspace_id", workspaceId)
+        .eq("course_id", courseId);
+      if (cpFetchError) {
+        return apiError("INTERNAL_ERROR", cpFetchError.message);
+      }
+      const courseParticipantIds = (cpRows ?? []).map((row) => row.id as UUID);
+
+      if (courseParticipantIds.length > 0) {
+        const { error: cpgDeleteError } = await supabase
+          .from("course_participant_groups")
+          .delete()
+          .eq("workspace_id", workspaceId)
+          .in("course_participant_id", courseParticipantIds)
+          .in("group_id", toRemove);
+        if (cpgDeleteError) {
+          return apiError("INTERNAL_ERROR", cpgDeleteError.message);
+        }
+      }
+
+      const { error: cgDeleteError } = await supabase
+        .from("course_groups")
+        .delete()
+        .eq("workspace_id", workspaceId)
+        .eq("course_id", courseId)
+        .in("group_id", toRemove);
+      if (cgDeleteError) {
+        return apiError("INTERNAL_ERROR", cgDeleteError.message);
+      }
+    }
+  }
+
+  // 2) 스칼라 필드 갱신
   const updates: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   };
@@ -482,6 +606,7 @@ export async function updateCourseAction(
   if (parsed.data.cardColor !== undefined) updates.card_color = parsed.data.cardColor;
   if (parsed.data.bannerUrl !== undefined) updates.banner_url = parsed.data.bannerUrl;
 
+  // updated_at만 있는 빈 업데이트도 그냥 통과시킴 — 변경 없는 경우라도 무해.
   const { error } = await supabase
     .from("courses")
     .update(updates)
@@ -491,7 +616,121 @@ export async function updateCourseAction(
 
   revalidatePath(`/workspaces/${workspaceId}/manage/courses`);
   revalidatePath(`/workspaces/${workspaceId}/home`);
+  revalidatePath(`/workspaces/${workspaceId}/courses/${courseId}/home`);
   return apiOk({ courseId });
+}
+
+// ─────────────────────────────────────────────────────────────
+// 수업 편집 화면 데이터
+// ─────────────────────────────────────────────────────────────
+
+export type CourseEditData = {
+  course: {
+    id: UUID;
+    name: string;
+    status: CourseStatus;
+    instructorMemberId: UUID | null;
+    groupIds: UUID[];
+    cardColor: string | null;
+    bannerUrl: string | null;
+  };
+  options: {
+    groups: GroupSummary[];
+    instructors: InstructorSummary[];
+  };
+  canManageFullCourse: boolean;
+};
+
+export async function getCourseEditData(input: {
+  workspaceId: UUID;
+  courseId: UUID;
+}): Promise<ApiResult<CourseEditData>> {
+  await requireUser();
+  const membership = await loadCurrentMembership(input.workspaceId);
+  if (!membership) {
+    return apiError("WORKSPACE_ACCESS_DENIED", "워크스페이스 접근 권한이 없습니다.");
+  }
+  if (membership.role === "instructor") {
+    return apiError("ROLE_FORBIDDEN", "강사는 수업 정보를 수정할 수 없습니다.");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: courseRow, error: courseError } = await supabase
+    .from("courses")
+    .select(
+      "id, name, status, instructor_member_id, card_color, banner_url",
+    )
+    .eq("workspace_id", input.workspaceId)
+    .eq("id", input.courseId)
+    .maybeSingle();
+  if (courseError) return apiError("INTERNAL_ERROR", courseError.message);
+  if (!courseRow) return apiError("NOT_FOUND", "수업을 찾을 수 없습니다.");
+
+  const { data: groupLinks, error: groupsError } = await supabase
+    .from("course_groups")
+    .select("group_id")
+    .eq("workspace_id", input.workspaceId)
+    .eq("course_id", input.courseId);
+  if (groupsError) return apiError("INTERNAL_ERROR", groupsError.message);
+  const currentGroupIds = (groupLinks ?? []).map((row) => row.group_id as UUID);
+
+  const accessibleGroupIds = await loadAccessibleGroupIds(input.workspaceId);
+  const isOwner = membership.role === "owner_admin";
+  const canManageFullCourse =
+    isOwner || currentGroupIds.every((id) => accessibleGroupIds.has(id));
+
+  const { data: groupRows } = await supabase
+    .from("groups")
+    .select("id, name, description, status")
+    .eq("workspace_id", input.workspaceId)
+    .is("deleted_at", null)
+    .order("name");
+  const allGroups: GroupSummary[] = (groupRows ?? []).map((row) => ({
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    status: row.status,
+  }));
+  // group_admin이면 본인 접근 그룹 + 현재 수업 연결 그룹(범위 밖이라도 표시) 합집합으로 노출.
+  // 단, canManageFullCourse=false면 어차피 폼이 안 보이지만 안전상 owner는 전체.
+  const visibleGroups = isOwner
+    ? allGroups
+    : allGroups.filter(
+        (group) =>
+          accessibleGroupIds.has(group.id) ||
+          currentGroupIds.includes(group.id),
+      );
+
+  const { data: instructorRows } = await supabase
+    .from("workspace_members")
+    .select("id, email, display_name, role, status")
+    .eq("workspace_id", input.workspaceId)
+    .eq("role", "instructor")
+    .in("status", ["active", "invited"])
+    .order("display_name", { ascending: true, nullsFirst: false });
+  const instructors: InstructorSummary[] = (instructorRows ?? []).map((row) => ({
+    id: row.id,
+    email: row.email,
+    displayName: row.display_name,
+    status: row.status,
+  }));
+
+  return apiOk({
+    course: {
+      id: courseRow.id,
+      name: courseRow.name,
+      status: courseRow.status,
+      instructorMemberId: courseRow.instructor_member_id,
+      groupIds: currentGroupIds,
+      cardColor: courseRow.card_color,
+      bannerUrl: courseRow.banner_url,
+    },
+    options: {
+      groups: visibleGroups,
+      instructors,
+    },
+    canManageFullCourse,
+  });
 }
 
 export async function updateCourseParticipantAssignmentAction(

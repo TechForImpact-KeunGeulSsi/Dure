@@ -114,6 +114,7 @@ supabase/                  # DB migration
 | 9 | 헤더 최근 활동(activity_logs) | ✅ 완료 |
 | 9B | 수업 자동 완료 cron | ⏳ 보류 |
 | 10 | 캘린더 백엔드 연동 + 일반 일정 CRUD | ✅ 완료 |
+| 11 | 1차 MVP 테스트 | ✅ 완료 |
 
 ### 단계 2~5 요약
 

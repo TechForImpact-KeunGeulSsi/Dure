@@ -9,10 +9,7 @@ import { Dialog, DialogBody, DialogFooter, DialogHeader } from '@/components/ui/
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import type {
-  GroupSummary,
-  MaterialVisibilityScope,
-} from '@/lib/api/types';
+import type { MaterialVisibilityScope } from '@/lib/api/types';
 import { uploadMaterial } from '@/services/materials';
 
 import { VisibilityFields } from './visibility-fields';
@@ -22,7 +19,6 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   workspaceId: string;
   courseId: string;
-  availableGroups: GroupSummary[];
   uploadPolicy: {
     maxSizeBytes: number;
     allowedExtensions: string[];
@@ -35,15 +31,13 @@ export function UploadDialog({
   onOpenChange,
   workspaceId,
   courseId,
-  availableGroups,
   uploadPolicy,
 }: Props) {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [scope, setScope] = useState<MaterialVisibilityScope>('all_course_groups');
-  const [groupIds, setGroupIds] = useState<string[]>([]);
+  const [scope, setScope] = useState<MaterialVisibilityScope>('admin_only');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,8 +45,7 @@ export function UploadDialog({
     setFile(null);
     setTitle('');
     setDescription('');
-    setScope('all_course_groups');
-    setGroupIds([]);
+    setScope('admin_only');
     setSubmitting(false);
     setError(null);
   };
@@ -86,9 +79,6 @@ export function UploadDialog({
     formData.append('title', title.trim());
     if (description.trim()) formData.append('description', description.trim());
     formData.append('visibilityScope', scope);
-    if (scope === 'selected_groups') {
-      formData.append('visibleGroupIds', JSON.stringify(groupIds));
-    }
 
     const result = await uploadMaterial(workspaceId, courseId, formData);
     setSubmitting(false);
@@ -147,13 +137,7 @@ export function UploadDialog({
           />
         </div>
 
-        <VisibilityFields
-          scope={scope}
-          onScopeChange={setScope}
-          groupIds={groupIds}
-          onGroupIdsChange={setGroupIds}
-          availableGroups={availableGroups}
-        />
+        <VisibilityFields scope={scope} onScopeChange={setScope} />
 
         {error && <p className="text-sm text-rose-600">{error}</p>}
       </DialogBody>

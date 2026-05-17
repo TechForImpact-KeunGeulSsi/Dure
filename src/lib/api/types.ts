@@ -23,7 +23,7 @@ export type SessionProgressStatus = "scheduled" | "cancelled";
 export type MaterialUploadStatus = "uploading" | "uploaded" | "failed";
 export type MaterialReviewStatus = "pending" | "reviewed";
 export type AttendanceStatus = "present" | "partial" | "absent";
-export type MaterialVisibilityScope = "all_course_groups" | "selected_groups";
+export type MaterialVisibilityScope = "public" | "admin_only";
 export type SettlementRequestStatus = "pending" | "paid";
 
 // --- Pagination (api-spec.md §1.5) ---
@@ -159,7 +159,6 @@ export type MaterialListItem = {
   uploadStatus: MaterialUploadStatus;
   reviewStatus: MaterialReviewStatus;
   visibilityScope: MaterialVisibilityScope;
-  visibleGroups: GroupSummary[];
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
   canEdit: boolean;

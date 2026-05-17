@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { materialReviewStatusLabel } from '@/lib/api/labels';
+import { materialReviewStatusLabel, materialVisibilityLabel } from '@/lib/api/labels';
 import type { MaterialListItem } from '@/lib/api/types';
 
 type Props = {
@@ -107,11 +107,11 @@ function Meta({ material }: { material: MaterialListItem }) {
 }
 
 function Visibility({ material }: { material: MaterialListItem }) {
-  const label =
-    material.visibilityScope === 'all_course_groups'
-      ? '전체 연결 그룹'
-      : material.visibleGroups.map((g) => g.name).join(', ') || '지정 그룹 없음';
-  return <p className="mt-1 text-xs text-gray-400">공개 범위: {label}</p>;
+  return (
+    <p className="mt-1 text-xs text-gray-400">
+      공개 범위: {materialVisibilityLabel(material.visibilityScope)}
+    </p>
+  );
 }
 
 function formatBytes(bytes: number | null): string {

@@ -122,7 +122,6 @@ export function MaterialsClient({ workspaceId, courseId, initial }: Props) {
         onOpenChange={setUploadOpen}
         workspaceId={workspaceId}
         courseId={courseId}
-        availableGroups={initial.course.groups}
         uploadPolicy={initial.uploadPolicy}
       />
 
@@ -133,7 +132,6 @@ export function MaterialsClient({ workspaceId, courseId, initial }: Props) {
           workspaceId={workspaceId}
           courseId={courseId}
           material={editing}
-          availableGroups={initial.course.groups}
           uploadPolicy={initial.uploadPolicy}
         />
       )}

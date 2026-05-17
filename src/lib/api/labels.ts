@@ -7,6 +7,7 @@ import type {
   CourseStatus,
   GroupStatus,
   MaterialReviewStatus,
+  MaterialVisibilityScope,
   MemberStatus,
   ParticipantStatus,
   SessionProgressStatus,
@@ -64,6 +65,15 @@ export function courseStatusLabel(status: CourseStatus): string {
       return "진행 중";
     case "completed":
       return "진행 완료";
+  }
+}
+
+export function materialVisibilityLabel(scope: MaterialVisibilityScope): string {
+  switch (scope) {
+    case "public":
+      return "전체 공개";
+    case "admin_only":
+      return "관리자에게만 공개";
   }
 }
 

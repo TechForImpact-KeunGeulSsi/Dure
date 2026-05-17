@@ -102,6 +102,15 @@ supabase/                  # DB migration
    - Supabase Studio: http://127.0.0.1:54323
    - 매직 링크 메일(Inbucket): http://127.0.0.1:54324
 
+## 마이그레이션 갱신 시
+
+`git pull` 후 `supabase/migrations/` 아래에 새 마이그레이션 파일이 들어왔다면 로컬 DB에도 반영해야 한다. 둘 중 하나를 선택:
+
+- **로컬 데이터 유지**: `npx supabase migration up`
+- **새로 초기화** (로컬 데이터 전부 삭제): `npx supabase db reset`
+
+반영하지 않고 `npm run dev`만 실행하면 코드와 DB 스키마가 불일치해 자료 업로드·조회 등에서 RLS/타입 에러가 발생할 수 있다.
+
 ## 진행 상황
 
 | # | 단계 | 상태 |

@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import type {
-  GroupSummary,
   MaterialListItem,
   MaterialVisibilityScope,
 } from '@/lib/api/types';
@@ -24,7 +23,6 @@ type Props = {
   workspaceId: string;
   courseId: string;
   material: MaterialListItem;
-  availableGroups: GroupSummary[];
   uploadPolicy: {
     maxSizeBytes: number;
     allowedExtensions: string[];
@@ -37,16 +35,12 @@ export function EditDialog({
   onOpenChange,
   workspaceId,
   material,
-  availableGroups,
   uploadPolicy,
 }: Props) {
   const router = useRouter();
   const [title, setTitle] = useState(material.title);
   const [description, setDescription] = useState(material.description ?? '');
   const [scope, setScope] = useState<MaterialVisibilityScope>(material.visibilityScope);
-  const [groupIds, setGroupIds] = useState<string[]>(
-    material.visibleGroups.map((g) => g.id),
-  );
   const [submitting, setSubmitting] = useState(false);
   const [replacing, setReplacing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +57,6 @@ export function EditDialog({
           ? undefined
           : description.trim() || null,
       visibilityScope: scope === material.visibilityScope ? undefined : scope,
-      visibleGroupIds: scope === 'selected_groups' ? groupIds : undefined,
     });
     setSubmitting(false);
     if (!result.ok) {
@@ -121,13 +114,7 @@ export function EditDialog({
           />
         </div>
 
-        <VisibilityFields
-          scope={scope}
-          onScopeChange={setScope}
-          groupIds={groupIds}
-          onGroupIdsChange={setGroupIds}
-          availableGroups={availableGroups}
-        />
+        <VisibilityFields scope={scope} onScopeChange={setScope} />
 
         {material.canReplaceFile && (
           <div className="space-y-1.5 border-t border-gray-100 pt-4">

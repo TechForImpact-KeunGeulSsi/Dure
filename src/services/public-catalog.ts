@@ -55,8 +55,10 @@ export type PublicCourseSession = {
 };
 
 export type PublicCourseMaterial = {
+  id: UUID;
   title: string;
   description: string | null;
+  originalFilename: string | null;
 };
 
 export type PublicCourseDetail = PublicCourseSummary & {
@@ -402,15 +404,62 @@ async function loadPublicMaterials(courseId: UUID): Promise<PublicCourseMaterial
   const admin = createSupabaseAdminClient();
   const { data } = await admin
     .from("materials")
-    .select("title, description")
+    .select("id, title, description, original_filename")
     .eq("course_id", courseId)
     .eq("upload_status", "uploaded")
+    .eq("visibility_scope", "public")
     .order("created_at", { ascending: false });
 
   return (data ?? []).map((row) => ({
+    id: row.id,
     title: row.title,
     description: row.description,
+    originalFilename: row.original_filename,
   }));
+}
+
+/**
+ * 비로그인 사용자도 호출 가능한 public 자료 다운로드 URL 발급.
+ * 자료가 'public' visibility이고, 속한 수업이 'public' 공개 상태일 때만 URL을 반환한다.
+ */
+export async function getPublicMaterialDownloadUrl(
+  materialId: UUID,
+): Promise<ApiResult<{ url: string; filename: string | null }>> {
+  const admin = createSupabaseAdminClient();
+  const { data: material } = await admin
+    .from("materials")
+    .select(
+      "id, course_id, storage_path, original_filename, visibility_scope, upload_status",
+    )
+    .eq("id", materialId)
+    .maybeSingle();
+  if (!material) return apiError("NOT_FOUND", "자료를 찾을 수 없습니다.");
+  if (material.visibility_scope !== "public") {
+    return apiError("NOT_FOUND", "자료를 찾을 수 없습니다.");
+  }
+  if (material.upload_status !== "uploaded" || !material.storage_path) {
+    return apiError("NOT_FOUND", "자료를 찾을 수 없습니다.");
+  }
+
+  const { data: course } = await admin
+    .from("courses")
+    .select("public_visibility")
+    .eq("id", material.course_id)
+    .maybeSingle();
+  if (!course || course.public_visibility !== "public") {
+    return apiError("NOT_FOUND", "자료를 찾을 수 없습니다.");
+  }
+
+  const { data: signed, error } = await admin.storage
+    .from("course-materials")
+    .createSignedUrl(material.storage_path, 60 * 60);
+  if (error || !signed?.signedUrl) {
+    return apiError(
+      "INTERNAL_ERROR",
+      error?.message ?? "다운로드 링크를 만들지 못했습니다.",
+    );
+  }
+  return apiOk({ url: signed.signedUrl, filename: material.original_filename });
 }
 
 async function loadCourseAccessRow(

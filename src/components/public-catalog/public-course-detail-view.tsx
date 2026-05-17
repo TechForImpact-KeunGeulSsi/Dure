@@ -1,8 +1,10 @@
 import { CalendarDays, FileText, ListChecks } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import type { PublicCourseDetail } from "@/services/public-catalog";
+import type { PublicCourseDetail, PublicCourseMaterial } from "@/services/public-catalog";
 import { COURSE_STATUS_LABEL, SESSION_PROGRESS_LABEL, SESSION_TYPE_LABEL } from "@/types/course";
+
+import { PublicMaterialDownloadButton } from "./public-material-download-button";
 
 type PublicCourseDetailViewProps = {
   course: PublicCourseDetail;
@@ -125,27 +127,38 @@ export function PublicCourseDetailView({
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-base font-semibold text-gray-950">공개 자료 요약</h2>
+        <h2 className="text-base font-semibold text-gray-950">공개 자료</h2>
         {course.materials.length > 0 ? (
           <div className="grid gap-3">
             {course.materials.map((material) => (
-              <div
-                key={material.title}
-                className="rounded-lg border border-gray-200 bg-white px-4 py-3"
-              >
-                <h3 className="text-sm font-semibold text-gray-900">{material.title}</h3>
-                {material.description ? (
-                  <p className="mt-1 text-sm text-gray-600">{material.description}</p>
-                ) : null}
-              </div>
+              <PublicMaterialRow key={material.id} material={material} />
             ))}
           </div>
         ) : (
           <p className="rounded-lg border border-dashed border-gray-200 bg-white px-4 py-6 text-sm text-gray-500">
-            공개할 자료 요약이 아직 없습니다.
+            공개된 자료가 아직 없습니다.
           </p>
         )}
       </section>
     </article>
+  );
+}
+
+function PublicMaterialRow({ material }: { material: PublicCourseMaterial }) {
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <h3 className="text-sm font-semibold text-gray-900">{material.title}</h3>
+        {material.description ? (
+          <p className="mt-1 text-sm text-gray-600">{material.description}</p>
+        ) : null}
+        {material.originalFilename ? (
+          <p className="mt-1 truncate text-xs text-gray-400">
+            {material.originalFilename}
+          </p>
+        ) : null}
+      </div>
+      <PublicMaterialDownloadButton materialId={material.id} />
+    </div>
   );
 }

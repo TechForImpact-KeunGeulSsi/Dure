@@ -26,7 +26,7 @@ export const MATERIAL_ALLOWED_MIME_TYPES = [
   "application/zip",
 ] as const;
 
-const VisibilityScopeEnum = z.enum(["all_course_groups", "selected_groups"]);
+const VisibilityScopeEnum = z.enum(["public", "admin_only"]);
 const ReviewStatusEnum = z.enum(["pending", "reviewed"]);
 
 const TitleSchema = z
@@ -54,45 +54,24 @@ const SizeSchema = z
   .nonnegative("파일 크기는 0 이상이어야 합니다.")
   .max(MATERIAL_MAX_SIZE_BYTES, "파일은 50MB 이하여야 합니다.");
 
-const VisibleGroupIdsSchema = z.array(z.string().uuid()).optional();
-
-const ensureSelectedGroupsHaveIds = (v: {
-  visibilityScope?: "all_course_groups" | "selected_groups";
-  visibleGroupIds?: string[];
-}) =>
-  v.visibilityScope !== "selected_groups" ||
-  (v.visibleGroupIds && v.visibleGroupIds.length >= 1);
-
 // api-spec.md §11.2
-export const PrepareMaterialUploadSchema = z
-  .object({
-    title: TitleSchema,
-    description: DescriptionSchema,
-    originalFilename: FilenameSchema,
-    mimeType: MimeSchema,
-    sizeBytes: SizeSchema,
-    visibilityScope: VisibilityScopeEnum,
-    visibleGroupIds: VisibleGroupIdsSchema,
-  })
-  .refine(ensureSelectedGroupsHaveIds, {
-    message: "공개 그룹을 1개 이상 선택해 주세요.",
-    path: ["visibleGroupIds"],
-  });
+export const PrepareMaterialUploadSchema = z.object({
+  title: TitleSchema,
+  description: DescriptionSchema,
+  originalFilename: FilenameSchema,
+  mimeType: MimeSchema,
+  sizeBytes: SizeSchema,
+  visibilityScope: VisibilityScopeEnum,
+});
 
 export type PrepareMaterialUploadInput = z.infer<typeof PrepareMaterialUploadSchema>;
 
 // api-spec.md §11.4
-export const UpdateMaterialSchema = z
-  .object({
-    title: TitleSchema.optional(),
-    description: DescriptionSchema,
-    visibilityScope: VisibilityScopeEnum.optional(),
-    visibleGroupIds: VisibleGroupIdsSchema,
-  })
-  .refine(ensureSelectedGroupsHaveIds, {
-    message: "공개 그룹을 1개 이상 선택해 주세요.",
-    path: ["visibleGroupIds"],
-  });
+export const UpdateMaterialSchema = z.object({
+  title: TitleSchema.optional(),
+  description: DescriptionSchema,
+  visibilityScope: VisibilityScopeEnum.optional(),
+});
 
 export type UpdateMaterialInput = z.infer<typeof UpdateMaterialSchema>;
 

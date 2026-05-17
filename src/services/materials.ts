@@ -123,8 +123,7 @@ export async function getCourseMaterials(
  *  - `file`: File 객체 (필수)
  *  - `title`: string (필수)
  *  - `description`: string | undefined
- *  - `visibilityScope`: 'all_course_groups' | 'selected_groups'
- *  - `visibleGroupIds`: JSON.stringify된 string[] (selected_groups일 때)
+ *  - `visibilityScope`: 'public' | 'admin_only'
  */
 export async function uploadMaterial(
   workspaceId: UUID,
@@ -146,7 +145,6 @@ export async function uploadMaterial(
     mimeType: file.type || "application/octet-stream",
     sizeBytes: file.size,
     visibilityScope: meta.visibilityScope,
-    visibleGroupIds: meta.visibleGroupIds,
   });
   if (!parsed.success) {
     return apiError("VALIDATION_FAILED", "입력값을 확인해 주세요.", {
@@ -168,17 +166,6 @@ export async function uploadMaterial(
   }
   if (!canUploadForRole(membership.role)) {
     return apiError("ROLE_FORBIDDEN", "자료 업로드 권한이 없습니다.");
-  }
-
-  if (parsed.data.visibilityScope === "selected_groups") {
-    const ok = await assertGroupsBelongToCourse(
-      workspaceId,
-      courseId,
-      parsed.data.visibleGroupIds ?? [],
-    );
-    if (!ok) {
-      return apiError("VALIDATION_FAILED", "공개 그룹은 해당 수업의 연결 그룹이어야 합니다.");
-    }
   }
 
   const admin = createSupabaseAdminClient();
@@ -209,23 +196,7 @@ export async function uploadMaterial(
   }
   const materialId: UUID = inserted.id;
 
-  // 2) material_groups (필요 시)
-  if (
-    parsed.data.visibilityScope === "selected_groups" &&
-    parsed.data.visibleGroupIds?.length
-  ) {
-    const groupsInsert = await insertMaterialGroups(
-      workspaceId,
-      materialId,
-      parsed.data.visibleGroupIds,
-    );
-    if (!groupsInsert.ok) {
-      await admin.from("materials").delete().eq("id", materialId);
-      return groupsInsert.error;
-    }
-  }
-
-  // 3) storage.upload (admin client 직접 — signed URL/PUT 우회)
+  // 2) storage.upload (admin client 직접 — signed URL/PUT 우회)
   const storagePath = buildStoragePath(
     workspaceId,
     courseId,
@@ -537,7 +508,6 @@ type ParsedUploadMeta =
       title: string;
       description: string | null;
       visibilityScope: MaterialVisibilityScope;
-      visibleGroupIds: UUID[] | undefined;
     }
   | { ok: false; error: ApiResult<never> };
 
@@ -546,26 +516,10 @@ function parseUploadMeta(formData: FormData): ParsedUploadMeta {
   const descriptionRaw = formData.get("description");
   const description = descriptionRaw ? String(descriptionRaw).trim() || null : null;
   const visibilityScope = String(
-    formData.get("visibilityScope") ?? "all_course_groups",
+    formData.get("visibilityScope") ?? "admin_only",
   ) as MaterialVisibilityScope;
 
-  let visibleGroupIds: UUID[] | undefined;
-  const visibleGroupIdsRaw = formData.get("visibleGroupIds");
-  if (visibleGroupIdsRaw) {
-    try {
-      const parsed = JSON.parse(String(visibleGroupIdsRaw));
-      if (Array.isArray(parsed)) {
-        visibleGroupIds = parsed.map((v) => String(v) as UUID);
-      }
-    } catch {
-      return {
-        ok: false,
-        error: apiError("VALIDATION_FAILED", "공개 그룹 정보를 읽지 못했습니다."),
-      };
-    }
-  }
-
-  return { ok: true, title, description, visibilityScope, visibleGroupIds };
+  return { ok: true, title, description, visibilityScope };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -679,7 +633,7 @@ type MaterialRow = {
   uploaded_by: UUID | null;
   upload_status: "uploading" | "uploaded" | "failed";
   review_status: MaterialReviewStatus;
-  visibility_scope: "all_course_groups" | "selected_groups";
+  visibility_scope: MaterialVisibilityScope;
   storage_path: string | null;
   created_at: string;
   updated_at: string;
@@ -735,50 +689,44 @@ async function loadMaterialListItems(params: {
   const rows = (data ?? []) as MaterialRow[];
   if (rows.length === 0) return [];
 
-  const [groupsByMaterial, uploaders, accessibleGroupIds] = await Promise.all([
-    loadVisibleGroupsByMaterial(
-      params.workspaceId,
-      rows.map((r) => r.id),
-    ),
+  const [uploaders, courseGroupOverlap] = await Promise.all([
     loadUploaders(rows.map((r) => r.uploaded_by).filter((v): v is UUID => !!v)),
     params.membership.role === "group_admin"
-      ? loadAccessibleGroupIds(params.workspaceId)
-      : Promise.resolve(new Set<UUID>()),
+      ? hasCourseGroupAccess(params.workspaceId, params.courseId)
+      : Promise.resolve(false),
   ]);
 
   return rows.map((row) =>
     toMaterialListItem(row, {
-      visibleGroups: groupsByMaterial.get(row.id) ?? [],
       uploader: row.uploaded_by ? uploaders.get(row.uploaded_by) ?? null : null,
       membership: params.membership,
       isCourseInstructor: params.isCourseInstructor,
-      accessibleGroupIds,
+      groupAdminHasCourseAccess: courseGroupOverlap,
     }),
   );
 }
 
-async function loadVisibleGroupsByMaterial(
+async function hasCourseGroupAccess(
   workspaceId: UUID,
-  materialIds: UUID[],
-): Promise<Map<UUID, GroupSummary[]>> {
-  const result = new Map<UUID, GroupSummary[]>();
-  if (materialIds.length === 0) return result;
-
+  courseId: UUID,
+): Promise<boolean> {
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
-    .from("material_groups")
-    .select("material_id, group:groups ( id, name, description, status )")
+  const { data: accessible } = await supabase.rpc("accessible_group_ids", {
+    target_workspace_id: workspaceId,
+  });
+  const accessibleIds: UUID[] = Array.isArray(accessible)
+    ? (accessible as Array<string | { accessible_group_ids: string }>).map((row) =>
+        typeof row === "string" ? row : (row.accessible_group_ids ?? ""),
+      )
+    : [];
+  if (accessibleIds.length === 0) return false;
+  const { data: cgs } = await supabase
+    .from("course_groups")
+    .select("group_id")
     .eq("workspace_id", workspaceId)
-    .in("material_id", materialIds);
-
-  for (const row of data ?? []) {
-    const g = row.group as unknown as GroupSummary | null;
-    if (!g) continue;
-    const arr = result.get(row.material_id as UUID) ?? [];
-    arr.push(g);
-    result.set(row.material_id as UUID, arr);
-  }
-  return result;
+    .eq("course_id", courseId);
+  const accessibleSet = new Set(accessibleIds.filter((v) => v.length > 0));
+  return (cgs ?? []).some((r) => accessibleSet.has(r.group_id as UUID));
 }
 
 async function loadUploaders(memberIds: UUID[]): Promise<Map<UUID, MemberSummary>> {
@@ -817,11 +765,10 @@ async function loadAccessibleGroupIds(workspaceId: UUID): Promise<Set<UUID>> {
 function toMaterialListItem(
   row: MaterialRow,
   ctx: {
-    visibleGroups: GroupSummary[];
     uploader: MemberSummary | null;
     membership: CurrentMembership;
     isCourseInstructor: boolean;
-    accessibleGroupIds: Set<UUID>;
+    groupAdminHasCourseAccess: boolean;
   },
 ): MaterialListItem {
   const flags = computeMaterialPermissionFlags(row, ctx);
@@ -837,7 +784,6 @@ function toMaterialListItem(
     uploadStatus: row.upload_status,
     reviewStatus: row.review_status,
     visibilityScope: row.visibility_scope,
-    visibleGroups: ctx.visibleGroups,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...flags,
@@ -847,17 +793,15 @@ function toMaterialListItem(
 function computeMaterialPermissionFlags(
   row: MaterialRow,
   ctx: {
-    visibleGroups: GroupSummary[];
     membership: CurrentMembership;
     isCourseInstructor: boolean;
-    accessibleGroupIds: Set<UUID>;
+    groupAdminHasCourseAccess: boolean;
   },
 ): Pick<MaterialListItem, "canEdit" | "canReplaceFile" | "canChangeReviewStatus" | "canDownload"> {
   const isOwner = ctx.membership.role === "owner_admin";
   const isUploader = row.uploaded_by === ctx.membership.memberId;
   const groupAdminOverlap =
-    ctx.membership.role === "group_admin" &&
-    ctx.visibleGroups.some((g) => ctx.accessibleGroupIds.has(g.id));
+    ctx.membership.role === "group_admin" && ctx.groupAdminHasCourseAccess;
 
   const canEdit = isOwner || isUploader || groupAdminOverlap;
   const canChangeReviewStatus =
@@ -882,9 +826,9 @@ async function canEditMaterial(params: {
 
   const accessible = await loadAccessibleGroupIds(params.workspaceId);
   if (accessible.size === 0) return false;
-  return hasGroupOverlap({
+  return hasCourseGroupOverlap({
     workspaceId: params.workspaceId,
-    row: params.row,
+    courseId: params.row.course_id,
     accessibleGroupIds: accessible,
   });
 }
@@ -899,32 +843,24 @@ async function canChangeReviewStatus(params: {
 
   const accessible = await loadAccessibleGroupIds(params.workspaceId);
   if (accessible.size === 0) return false;
-  return hasGroupOverlap({
+  return hasCourseGroupOverlap({
     workspaceId: params.workspaceId,
-    row: params.row,
+    courseId: params.row.course_id,
     accessibleGroupIds: accessible,
   });
 }
 
-async function hasGroupOverlap(params: {
+async function hasCourseGroupOverlap(params: {
   workspaceId: UUID;
-  row: Pick<MaterialBasicRow, "id" | "course_id" | "visibility_scope">;
+  courseId: UUID;
   accessibleGroupIds: Set<UUID>;
 }): Promise<boolean> {
   const supabase = await createSupabaseServerClient();
-  if (params.row.visibility_scope === "all_course_groups") {
-    const { data } = await supabase
-      .from("course_groups")
-      .select("group_id")
-      .eq("workspace_id", params.workspaceId)
-      .eq("course_id", params.row.course_id);
-    return (data ?? []).some((r) => params.accessibleGroupIds.has(r.group_id as UUID));
-  }
   const { data } = await supabase
-    .from("material_groups")
+    .from("course_groups")
     .select("group_id")
     .eq("workspace_id", params.workspaceId)
-    .eq("material_id", params.row.id);
+    .eq("course_id", params.courseId);
   return (data ?? []).some((r) => params.accessibleGroupIds.has(r.group_id as UUID));
 }
 
@@ -939,103 +875,24 @@ function buildStoragePath(
   return `workspaces/${workspaceId}/courses/${courseId}/materials/${materialId}/${fileId}-${safe}`;
 }
 
-async function insertMaterialGroups(
-  workspaceId: UUID,
-  materialId: UUID,
-  groupIds: UUID[],
-): Promise<{ ok: true } | { ok: false; error: ApiResult<never> }> {
-  const admin = createSupabaseAdminClient();
-  const rows = groupIds.map((groupId) => ({
-    workspace_id: workspaceId,
-    material_id: materialId,
-    group_id: groupId,
-  }));
-  const { error } = await admin.from("material_groups").insert(rows);
-  if (error) return { ok: false, error: apiError("INTERNAL_ERROR", error.message) };
-  return { ok: true };
-}
-
-async function deleteAllMaterialGroups(
-  workspaceId: UUID,
-  materialId: UUID,
-): Promise<ApiResult<never> | null> {
-  const admin = createSupabaseAdminClient();
-  const { error } = await admin
-    .from("material_groups")
-    .delete()
-    .eq("workspace_id", workspaceId)
-    .eq("material_id", materialId);
-  if (error) return apiError("INTERNAL_ERROR", error.message);
-  return null;
-}
-
-async function assertGroupsBelongToCourse(
-  workspaceId: UUID,
-  courseId: UUID,
-  groupIds: UUID[],
-): Promise<boolean> {
-  if (groupIds.length === 0) return false;
-  const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
-    .from("course_groups")
-    .select("group_id")
-    .eq("workspace_id", workspaceId)
-    .eq("course_id", courseId)
-    .in("group_id", groupIds);
-  const found = new Set((data ?? []).map((r) => r.group_id as UUID));
-  return groupIds.every((id) => found.has(id));
-}
-
 async function writeMaterialUpdates(
   workspaceId: UUID,
   row: MaterialBasicRow,
   input: UpdateMaterialInput,
 ): Promise<ApiResult<never> | null> {
-  const newScope = input.visibilityScope ?? row.visibility_scope;
-  const wantsGroupChange =
-    input.visibilityScope !== undefined || input.visibleGroupIds !== undefined;
-
-  if (wantsGroupChange && newScope === "selected_groups") {
-    const groupIds = input.visibleGroupIds;
-    if (!groupIds || groupIds.length === 0) {
-      return apiError("VALIDATION_FAILED", "공개 그룹을 1개 이상 선택해 주세요.");
-    }
-    const valid = await assertGroupsBelongToCourse(workspaceId, row.course_id, groupIds);
-    if (!valid) {
-      return apiError("VALIDATION_FAILED", "공개 그룹은 해당 수업의 연결 그룹이어야 합니다.");
-    }
-  }
-
   const admin = createSupabaseAdminClient();
   const updatePayload: Record<string, unknown> = {};
   if (input.title !== undefined) updatePayload.title = input.title;
   if (input.description !== undefined) updatePayload.description = input.description ?? null;
   if (input.visibilityScope !== undefined) updatePayload.visibility_scope = input.visibilityScope;
-  if (Object.keys(updatePayload).length > 0) {
-    const { error } = await admin
-      .from("materials")
-      .update(updatePayload)
-      .eq("workspace_id", workspaceId)
-      .eq("id", row.id);
-    if (error) return apiError("INTERNAL_ERROR", error.message);
-  }
+  if (Object.keys(updatePayload).length === 0) return null;
 
-  if (!wantsGroupChange) return null;
-  return rewriteMaterialGroups(workspaceId, row.id, newScope, input.visibleGroupIds ?? []);
-}
-
-async function rewriteMaterialGroups(
-  workspaceId: UUID,
-  materialId: UUID,
-  newScope: "all_course_groups" | "selected_groups",
-  groupIds: UUID[],
-): Promise<ApiResult<never> | null> {
-  const deleted = await deleteAllMaterialGroups(workspaceId, materialId);
-  if (deleted) return deleted;
-
-  if (newScope !== "selected_groups" || groupIds.length === 0) return null;
-  const inserted = await insertMaterialGroups(workspaceId, materialId, groupIds);
-  if (!inserted.ok) return inserted.error;
+  const { error } = await admin
+    .from("materials")
+    .update(updatePayload)
+    .eq("workspace_id", workspaceId)
+    .eq("id", row.id);
+  if (error) return apiError("INTERNAL_ERROR", error.message);
   return null;
 }
 

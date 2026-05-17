@@ -112,6 +112,7 @@ type ParticipantStatus = 'active' | 'inactive' | 'deleted';
 type ParticipantGroupStatus = 'active' | 'removed';
 type CourseParticipantStatus = 'active' | 'excluded';
 type CourseStatus = 'planned' | 'in_progress' | 'completed';
+type CoursePublicVisibility = 'public' | 'hidden';
 type SessionType = 'regular' | 'makeup' | 'special' | 'practice';
 type SessionVisibilityStatus = 'visible' | 'hidden';
 type SessionRollupStatus = 'included' | 'excluded';
@@ -132,6 +133,8 @@ type MaterialVisibilityScope = 'all_course_groups' | 'selected_groups';
 | `planned` | 진행 전 |
 | `in_progress` | 진행 중 |
 | `completed` | 진행 완료 |
+| `public` | 공개 |
+| `hidden` | 숨김 |
 | `pending` | 확인 미정 |
 | `reviewed` | 확인됨 |
 | `present` | 출석 |
@@ -1522,7 +1525,118 @@ type CompleteCoursesCronOutput = {
 - 마지막 유효 회차의 종료 시간이 지난 수업을 `completed`로 전환한다.
 - 유효 회차는 `progress_status != cancelled`인 회차다.
 
-## 18. 페이지별 담당자 체크리스트
+## 18. 공개 수업 카탈로그
+
+공개 카탈로그는 비로그인 방문자가 볼 수 있는 수업 예시 목록이다. 업무 테이블을 직접 노출하지 않고 `PublicCourse*` DTO만 반환한다.
+
+### 18.1 공개 카탈로그 조회
+
+Query: `getPublicCourseCatalog`
+
+```ts
+type PublicCourseSummary = {
+  workspace: { id: UUID; name: string };
+  id: UUID;
+  name: string;
+  status: CourseStatus;
+  publicVisibility: CoursePublicVisibility;
+  startsOn: ISODate | null;
+  endsOn: ISODate | null;
+  cardColor: string | null;
+  bannerUrl: string | null;
+  groupNames: string[];
+  sessionCount: number;
+  materialCount: number;
+};
+
+type PublicCourseCatalog = {
+  workspaces: Array<{
+    id: UUID;
+    name: string;
+    courses: PublicCourseSummary[];
+  }>;
+};
+```
+
+규칙:
+
+- 인증이 필요 없다.
+- `courses.public_visibility = 'public'`인 수업만 포함한다.
+- 마을 섹션은 `workspace.name asc`로 정렬한다.
+- 섹션 내 수업은 `in_progress`, `planned`, `completed`, `updated_at desc`, `created_at desc` 순으로 정렬한다.
+- 공개 회차 수는 `course_sessions.visibility_status = 'visible'`인 회차만 센다.
+- 공개 자료 수는 `materials.upload_status = 'uploaded'`인 자료만 센다.
+
+### 18.2 공개 수업 상세 조회
+
+Query: `getPublicCourseDetail(courseId: UUID)`
+
+```ts
+type PublicCourseSession = {
+  sessionNo: number;
+  date: ISODate;
+  startsAt: ISOTime;
+  endsAt: ISOTime;
+  type: SessionType;
+  progressStatus: SessionProgressStatus;
+};
+
+type PublicCourseMaterial = {
+  title: string;
+  description: string | null;
+};
+
+type PublicCourseDetail = PublicCourseSummary & {
+  sessions: PublicCourseSession[];
+  materials: PublicCourseMaterial[];
+};
+```
+
+규칙:
+
+- 인증이 필요 없다.
+- 숨김 수업, 누락 수업, 접근 불가 수업은 모두 `NOT_FOUND`로 반환해 숨김 수업 존재 여부를 노출하지 않는다.
+- 회차는 `date asc`, `starts_at asc`, `session_no asc`로 정렬한다.
+- 자료는 `created_at desc`로 정렬한다.
+- 자료 다운로드 URL, `storage_path`, `original_filename`, MIME type, 파일 크기, 업로더, 멤버 이메일, 참여자, 출석, 수업 메모는 반환하지 않는다.
+
+### 18.3 운영자 공개 preview 조회
+
+Query: `getCoursePublicPreview({ workspaceId, courseId })`
+
+반환 타입은 `PublicCourseDetail`과 같다.
+
+권한:
+
+- 로그인한 활성 워크스페이스 멤버만 호출할 수 있다.
+- owner_admin은 전체 수업 preview를 볼 수 있다.
+- group_admin은 접근 그룹과 연결된 수업 preview를 볼 수 있다.
+- instructor는 담당 수업 preview를 볼 수 있다.
+- 숨김 수업도 preview에는 표시한다.
+
+### 18.4 수업 공개 상태 변경
+
+Action: `updateCoursePublicVisibility`
+
+```ts
+type UpdateCoursePublicVisibilityInput = {
+  workspaceId: UUID;
+  courseId: UUID;
+  publicVisibility: CoursePublicVisibility;
+};
+
+type UpdateCoursePublicVisibilityOutput = {
+  publicVisibility: CoursePublicVisibility;
+};
+```
+
+권한:
+
+- owner_admin은 변경할 수 있다.
+- group_admin은 해당 수업의 모든 연결 그룹이 자기 접근 그룹 안에 있을 때만 변경할 수 있다.
+- instructor는 변경할 수 없다.
+
+## 19. 페이지별 담당자 체크리스트
 
 각 페이지 담당자는 구현 전에 아래 항목을 확인한다.
 
@@ -1537,7 +1651,7 @@ type CompleteCoursesCronOutput = {
 - 자료 업로드는 준비, 브라우저 업로드, 완료 확정의 3단계 흐름을 따르는가.
 - 삭제는 기록 보존 정책을 따르며 기존 snapshot 필드를 훼손하지 않는가.
 
-## 19. 구현 우선순위
+## 20. 구현 우선순위
 
 페이지별 병렬 개발을 위해 다음 순서로 공통 계약을 먼저 구현한다.
 

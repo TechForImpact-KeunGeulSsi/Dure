@@ -34,3 +34,6 @@ pnpm-debug.log*
 # IDE
 .idea
 .vscode
+
+# Local brainstorming artifacts
+.superpowers/

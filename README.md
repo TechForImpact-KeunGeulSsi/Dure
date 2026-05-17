@@ -24,6 +24,8 @@
 
 ```
 app/
+  page.tsx                 # 공개 수업 카탈로그(/)
+  public/courses/[courseId]/page.tsx  # 공개 수업 상세
   workspaces/[workspaceId]/(dashboard)/
     home/                  # 운영자: 전체 수업 / 강사: 담당 수업 (role 기반 분기)
     calendar/              # 월간 일정 관리
@@ -44,6 +46,7 @@ app/
       upload-url/route.ts                  # 사용 중단 (410). 단계 6 자료 업로드는 server action으로 통합.
       [materialId]/download/route.ts       # signed download URL 발급
 components/
+  public-catalog/           # 공개 수업 카드/상세/운영자 preview
   courses/
     course-card.tsx          # viewType prop으로 운영자/강사 라우팅 분기
     course-detail-tabs.tsx
@@ -55,6 +58,7 @@ lib/
     workspace-member.ts
     attendance.ts
 services/
+  public-catalog.ts        # 공개 카탈로그 projection + 공개 여부 변경
   courses.ts, course-detail.ts, course-sessions.ts, course-participants.ts
   materials.ts             # 자료 (단계 6 + FormData server action 흐름)
   workspace-members.ts     # 강사 초대 (단계 7)
@@ -115,6 +119,7 @@ supabase/                  # DB migration
 | 10 | 캘린더 백엔드 연동 + 일반 일정 CRUD | ✅ 완료 |
 | 11 | 1차 MVP 테스트 | ✅ 완료 |
 | 12 | UI 개선 | ✅ 완료 |
+| 13 | 공개 수업 카탈로그 + 운영자 공개 preview | ✅ 완료 |
 
 ### 단계 2~5 요약
 
@@ -273,6 +278,19 @@ api-spec.md §16 `getRecentActivity` 정식 구현 + 7개 service에 logging 훅
 - **validator** [course.ts](src/lib/validators/course.ts) `UpdateCourseSchema`에 `groupIds: z.array(uuid).min(1).optional()` 추가.
 - 권한: owner_admin 또는 수업의 모든 연결 그룹이 본인 접근 범위 안인 group_admin만. 그 외엔 페이지 진입 시 거부 화면, 서버 액션은 `SCOPE_FORBIDDEN`.
 
+### 공개 수업 카탈로그
+
+루트(`/`)는 더 이상 비로그인 사용자를 `/login`으로 리다이렉트하지 않고 공개 수업 카탈로그를 표시한다. 공개 수업 상세는 `/public/courses/[courseId]`이며, 숨김 수업과 존재하지 않는 수업은 같은 not-found 처리를 사용한다.
+
+- **DB:** `course_public_visibility` enum(`public`/`hidden`)과 `courses.public_visibility` 컬럼을 추가했다. 기본값은 `public`.
+- **서비스:** [services/public-catalog.ts](src/services/public-catalog.ts)가 공개 DTO 단일 projection을 반환한다. DTO에는 workspace id/name, course 공개 표시 필드, 그룹명, 공개 회차 일정, 업로드 완료 자료의 title/description만 포함한다.
+- **운영자 preview:** 운영자 수업 홈에서 같은 public DTO를 렌더링하고, 공개/숨김 토글을 제공한다. 토글은 owner_admin 또는 수업 전체 수정 가능한 group_admin만 성공한다. instructor는 서버 액션에서 거부된다.
+- **비노출:** 참여자, 출석, 수업 메모, 자료 다운로드 URL, `storage_path`, 원본 파일명, 파일 MIME/크기, 멤버 id/email은 공개 DTO에 포함하지 않는다.
+
+### 공개 카탈로그 RLS / 스펙 충돌 (보고 사항)
+
+공개 카탈로그 조회는 public RLS 정책을 업무 테이블 전체에 넓게 추가하지 않고 admin client로 읽은 뒤 엄격한 DTO projection만 반환한다. 외부 방문자에게 필요한 공개 필드만 서버 서비스에서 재구성하며, 자료 파일 경로나 내부 멤버 정보는 조회 결과에 포함하지 않는다. `courses.public_visibility` 변경도 admin client update를 사용하되, 권한은 서비스 레이어에서 활성 멤버십과 전체 수업 관리 권한으로 검증한다.
+
 ### 멤버 정보 수정 다이얼로그 (members 페이지)
 
 `/workspaces/[id]/members`에서 owner_admin이 멤버 행을 클릭하면 표시 이름·역할·상태·그룹 스코프·메모를 한 번에 수정하는 dialog가 뜬다. api-spec.md §6.3 `updateMember` 정식화.
@@ -332,5 +350,5 @@ api-spec.md §16 `getRecentActivity` 정식 구현 + 7개 service에 logging 훅
 - `workspaceId`는 모든 업무 데이터 요청 입력에 포함.
 - `can*` boolean은 화면 제어용. 서버에서 권한을 다시 계산.
 - 라벨은 [lib/api/labels.ts](src/lib/api/labels.ts)를 통해 변환.
-- **admin client 우회 패턴**: `materials` INSERT/UPDATE/DELETE/storage, `material_groups` INSERT/DELETE, `attendance_records`/`class_memos` upsert, `workspace_members` INSERT/UPDATE, `invites`/`invite_groups`/`invite_courses`(단계 8), `workspace_join_requests` INSERT/UPDATE(단계 8B), `activity_logs` INSERT/SELECT(단계 9). 새 RLS 패턴에서 같은 에러가 보이면 같은 방식 적용 + 보고 사항으로 README에 기록.
+- **admin client 우회 패턴**: `materials` INSERT/UPDATE/DELETE/storage, `material_groups` INSERT/DELETE, `attendance_records`/`class_memos` upsert, `workspace_members` INSERT/UPDATE, `invites`/`invite_groups`/`invite_courses`(단계 8), `workspace_join_requests` INSERT/UPDATE(단계 8B), `activity_logs` INSERT/SELECT(단계 9), 공개 카탈로그 projection 및 `courses.public_visibility` 변경. 새 RLS 패턴에서 같은 에러가 보이면 같은 방식 적용 + 보고 사항으로 README에 기록.
 - UI는 [Figma 디자인](https://www.figma.com/design/44LjDxyubV8Q9B53WBMzSr/DURE) 기준.

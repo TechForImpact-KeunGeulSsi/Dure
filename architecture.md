@@ -59,6 +59,9 @@ Next.js App Router를 기준으로 역할별 화면을 분리한다.
 
 ```text
 app/
+  page.tsx
+  public/
+    courses/[courseId]/
   (auth)/
     login/
     accept-invite/
@@ -85,6 +88,8 @@ app/
 
 ### 화면 책임
 
+- `/`: 비로그인 사용자도 접근 가능한 공개 수업 카탈로그.
+- `public/courses/[courseId]`: 공개 수업 상세. 숨김/누락 수업은 동일한 not-found 상태로 처리한다.
 - `home`: 운영 중인 수업 카드 목록, 수업 상세 진입.
 - `calendar`: 수업 회차와 일반 일정의 월간 캘린더.
 - `members`: 사용자 초대와 권한 설정. 대표 운영자 전용.
@@ -135,6 +140,7 @@ src/
     attendance.ts
     invites.ts
     activity.ts
+    public-catalog.ts
 ```
 
 ### 처리 원칙
@@ -160,7 +166,7 @@ src/
 | `groups` | `workspace_id`, `name`, `description`, `status`, `deleted_at` | 권한 스코프이자 운영 단위 |
 | `participants` | `workspace_id`, `name`, `memo`, `status`, `created_by`, `deleted_at` | 로그인하지 않는 참여자 마스터 |
 | `participant_groups` | `workspace_id`, `participant_id`, `group_id`, `status` | 참여자와 그룹의 N:M 관계 |
-| `courses` | `workspace_id`, `name`, `status`, `starts_on`, `ends_on`, `instructor_member_id`, `card_color`, `banner_url` | 수업 기본 정보 |
+| `courses` | `workspace_id`, `name`, `status`, `public_visibility`, `starts_on`, `ends_on`, `instructor_member_id`, `card_color`, `banner_url` | 수업 기본 정보와 공개 카탈로그 노출 상태 |
 | `course_recurrence_rules` | `workspace_id`, `course_id`, `repeat_weekdays`, `starts_at`, `ends_at`, `ends_on`, `session_count` | 회차 생성을 위한 반복 조건 |
 | `course_groups` | `workspace_id`, `course_id`, `group_id`, `group_name_snapshot` | 수업과 그룹의 N:M 관계 |
 | `course_participants` | `workspace_id`, `course_id`, `participant_id`, `status`, `participant_name_snapshot`, `assigned_at` | 수업 참여자 배정 |
@@ -186,6 +192,7 @@ src/
 - `participant_group_status`: `active`, `removed`
 - `course_participant_status`: `active`, `excluded`
 - `course_status`: `planned`, `in_progress`, `completed`
+- `course_public_visibility`: `public`, `hidden`
 - `session_type`: `regular`, `makeup`, `special`, `practice`
 - `session_visibility_status`: `visible`, `hidden`
 - `session_rollup_status`: `included`, `excluded`
@@ -273,6 +280,8 @@ Next.js Server Actions를 기본으로 사용하고, 파일 업로드/다운로�
 | `/api/cron/complete-courses` | `POST` | 마지막 유효 회차가 지난 수업 상태 자동 완료 |
 
 API 응답은 도메인 객체 전체를 무조건 반환하지 않고 화면에 필요한 projection을 반환한다. 예를 들어 수업 목록은 수업명, 상태, 연결 그룹, 담당 강사, 참여자 수만 반환한다.
+
+공개 수업 카탈로그는 [services/public-catalog.ts](src/services/public-catalog.ts)의 전용 projection만 사용한다. 공개 DTO에는 workspace id/name, course id/name/status/period/card visual, 그룹명, 공개 회차 일정, 업로드 완료 자료의 title/description만 포함하며 참여자, 출석, 메모, 자료 파일 경로, 원본 파일명, 멤버 식별자는 포함하지 않는다. 운영자 수업 홈의 공개 preview도 같은 DTO를 사용해 실제 공개 페이지와 표시 내용이 어긋나지 않게 한다.
 
 ## 8. 인증/권한 설계
 

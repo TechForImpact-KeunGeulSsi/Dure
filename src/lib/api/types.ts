@@ -15,6 +15,7 @@ export type ParticipantStatus = "active" | "inactive" | "deleted";
 export type ParticipantGroupStatus = "active" | "removed";
 export type CourseParticipantStatus = "active" | "excluded";
 export type CourseStatus = "planned" | "in_progress" | "completed";
+export type CoursePublicVisibility = "public" | "hidden";
 export type SessionType = "regular" | "makeup" | "special" | "practice";
 export type SessionVisibilityStatus = "visible" | "hidden";
 export type SessionRollupStatus = "included" | "excluded";
@@ -104,6 +105,7 @@ export type CourseSummary = {
   id: UUID;
   name: string;
   status: CourseStatus;
+  publicVisibility?: CoursePublicVisibility;
   startsOn: ISODate | null;
   endsOn: ISODate | null;
   cardColor: string | null;

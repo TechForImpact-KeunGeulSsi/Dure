@@ -118,6 +118,17 @@ export async function getRecentActivity(input: {
         course,
       });
       if (!allowed) continue;
+    } else if (e.target_type === "settlement_request") {
+      // settlement_requested: 운영자만 봄
+      // settlement_paid: 운영자 + 해당 강사 본인
+      if (e.event_type === "settlement_requested") {
+        if (membership.role !== "owner_admin") continue;
+      } else if (e.event_type === "settlement_paid") {
+        const instructorId = readMetadataString(e.metadata, "instructorMemberId");
+        const isOwner = membership.role === "owner_admin";
+        const isMineAsInstructor = instructorId === membership.memberId;
+        if (!isOwner && !isMineAsInstructor) continue;
+      }
     }
 
     const actor = e.actor_member_id ? actorMap.get(e.actor_member_id) ?? null : null;
@@ -272,6 +283,20 @@ function buildTarget(
         href: `/workspaces/${workspaceId}/courses/${event.target_id}/home`,
       };
     }
+    case "settlement_request": {
+      if (!event.target_id) return null;
+      // 운영자는 /settlements/[id]로, 강사는 본인 수업 정산 탭으로 이동
+      const courseId = readMetadataString(event.metadata, "courseId");
+      const href =
+        viewerRole === "instructor" && courseId
+          ? `/workspaces/${workspaceId}/teach/courses/${courseId}/settlements`
+          : `/workspaces/${workspaceId}/settlements/${event.target_id}`;
+      return {
+        type: "settlement_request",
+        requestId: event.target_id,
+        href,
+      };
+    }
     default:
       return null;
   }
@@ -315,6 +340,10 @@ function buildTitle(event: ActivityRow, actor: MemberSummary | null): string {
     }
     case "course_completed":
       return "수업이 자동으로 완료 처리되었어요";
+    case "settlement_requested":
+      return `${name}님이 정산을 요청했어요`;
+    case "settlement_paid":
+      return `${name}님이 지급 완료를 표시했어요`;
     default:
       return `${name}님의 활동`;
   }
@@ -354,6 +383,18 @@ function buildDescription(
       const message = readMetadataString(event.metadata, "message");
       if (roleLabel && message) return `${roleLabel} 희망 · ${message}`;
       return roleLabel ?? message;
+    }
+    case "settlement_requested":
+    case "settlement_paid": {
+      const totalAmount = event.metadata?.totalAmount;
+      const courseName = readMetadataString(event.metadata, "courseName");
+      if (typeof totalAmount === "number") {
+        const formatted = new Intl.NumberFormat("ko-KR").format(totalAmount);
+        return courseName
+          ? `${courseName} · ${formatted}원`
+          : `${formatted}원`;
+      }
+      return courseName ?? null;
     }
     default:
       return null;

@@ -13,6 +13,7 @@ import type {
   SessionRollupStatus,
   SessionType,
   SessionVisibilityStatus,
+  SettlementRequestStatus,
   WorkspaceRole,
 } from "./types";
 
@@ -109,4 +110,13 @@ export function sessionRollupLabel(status: SessionRollupStatus): string {
 
 export function sessionProgressLabel(status: SessionProgressStatus): string {
   return status === "scheduled" ? "예정" : "취소";
+}
+
+export function settlementStatusLabel(status: SettlementRequestStatus): string {
+  switch (status) {
+    case "pending":
+      return "대기";
+    case "paid":
+      return "지급 완료";
+  }
 }

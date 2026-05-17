@@ -23,6 +23,7 @@ export type MaterialUploadStatus = "uploading" | "uploaded" | "failed";
 export type MaterialReviewStatus = "pending" | "reviewed";
 export type AttendanceStatus = "present" | "partial" | "absent";
 export type MaterialVisibilityScope = "all_course_groups" | "selected_groups";
+export type SettlementRequestStatus = "pending" | "paid";
 
 // --- Pagination (api-spec.md §1.5) ---
 
@@ -202,7 +203,8 @@ export type ActivityTarget =
   | { type: "course_material"; courseId: UUID; materialId: UUID; href: string }
   | { type: "attendance"; courseId: UUID; sessionId: UUID; href: string }
   | { type: "class_memo"; courseId: UUID; sessionId: UUID; href: string }
-  | { type: "member"; memberId: UUID; href: string };
+  | { type: "member"; memberId: UUID; href: string }
+  | { type: "settlement_request"; requestId: UUID; href: string };
 
 export type ActivityItem = {
   id: UUID;
@@ -219,4 +221,65 @@ export type LoggableTargetType =
   | "attendance"
   | "class_memo"
   | "member"
-  | "course";
+  | "course"
+  | "settlement_request";
+
+// --- Settlement requests (정산 요청) ---
+
+export type PayoutAccount = {
+  id: UUID;
+  bankName: string;
+  accountNumber: string;
+  accountHolder: string;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+};
+
+export type SettlementRequestItem = {
+  id: UUID;
+  itemName: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  sortOrder: number;
+};
+
+export type SettlementRequestReceipt = {
+  id: UUID;
+  originalFilename: string;
+  mimeType: string;
+  sizeBytes: number;
+  storagePath: string;
+  uploadedAt: ISODateTime;
+};
+
+export type SettlementRequestListItem = {
+  id: UUID;
+  courseId: UUID;
+  courseName: string;
+  instructor: MemberSummary | null;
+  totalAmount: number;
+  itemCount: number;
+  status: SettlementRequestStatus;
+  createdAt: ISODateTime;
+  paidAt: ISODateTime | null;
+};
+
+export type SettlementRequestDetail = {
+  id: UUID;
+  workspaceId: UUID;
+  courseId: UUID;
+  courseName: string;
+  instructor: MemberSummary | null;
+  bankNameSnapshot: string;
+  accountNumberSnapshot: string;
+  accountHolderSnapshot: string;
+  memo: string;
+  totalAmount: number;
+  status: SettlementRequestStatus;
+  items: SettlementRequestItem[];
+  receipts: SettlementRequestReceipt[];
+  createdAt: ISODateTime;
+  paidAt: ISODateTime | null;
+  paidBy: MemberSummary | null;
+};

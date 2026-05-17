@@ -86,7 +86,7 @@ export function DashboardHomeClient({
         </TabsList>
       </Tabs>
 
-      {filteredCourses.length === 0 ? (
+      {filteredCourses.length === 0 && !canCreateCourse ? (
         <div className="rounded-xl border border-dashed border-gray-200 bg-white py-16 text-center">
           <p className="text-sm text-gray-500">
             {viewType === 'instructor'

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Building2, Home, ShieldCheck } from "lucide-react";
+import { ArrowRight, Building2, Home, ShieldCheck, Users } from "lucide-react";
 
 import { requireUser } from "@/lib/auth/require-user";
 import { OnboardingHeader } from "./onboarding-header";
@@ -30,10 +30,12 @@ export default async function NewWorkspacePage() {
         </header>
 
         <div className="grid gap-6 md:grid-cols-[1.7fr_1fr] md:items-start">
-          <section className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-white p-6 shadow-sm">
-            <NewWorkspaceForm defaultOwnerName={displayName} />
-            <JoinExistingHint />
-          </section>
+          <div className="space-y-6">
+            <section className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-white p-6 shadow-sm">
+              <NewWorkspaceForm defaultOwnerName={displayName} />
+            </section>
+            <JoinExistingCard />
+          </div>
           <aside className="rounded-[var(--radius-lg)] bg-white/70 border border-[var(--color-border)] p-6">
             <p className="text-sm font-semibold text-[var(--color-foreground)]">
               시작 후 관리할 수 있어요
@@ -88,17 +90,28 @@ function FeatureRow({
   );
 }
 
-function JoinExistingHint() {
+function JoinExistingCard() {
   return (
     <Link
       href="/workspaces/discover"
-      className="mt-6 flex items-center justify-between rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-muted)]/40 px-4 py-3 text-sm hover:border-[var(--color-primary)]"
+      className="group flex items-center justify-between gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
     >
-      <span className="font-medium text-[var(--color-foreground)]">
-        기존 워크스페이스로 참여하기
-      </span>
-      <span className="text-xs text-[var(--color-primary)]">
-        워크스페이스 둘러보기 →
+      <div className="flex items-center gap-4">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary)] text-[var(--color-primary-foreground)]">
+          <Users className="size-5" />
+        </span>
+        <div>
+          <p className="text-base font-bold text-[var(--color-foreground)]">
+            기존 워크스페이스로 참여하기
+          </p>
+          <p className="mt-0.5 text-sm text-[var(--color-muted-foreground)]">
+            이미 운영 중인 워크스페이스에 합류해 함께 협업하세요.
+          </p>
+        </div>
+      </div>
+      <span className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-[var(--color-primary-foreground)] transition-transform group-hover:translate-x-0.5">
+        둘러보기
+        <ArrowRight className="size-4" />
       </span>
     </Link>
   );

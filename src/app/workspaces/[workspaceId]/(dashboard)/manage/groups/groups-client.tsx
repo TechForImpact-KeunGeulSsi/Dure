@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -162,48 +163,61 @@ export function GroupsClient({
               </Tr>
             </THead>
             <TBody>
-              {data.groups.map((group) => (
-                <Tr key={group.id}>
-                  <Td className="font-medium">{group.name}</Td>
-                  <Td className="text-[var(--color-muted-foreground)]">
-                    {group.description ?? "—"}
-                  </Td>
-                  <Td>
-                    <GroupStatusBadge status={group.status as GroupStatus} />
-                  </Td>
-                  <Td className="text-right tabular-nums">
-                    {group.participantCount}
-                  </Td>
-                  <Td className="text-right tabular-nums">
-                    {group.courseCount}
-                  </Td>
-                  <Td>
-                    <div className="flex items-center justify-end gap-1">
-                      {group.canEditDescription && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setDialog({ mode: "edit", group })}
-                          aria-label="수정"
-                        >
-                          <Pencil className="size-4" />
-                        </Button>
-                      )}
-                      {group.canManageLifecycle && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleDelete(group)}
-                          disabled={pending && deletingId === group.id}
-                          aria-label="삭제"
-                        >
-                          <Trash2 className="size-4 text-[var(--color-destructive)]" />
-                        </Button>
-                      )}
-                    </div>
-                  </Td>
-                </Tr>
-              ))}
+              {data.groups.map((group) => {
+                const participantsHref = `/workspaces/${workspaceId}/manage/participants?groupId=${encodeURIComponent(group.id)}`;
+                return (
+                  <Tr
+                    key={group.id}
+                    className="relative transition-colors hover:bg-[var(--color-muted)]/60"
+                  >
+                    <Td className="font-medium">
+                      <Link
+                        href={participantsHref}
+                        aria-label={`${group.name} 그룹의 참여자 보기`}
+                        className="absolute inset-0"
+                      />
+                      {group.name}
+                    </Td>
+                    <Td className="text-[var(--color-muted-foreground)]">
+                      {group.description ?? "—"}
+                    </Td>
+                    <Td>
+                      <GroupStatusBadge status={group.status as GroupStatus} />
+                    </Td>
+                    <Td className="text-right tabular-nums">
+                      {group.participantCount}
+                    </Td>
+                    <Td className="text-right tabular-nums">
+                      {group.courseCount}
+                    </Td>
+                    <Td className="relative z-10">
+                      <div className="flex items-center justify-end gap-1">
+                        {group.canEditDescription && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setDialog({ mode: "edit", group })}
+                            aria-label="수정"
+                          >
+                            <Pencil className="size-4" />
+                          </Button>
+                        )}
+                        {group.canManageLifecycle && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDelete(group)}
+                            disabled={pending && deletingId === group.id}
+                            aria-label="삭제"
+                          >
+                            <Trash2 className="size-4 text-[var(--color-destructive)]" />
+                          </Button>
+                        )}
+                      </div>
+                    </Td>
+                  </Tr>
+                );
+              })}
             </TBody>
           </Table>
           <Pagination

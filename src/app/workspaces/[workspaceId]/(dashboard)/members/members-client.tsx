@@ -1,7 +1,7 @@
 'use client';
 
-import { Mail, MessageSquare, UserPlus } from 'lucide-react';
-import { useState, useTransition } from 'react';
+import { Mail, MessageSquare, Search, UserPlus } from 'lucide-react';
+import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -57,17 +57,40 @@ const STATUS_TONE: Record<MemberStatus, 'success' | 'warning' | 'neutral' | 'dan
   removed: 'danger',
 };
 
+type RoleFilter = 'all' | WorkspaceRole;
+
+const ROLE_FILTERS: { value: RoleFilter; label: string }[] = [
+  { value: 'all', label: '전체' },
+  { value: 'owner_admin', label: '대표 운영자' },
+  { value: 'group_admin', label: '그룹 운영자' },
+  { value: 'instructor', label: '강사' },
+];
+
 export function MembersClient({ workspaceId, initial, groups, pendingRequests }: Props) {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [approveTarget, setApproveTarget] = useState<JoinRequestListItem | null>(null);
   const [editTarget, setEditTarget] = useState<WorkspaceMemberListItem | null>(null);
   const [rejectPending, startReject] = useTransition();
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
+  const [search, setSearch] = useState('');
   const router = useRouter();
   const canEdit = initial.canInviteMembers;
 
   const instructorCount = initial.members.filter((m) => m.role === 'instructor').length;
   const activeCount = initial.members.filter((m) => m.status === 'active').length;
   const invitedCount = initial.members.filter((m) => m.status === 'invited').length;
+
+  const filteredMembers = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return initial.members.filter((m) => {
+      if (roleFilter !== 'all' && m.role !== roleFilter) return false;
+      if (needle.length > 0) {
+        const haystack = `${m.displayName ?? ''} ${m.email}`.toLowerCase();
+        if (!haystack.includes(needle)) return false;
+      }
+      return true;
+    });
+  }, [initial.members, roleFilter, search]);
 
   function handleReject(req: JoinRequestListItem) {
     if (!initial.canInviteMembers) return;
@@ -165,11 +188,42 @@ export function MembersClient({ workspaceId, initial, groups, pendingRequests }:
             </Button>
           )}
         </div>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {ROLE_FILTERS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => setRoleFilter(f.value)}
+              className={cn(
+                'rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
+                roleFilter === f.value
+                  ? 'bg-[var(--color-primary)] text-[var(--color-primary-foreground)]'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-[var(--color-border)]',
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+          <div className="ml-auto relative w-full sm:w-64">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="이름 또는 이메일 검색"
+              className="h-9 w-full rounded-full border border-[var(--color-border)] bg-white pl-9 pr-3 text-sm outline-none placeholder:text-gray-400 focus:border-[var(--color-ring)] focus:ring-2 focus:ring-[var(--color-ring)]/20"
+            />
+          </div>
+        </div>
       </Card>
 
       {initial.members.length === 0 ? (
         <Card className="p-10 text-center">
           <p className="text-sm text-gray-500">등록된 멤버가 없습니다.</p>
+        </Card>
+      ) : filteredMembers.length === 0 ? (
+        <Card className="p-10 text-center">
+          <p className="text-sm text-gray-500">조건에 맞는 멤버가 없습니다.</p>
         </Card>
       ) : (
         <Card>
@@ -183,7 +237,7 @@ export function MembersClient({ workspaceId, initial, groups, pendingRequests }:
               </TableRow>
             </TableHeader>
             <TableBody>
-              {initial.members.map((m) => (
+              {filteredMembers.map((m) => (
                 <TableRow
                   key={m.id}
                   onClick={canEdit ? () => setEditTarget(m) : undefined}

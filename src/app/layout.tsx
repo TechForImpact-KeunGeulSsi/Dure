@@ -1,5 +1,9 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Toaster } from "sonner";
+
+import { NavigationProgressProvider } from "@/components/layout/navigation-progress";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,7 +19,9 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body>
-        {children}
+        <Suspense fallback={null}>
+          <NavigationProgressProvider>{children}</NavigationProgressProvider>
+        </Suspense>
         <Toaster position="top-center" richColors />
       </body>
     </html>

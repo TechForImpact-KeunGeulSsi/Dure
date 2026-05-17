@@ -59,7 +59,7 @@ export function NewCourseForm({
   const [status, setStatus] = useState<CourseStatus>("planned");
   const [cardColor, setCardColor] = useState<string>(COURSE_COLOR_PRESETS[0]);
 
-  const [mode, setMode] = useState<CourseMode>("recurring");
+  const [mode, setMode] = useState<CourseMode>("one_time");
   const [startsOn, setStartsOn] = useState<ISODate>(TODAY);
   const [endsMode, setEndsMode] = useState<EndsMode>("endsOn");
   const [endsOn, setEndsOn] = useState<ISODate>(DEFAULT_END);

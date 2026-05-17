@@ -42,7 +42,7 @@ function Option({
   description: string;
 }) {
   return (
-    <label className="flex cursor-pointer items-start gap-2 rounded-md border border-gray-200 bg-white p-3 hover:border-blue-300">
+    <label className="flex cursor-pointer items-start gap-2 p-1">
       <input
         type="radio"
         checked={checked}

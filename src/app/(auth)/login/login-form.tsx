@@ -105,9 +105,7 @@ export function LoginForm({ next }: LoginFormProps) {
           <button
             type="button"
             className="text-xs text-white/80 underline"
-            onClick={() =>
-              toast.info("로그인 없이 둘러보기는 곧 제공될 예정입니다.")
-            }
+            onClick={() => router.push("/")}
           >
             로그인 없이 둘러보기
           </button>

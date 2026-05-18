@@ -16,20 +16,16 @@ import {
 } from "@/lib/validators/workspace-member";
 
 import { logActivity } from "./activity";
+import {
+  buildWorkspaceMemberList,
+  type WorkspaceMemberListItem as WorkspaceMemberListItemType,
+  type WorkspaceMemberRow,
+} from "./workspace-members.list";
 
-export type WorkspaceMemberListItem = {
-  id: UUID;
-  email: string;
-  displayName: string | null;
-  memo: string | null;
-  role: WorkspaceRole;
-  status: MemberStatus;
-  groupIds: UUID[];
-  isCurrentUser: boolean;
-};
+export type { WorkspaceMemberListItem } from "./workspace-members.list";
 
 export type GetWorkspaceMembersOutput = {
-  members: WorkspaceMemberListItem[];
+  members: WorkspaceMemberListItemType[];
   canInviteMembers: boolean;
 };
 
@@ -58,24 +54,19 @@ export async function getWorkspaceMembers(
     .from("workspace_members")
     .select("id, email, display_name, memo, role, status, user_id")
     .eq("workspace_id", workspaceId)
+    .neq("status", "removed")
     .order("role", { ascending: true })
     .order("created_at", { ascending: true });
   if (error) return apiError("INTERNAL_ERROR", error.message);
 
-  const rows = data ?? [];
+  const rows = (data ?? []) as WorkspaceMemberRow[];
   const memberIds = rows.map((row) => row.id as UUID);
   const groupsByMember = await loadMemberGroups(workspaceId, memberIds);
-
-  const members: WorkspaceMemberListItem[] = rows.map((row) => ({
-    id: row.id,
-    email: row.email,
-    displayName: row.display_name,
-    memo: row.memo,
-    role: row.role,
-    status: row.status,
-    groupIds: groupsByMember.get(row.id) ?? [],
-    isCurrentUser: row.user_id === user.id,
-  }));
+  const members = buildWorkspaceMemberList({
+    rows,
+    groupsByMember,
+    currentUserId: user.id,
+  });
 
   return apiOk({
     members,

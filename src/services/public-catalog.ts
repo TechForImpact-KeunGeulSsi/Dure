@@ -88,9 +88,143 @@ const STATUS_SORT_ORDER: Record<CourseStatus, number> = {
   completed: 2,
 };
 
+const DEMO_PUBLIC_COURSES: PublicCourseDetail[] = [
+    {
+      id: "demo-hanyang-coding" as UUID,
+      workspace: { id: "demo-hanyang" as UUID, name: "한양대역 마을" },
+      name: "창의 코딩으로 만드는 우리 동네 앱",
+      status: "in_progress",
+      publicVisibility: "public",
+      startsOn: "2026-05-04",
+      endsOn: "2026-06-22",
+      cardColor: "#2563EB",
+      bannerUrl: null,
+      groupNames: ["초등 4-6학년"],
+      sessionCount: 8,
+      materialCount: 2,
+      sessions: makeDemoSessions("2026-05-04", "16:00", "17:30", 8),
+      materials: [
+        {
+          id: "demo-material-hanyang-coding-1" as UUID,
+          title: "1회차 활동 안내",
+          description: "수업 목표, 준비물, 결과물 예시를 한눈에 보는 안내 자료입니다.",
+          originalFilename: "demo-activity-guide.txt",
+        },
+        {
+          id: "demo-material-hanyang-coding-2" as UUID,
+          title: "앱 아이디어 기록지",
+          description: "아이들이 우리 동네 문제를 발견하고 앱 아이디어로 정리하는 활동지입니다.",
+          originalFilename: "demo-app-idea-sheet.txt",
+        },
+      ],
+    },
+    {
+      id: "demo-hanyang-writing" as UUID,
+      workspace: { id: "demo-hanyang" as UUID, name: "한양대역 마을" },
+      name: "그림책으로 여는 생각 글쓰기",
+      status: "planned",
+      publicVisibility: "public",
+      startsOn: "2026-06-03",
+      endsOn: "2026-07-08",
+      cardColor: "#0F766E",
+      bannerUrl: null,
+      groupNames: ["초등 1-3학년"],
+      sessionCount: 6,
+      materialCount: 1,
+      sessions: makeDemoSessions("2026-06-03", "15:30", "16:40", 6),
+      materials: [
+        {
+          id: "demo-material-hanyang-writing-1" as UUID,
+          title: "첫 모임 읽기 목록",
+          description: "함께 읽을 그림책과 가정 연계 질문을 정리했습니다.",
+          originalFilename: "demo-reading-list.txt",
+        },
+      ],
+    },
+    {
+      id: "demo-kakao-ai" as UUID,
+      workspace: { id: "demo-kakao" as UUID, name: "카카오역 마을" },
+      name: "AI와 함께하는 방과후 탐구실",
+      status: "in_progress",
+      publicVisibility: "public",
+      startsOn: "2026-05-07",
+      endsOn: "2026-06-25",
+      cardColor: "#7C3AED",
+      bannerUrl: null,
+      groupNames: ["방과후 탐구반"],
+      sessionCount: 8,
+      materialCount: 2,
+      sessions: makeDemoSessions("2026-05-07", "16:20", "17:50", 8),
+      materials: [
+        {
+          id: "demo-material-kakao-ai-1" as UUID,
+          title: "AI 탐구 안전 약속",
+          description: "AI 도구 사용 시 지켜야 할 질문 방식과 개인정보 보호 원칙입니다.",
+          originalFilename: "demo-ai-safety.txt",
+        },
+        {
+          id: "demo-material-kakao-ai-2" as UUID,
+          title: "프로젝트 주제 예시",
+          description: "날씨, 교통, 환경처럼 아이들이 고를 수 있는 탐구 주제 샘플입니다.",
+          originalFilename: "demo-project-topics.txt",
+        },
+      ],
+    },
+    {
+      id: "demo-kakao-math" as UUID,
+      workspace: { id: "demo-kakao" as UUID, name: "카카오역 마을" },
+      name: "보드게임 수학 전략반",
+      status: "planned",
+      publicVisibility: "public",
+      startsOn: "2026-06-01",
+      endsOn: "2026-07-06",
+      cardColor: "#EA580C",
+      bannerUrl: null,
+      groupNames: ["방과후 탐구반"],
+      sessionCount: 6,
+      materialCount: 1,
+      sessions: makeDemoSessions("2026-06-01", "15:00", "16:20", 6),
+      materials: [
+        {
+          id: "demo-material-kakao-math-1" as UUID,
+          title: "게임별 수학 개념표",
+          description: "확률, 패턴, 추론 등 회차별로 다루는 수학 개념을 정리했습니다.",
+          originalFilename: "demo-math-concepts.txt",
+        },
+      ],
+    },
+];
+
+const DEMO_PUBLIC_COURSE_DETAILS = new Map<UUID, PublicCourseDetail>(
+  DEMO_PUBLIC_COURSES.map((course) => [course.id, course]),
+);
+
+const DEMO_PUBLIC_CATALOG: PublicCourseCatalog = {
+  workspaces: [
+    {
+      id: "demo-hanyang" as UUID,
+      name: "한양대역 마을",
+      courses: [
+        DEMO_PUBLIC_COURSE_DETAILS.get("demo-hanyang-coding" as UUID)!,
+        DEMO_PUBLIC_COURSE_DETAILS.get("demo-hanyang-writing" as UUID)!,
+      ],
+    },
+    {
+      id: "demo-kakao" as UUID,
+      name: "카카오역 마을",
+      courses: [
+        DEMO_PUBLIC_COURSE_DETAILS.get("demo-kakao-ai" as UUID)!,
+        DEMO_PUBLIC_COURSE_DETAILS.get("demo-kakao-math" as UUID)!,
+      ],
+    },
+  ],
+};
+
 export async function getPublicCourseCatalog(): Promise<
   ApiResult<PublicCourseCatalog>
 > {
+  if (!hasSupabaseAdminEnv()) return apiOk(DEMO_PUBLIC_CATALOG);
+
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin
     .from("courses")
@@ -99,9 +233,10 @@ export async function getPublicCourseCatalog(): Promise<
     )
     .eq("public_visibility", "public");
 
-  if (error) return apiError("INTERNAL_ERROR", error.message);
+  if (error) return apiOk(DEMO_PUBLIC_CATALOG);
 
   const rows = ((data ?? []) as CourseRow[]).filter((row) => rowWorkspace(row));
+  if (rows.length === 0) return apiOk(DEMO_PUBLIC_CATALOG);
   sortCourseRows(rows);
 
   const courseIds = rows.map((row) => row.id);
@@ -141,6 +276,9 @@ export async function getPublicCourseCatalog(): Promise<
 export async function getPublicCourseDetail(
   courseId: UUID,
 ): Promise<ApiResult<PublicCourseDetail>> {
+  const demoCourse = DEMO_PUBLIC_COURSE_DETAILS.get(courseId);
+  if (demoCourse) return apiOk(demoCourse);
+
   const result = await loadPublicCourseDetail({
     courseId,
     publicOnly: true,
@@ -317,6 +455,35 @@ function sortCourseRows(rows: CourseRow[]) {
   });
 }
 
+function hasSupabaseAdminEnv() {
+  return Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
+      process.env.SUPABASE_SERVICE_ROLE_KEY?.trim(),
+  );
+}
+
+function makeDemoSessions(
+  startsOn: ISODate,
+  startsAt: ISOTime,
+  endsAt: ISOTime,
+  count: number,
+): PublicCourseSession[] {
+  return Array.from({ length: count }, (_, index) => ({
+    sessionNo: index + 1,
+    date: addDays(startsOn, index * 7),
+    startsAt,
+    endsAt,
+    type: index === count - 1 ? "special" : "regular",
+    progressStatus: "scheduled",
+  }));
+}
+
+function addDays(date: ISODate, days: number): ISODate {
+  const nextDate = new Date(`${date}T00:00:00.000Z`);
+  nextDate.setUTCDate(nextDate.getUTCDate() + days);
+  return nextDate.toISOString().slice(0, 10);
+}
+
 async function loadGroupNamesByCourse(
   courseIds: UUID[],
 ): Promise<Map<UUID, string[]>> {
@@ -425,6 +592,10 @@ async function loadPublicMaterials(courseId: UUID): Promise<PublicCourseMaterial
 export async function getPublicMaterialDownloadUrl(
   materialId: UUID,
 ): Promise<ApiResult<{ url: string; filename: string | null }>> {
+  if (String(materialId).startsWith("demo-material-")) {
+    return apiError("NOT_FOUND", "목업 자료는 다운로드를 제공하지 않습니다.");
+  }
+
   const admin = createSupabaseAdminClient();
   const { data: material } = await admin
     .from("materials")

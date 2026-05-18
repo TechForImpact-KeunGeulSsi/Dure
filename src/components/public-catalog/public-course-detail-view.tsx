@@ -145,6 +145,8 @@ export function PublicCourseDetailView({
 }
 
 function PublicMaterialRow({ material }: { material: PublicCourseMaterial }) {
+  const isDemoMaterial = material.id.startsWith("demo-material-");
+
   return (
     <div className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3">
       <div className="min-w-0 flex-1">
@@ -158,7 +160,13 @@ function PublicMaterialRow({ material }: { material: PublicCourseMaterial }) {
           </p>
         ) : null}
       </div>
-      <PublicMaterialDownloadButton materialId={material.id} />
+      {isDemoMaterial ? (
+        <span className="inline-flex shrink-0 rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-500">
+          목업 자료
+        </span>
+      ) : (
+        <PublicMaterialDownloadButton materialId={material.id} />
+      )}
     </div>
   );
 }

@@ -338,6 +338,8 @@ function buildTitle(event: ActivityRow, actor: MemberSummary | null): string {
       const email = readMetadataString(event.metadata, "email");
       return `${email ?? name}님이 초대를 수락했어요`;
     }
+    case "member_removed":
+      return `${name}님이 멤버를 제거했어요`;
     case "course_completed":
       return "수업이 자동으로 완료 처리되었어요";
     case "settlement_requested":
@@ -376,6 +378,13 @@ function buildDescription(
     case "invite_accepted": {
       const role = readMetadataString(event.metadata, "role");
       return role ? workspaceRoleLabel(role as WorkspaceRole) : null;
+    }
+    case "member_removed": {
+      const email = readMetadataString(event.metadata, "email");
+      const role = readMetadataString(event.metadata, "role");
+      const roleLabel = role ? workspaceRoleLabel(role as WorkspaceRole) : null;
+      if (email && roleLabel) return `${email} · ${roleLabel}`;
+      return email ?? roleLabel ?? null;
     }
     case "join_requested": {
       const role = readMetadataString(event.metadata, "desiredRole");

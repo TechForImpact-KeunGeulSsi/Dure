@@ -15,6 +15,8 @@ import {
   type UpdateMemberInput,
 } from "@/lib/validators/workspace-member";
 
+import { logActivity } from "./activity";
+
 export type WorkspaceMemberListItem = {
   id: UUID;
   email: string;
@@ -236,6 +238,118 @@ export async function updateMember(
       }
     }
   }
+
+  revalidatePath(`/workspaces/${workspaceId}/members`);
+  return apiOk({ memberId });
+}
+
+/**
+ * 멤버 제거.
+ *
+ * 기록 보존을 위해 workspace_members row를 물리 삭제하지 않고
+ * status='removed'로 전환한다. 초대 대기 멤버는 남아 있는 invite token을
+ * 함께 삭제해 이후 수락으로 다시 active가 되는 경로를 닫는다.
+ */
+export async function removeMember(
+  workspaceId: UUID,
+  memberId: UUID,
+): Promise<ApiResult<{ memberId: UUID }>> {
+  await requireUser();
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return apiError("AUTH_REQUIRED", "로그인이 필요합니다.");
+
+  const { data: me } = await supabase
+    .from("workspace_members")
+    .select("id, role")
+    .eq("workspace_id", workspaceId)
+    .eq("user_id", user.id)
+    .eq("status", "active")
+    .maybeSingle();
+  if (!me) {
+    return apiError("WORKSPACE_ACCESS_DENIED", "워크스페이스 접근 권한이 없습니다.");
+  }
+  if (me.role !== "owner_admin") {
+    return apiError("ROLE_FORBIDDEN", "멤버 제거는 대표 운영자만 가능합니다.");
+  }
+
+  const admin = createSupabaseAdminClient();
+
+  const { data: target, error: targetError } = await admin
+    .from("workspace_members")
+    .select("id, workspace_id, email, role, status, user_id")
+    .eq("id", memberId)
+    .maybeSingle();
+  if (targetError) return apiError("INTERNAL_ERROR", targetError.message);
+  if (!target || target.workspace_id !== workspaceId) {
+    return apiError("NOT_FOUND", "멤버를 찾을 수 없습니다.");
+  }
+
+  if (target.status === "removed") {
+    return apiOk({ memberId });
+  }
+
+  if (target.user_id === user.id) {
+    return apiError("CONFLICT", "본인 멤버십은 제거할 수 없습니다.");
+  }
+
+  if (target.role === "owner_admin" && target.status === "active") {
+    const { data: activeOwners, error: ownerCountError } = await admin
+      .from("workspace_members")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .eq("role", "owner_admin")
+      .eq("status", "active");
+    if (ownerCountError) return apiError("INTERNAL_ERROR", ownerCountError.message);
+    if ((activeOwners ?? []).length <= 1) {
+      return apiError("CONFLICT", "마지막 활성 대표 운영자는 제거할 수 없습니다.");
+    }
+  }
+
+  const now = new Date().toISOString();
+
+  const { error: updateError } = await admin
+    .from("workspace_members")
+    .update({
+      status: "removed",
+      updated_at: now,
+    })
+    .eq("id", memberId)
+    .eq("workspace_id", workspaceId);
+  if (updateError) return apiError("INTERNAL_ERROR", updateError.message);
+
+  const { error: groupsDeleteError } = await admin
+    .from("workspace_member_groups")
+    .delete()
+    .eq("workspace_id", workspaceId)
+    .eq("member_id", memberId);
+  if (groupsDeleteError) {
+    return apiError("INTERNAL_ERROR", groupsDeleteError.message);
+  }
+
+  const { error: invitesDeleteError } = await admin
+    .from("invites")
+    .delete()
+    .eq("workspace_id", workspaceId)
+    .eq("member_id", memberId);
+  if (invitesDeleteError) {
+    return apiError("INTERNAL_ERROR", invitesDeleteError.message);
+  }
+
+  await logActivity({
+    workspaceId,
+    actorMemberId: me.id,
+    eventType: "member_removed",
+    targetType: "member",
+    targetId: memberId,
+    metadata: {
+      email: target.email,
+      role: target.role,
+      previousStatus: target.status,
+    },
+  });
 
   revalidatePath(`/workspaces/${workspaceId}/members`);
   return apiOk({ memberId });

@@ -308,7 +308,8 @@ api-spec.md §16 `getRecentActivity` 정식 구현 + 7개 service에 logging 훅
 - **신규 validator** [UpdateMemberSchema](src/lib/validators/workspace-member.ts) — displayName / memo / role / status(active|disabled|removed) / groupIds. `invited`는 placeholder 상태라 dialog에서 변경 불가.
 - **`getWorkspaceMembers` 확장** [src/services/workspace-members.ts](src/services/workspace-members.ts) — 반환 타입에 `memo`, `groupIds` 추가. `workspace_member_groups` 일괄 lookup으로 채움.
 - **신규 `updateMember`** — Zod 검증 → owner_admin 권한 → 대상 조회 → **마지막 활성 owner_admin 보호**(역할/상태 변경 시 다른 active owner가 없으면 `CONFLICT`) → group 검증 → `workspace_members` patch → `workspace_member_groups` 동기화(role이 group_admin이 아닌 다른 값으로 바뀌면 기존 매핑 전부 삭제, group_admin이고 groupIds 명시되면 delete-then-insert). admin client 우회 유지.
-- **신규 dialog** [edit-member-dialog.tsx](src/app/workspaces/[workspaceId]/(dashboard)/members/edit-member-dialog.tsx) — 이메일(읽기 전용), 표시 이름, 메모(500자 Textarea), 역할 Select, 상태 Select(invited는 disabled), group_admin일 때만 그룹 MultiSelect. 변경된 필드만 diff 후 전송. `removed`로 변경 시 confirm prompt.
+- **신규 `removeMember`** — owner_admin 전용 소프트 제거. `workspace_members.status='removed'`로 전환하고, 접근 그룹 매핑 및 미수락 invite token을 정리한다. 마지막 활성 대표 운영자와 본인 멤버십 제거는 `CONFLICT`로 차단한다.
+- **신규 dialog** [edit-member-dialog.tsx](src/app/workspaces/[workspaceId]/(dashboard)/members/edit-member-dialog.tsx) — 이메일(읽기 전용), 표시 이름, 메모(500자 Textarea), 역할 Select, 상태 Select(invited는 disabled), group_admin일 때만 그룹 MultiSelect. 변경된 필드만 diff 후 전송. `removed`로 변경 시 confirm prompt. 하단 `제거` 버튼으로 초대 대기/활성 멤버를 제거할 수 있다.
 - **목록 행 클릭** [members-client.tsx](src/app/workspaces/[workspaceId]/(dashboard)/members/members-client.tsx) — owner_admin이면 행 `cursor-pointer hover:bg-gray-50`, 클릭 시 dialog 오픈. 메모가 있는 멤버는 행에 `· 메모 있음` 작은 라벨 표시(전체 메모는 hover title로 노출).
 
 ### 캘린더 백엔드 연동 + 일반 일정 CRUD

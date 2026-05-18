@@ -1,5 +1,6 @@
 "use client";
 
+import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -21,7 +22,7 @@ import type {
   MemberStatus,
   WorkspaceRole,
 } from "@/lib/api/types";
-import { updateMember } from "@/services/workspace-members";
+import { removeMember, updateMember } from "@/services/workspace-members";
 import type { WorkspaceMemberListItem } from "@/services/workspace-members";
 
 type EditableStatus = Extract<MemberStatus, "active" | "disabled" | "removed">;
@@ -67,6 +68,7 @@ export function EditMemberDialog({
   const [status, setStatus] = useState<EditableStatus>("active");
   const [groupIds, setGroupIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -137,6 +139,30 @@ export function EditMemberDialog({
     }
 
     toast.success("멤버 정보를 저장했습니다.");
+    onOpenChange(false);
+    router.refresh();
+  }
+
+  async function handleRemove() {
+    if (!member) return;
+
+    const confirmed = window.confirm(
+      "이 멤버를 워크스페이스에서 제거합니다.\n초대 대기 링크와 접근 권한은 사라지고, 기존 기록은 보존됩니다.\n계속하시겠어요?",
+    );
+    if (!confirmed) return;
+
+    setError(null);
+    setRemoving(true);
+    const result = await removeMember(workspaceId, member.id);
+    setRemoving(false);
+
+    if (!result.ok) {
+      setError(result.error.message);
+      toast.error(result.error.message);
+      return;
+    }
+
+    toast.success("멤버를 제거했습니다.");
     onOpenChange(false);
     router.refresh();
   }
@@ -235,17 +261,27 @@ export function EditMemberDialog({
 
         {error && <p className="text-sm text-rose-600">{error}</p>}
       </DialogBody>
-      <DialogFooter>
+      <DialogFooter className="justify-between">
         <Button
-          variant="secondary"
-          onClick={() => onOpenChange(false)}
-          disabled={submitting}
+          variant="destructive"
+          onClick={handleRemove}
+          disabled={submitting || removing || member.status === "removed" || member.isCurrentUser}
         >
-          취소
+          <Trash2 className="h-4 w-4" />
+          {removing ? "제거 중..." : "제거"}
         </Button>
-        <Button onClick={handleSubmit} disabled={submitting}>
-          {submitting ? "저장 중..." : "저장"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => onOpenChange(false)}
+            disabled={submitting || removing}
+          >
+            취소
+          </Button>
+          <Button onClick={handleSubmit} disabled={submitting || removing}>
+            {submitting ? "저장 중..." : "저장"}
+          </Button>
+        </div>
       </DialogFooter>
     </Dialog>
   );

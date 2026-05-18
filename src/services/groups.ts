@@ -155,6 +155,9 @@ export async function upsertGroupAction(
       return apiError("INTERNAL_ERROR", error?.message ?? "그룹을 수정하지 못했습니다.");
     }
     revalidatePath(`/workspaces/${workspaceId}/manage/groups`);
+    revalidatePath(`/workspaces/${workspaceId}/manage/courses`);
+    revalidatePath(`/workspaces/${workspaceId}/manage/participants`);
+    revalidatePath(`/workspaces/${workspaceId}/home`);
     return apiOk({
       group: toGroupListItem(data, { isOwner, canEditDescription: true }),
     });
@@ -176,6 +179,9 @@ export async function upsertGroupAction(
   }
 
   revalidatePath(`/workspaces/${workspaceId}/manage/groups`);
+  revalidatePath(`/workspaces/${workspaceId}/manage/courses`);
+  revalidatePath(`/workspaces/${workspaceId}/manage/participants`);
+  revalidatePath(`/workspaces/${workspaceId}/home`);
   return apiOk({
     group: toGroupListItem(data, { isOwner, canEditDescription: true }),
   });
@@ -208,6 +214,9 @@ export async function deleteGroupAction(
   }
 
   revalidatePath(`/workspaces/${workspaceId}/manage/groups`);
+  revalidatePath(`/workspaces/${workspaceId}/manage/courses`);
+  revalidatePath(`/workspaces/${workspaceId}/manage/participants`);
+  revalidatePath(`/workspaces/${workspaceId}/home`);
   return apiOk({ id: groupId });
 }
 
@@ -252,18 +261,29 @@ async function loadGroupCounts(groupIds: UUID[]): Promise<{
   const [participantRes, courseRes] = await Promise.all([
     supabase
       .from("participant_groups")
-      .select("group_id")
+      .select(
+        "group_id, participant_id, participant:participants!inner(deleted_at)",
+      )
       .in("group_id", groupIds)
-      .eq("status", "active"),
+      .eq("status", "active")
+      .is("participant.deleted_at", null),
     supabase.from("course_groups").select("group_id").in("group_id", groupIds),
   ]);
 
   const participantCounts = new Map<UUID, number>();
+  const seenByGroup = new Map<UUID, Set<UUID>>();
   for (const row of participantRes.data ?? []) {
-    participantCounts.set(
-      row.group_id,
-      (participantCounts.get(row.group_id) ?? 0) + 1,
-    );
+    const groupId = row.group_id as UUID;
+    const participantId = row.participant_id as UUID;
+    let seen = seenByGroup.get(groupId);
+    if (!seen) {
+      seen = new Set<UUID>();
+      seenByGroup.set(groupId, seen);
+    }
+    if (!seen.has(participantId)) {
+      seen.add(participantId);
+      participantCounts.set(groupId, (participantCounts.get(groupId) ?? 0) + 1);
+    }
   }
   const courseCounts = new Map<UUID, number>();
   for (const row of courseRes.data ?? []) {

@@ -91,11 +91,15 @@ export async function getCourseParticipantsStatus(
     .maybeSingle();
   if (!course) return apiError("NOT_FOUND", "수업을 찾을 수 없습니다.");
 
-  const [rawParticipantRows, countedSessionIds, courseGroupIds] = await Promise.all([
-    loadCourseParticipantRows(workspaceId, courseId),
+  const [countedSessionIds, courseGroupIds] = await Promise.all([
     loadCountedSessionIds(workspaceId, courseId),
     loadCourseGroupIds(workspaceId, courseId),
   ]);
+  const rawParticipantRows = await loadCourseParticipantRows(
+    workspaceId,
+    courseId,
+    courseGroupIds,
+  );
 
   const countedSessionCount = countedSessionIds.length;
   const aggregates = await loadAttendanceAggregates({
@@ -297,6 +301,8 @@ export async function addCourseParticipants(
   }
 
   revalidatePath(`/workspaces/${workspaceId}/courses/${courseId}/participants`);
+  revalidatePath(`/workspaces/${workspaceId}/manage/courses`);
+  revalidatePath(`/workspaces/${workspaceId}/home`);
   return apiOk({ addedCount });
 }
 
@@ -340,6 +346,8 @@ export async function excludeCourseParticipant(
   if (error) return apiError("INTERNAL_ERROR", error.message);
 
   revalidatePath(`/workspaces/${workspaceId}/courses/${cp.course_id}/participants`);
+  revalidatePath(`/workspaces/${workspaceId}/manage/courses`);
+  revalidatePath(`/workspaces/${workspaceId}/home`);
   return apiOk({ id: courseParticipantId });
 }
 
@@ -367,18 +375,22 @@ type ParticipantRow = {
 async function loadCourseParticipantRows(
   workspaceId: UUID,
   courseId: UUID,
+  activeCourseGroupIds: UUID[],
 ): Promise<ParticipantRow[]> {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from("course_participants")
     .select(
       `id, participant_name_snapshot, status,
-       participant:participants ( id, name, status ),
+       participant:participants!inner ( id, name, status, deleted_at ),
        groups:course_participant_groups ( group:groups ( id, name, description, status ) )`,
     )
     .eq("workspace_id", workspaceId)
     .eq("course_id", courseId)
+    .is("participant.deleted_at", null)
     .order("assigned_at", { ascending: true });
+
+  const activeIds = new Set<UUID>(activeCourseGroupIds);
 
   return (data ?? []).map((raw) => {
     const r = raw as unknown as {
@@ -402,7 +414,8 @@ async function loadCourseParticipantRows(
         : null,
       groupRefs: (r.groups ?? [])
         .map((link) => link.group)
-        .filter((g): g is GroupRef => g !== null),
+        .filter((g): g is GroupRef => g !== null)
+        .filter((g) => activeIds.has(g.id)),
     };
   });
 }

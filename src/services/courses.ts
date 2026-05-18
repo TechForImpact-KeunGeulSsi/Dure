@@ -558,31 +558,11 @@ export async function updateCourseAction(
     }
 
     if (toRemove.length > 0) {
-      // 이 수업의 course_participants id 모음 — course_participant_groups를
-      // 정확히 좁히기 위한 IN 절. (course_participant_groups.group_id는
-      // groups를 직접 참조하므로 course_groups 삭제로 cascade되지 않음.)
-      const { data: cpRows, error: cpFetchError } = await supabase
-        .from("course_participants")
-        .select("id")
-        .eq("workspace_id", workspaceId)
-        .eq("course_id", courseId);
-      if (cpFetchError) {
-        return apiError("INTERNAL_ERROR", cpFetchError.message);
-      }
-      const courseParticipantIds = (cpRows ?? []).map((row) => row.id as UUID);
-
-      if (courseParticipantIds.length > 0) {
-        const { error: cpgDeleteError } = await supabase
-          .from("course_participant_groups")
-          .delete()
-          .eq("workspace_id", workspaceId)
-          .in("course_participant_id", courseParticipantIds)
-          .in("group_id", toRemove);
-        if (cpgDeleteError) {
-          return apiError("INTERNAL_ERROR", cpgDeleteError.message);
-        }
-      }
-
+      // 연결 해제만 한다. course_participant_groups 행은 보존해
+      // 같은 그룹을 다시 연결했을 때 참여자 배정이 자동 복원되도록 한다.
+      // (course_participant_groups.group_id FK는 groups를 직접 참조하므로
+      // course_groups 삭제로 cascade되지 않으며, insert/update 트리거도
+      // 기존 행을 건드리지 않는다. 표시 계층에서 현재 연결된 그룹으로 필터링한다.)
       const { error: cgDeleteError } = await supabase
         .from("course_groups")
         .delete()
@@ -617,6 +597,7 @@ export async function updateCourseAction(
   revalidatePath(`/workspaces/${workspaceId}/manage/courses`);
   revalidatePath(`/workspaces/${workspaceId}/home`);
   revalidatePath(`/workspaces/${workspaceId}/courses/${courseId}/home`);
+  revalidatePath(`/workspaces/${workspaceId}/courses/${courseId}/participants`);
   return apiOk({ courseId });
 }
 
@@ -857,6 +838,9 @@ export async function updateCourseParticipantAssignmentAction(
   if (statusError) return apiError("INTERNAL_ERROR", statusError.message);
 
   revalidatePath(`/workspaces/${workspaceId}/manage/courses`);
+  revalidatePath(`/workspaces/${workspaceId}/home`);
+  revalidatePath(`/workspaces/${workspaceId}/courses/${courseId}/home`);
+  revalidatePath(`/workspaces/${workspaceId}/courses/${courseId}/participants`);
   return apiOk({
     courseParticipantId,
     assignmentGroupIds: [...nextGroupIds],
@@ -955,14 +939,54 @@ async function loadParticipantCounts(
   const counts = new Map<UUID, number>();
   if (courseIds.length === 0) return counts;
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
-    .from("course_participants")
-    .select("course_id")
+
+  // 수업의 참여자 수 = 현재 연결된 활성 그룹들의 활성 구성원(distinct, 마스터 미삭제) 수.
+  // course_participants 배정 여부와 무관하게 그룹 연결로만 결정되어
+  // manage/groups의 그룹 인원수와 일관된다. 카운트 의미는 architecture.md "참여자 수 표시 의미" 참고.
+  const { data: cgRows } = await supabase
+    .from("course_groups")
+    .select("course_id, group_id, group:groups!inner(deleted_at)")
     .in("course_id", courseIds)
-    .eq("status", "active");
-  for (const row of data ?? []) {
-    const id = row.course_id as UUID;
-    counts.set(id, (counts.get(id) ?? 0) + 1);
+    .is("group.deleted_at", null);
+  const coursesByGroup = new Map<UUID, UUID[]>();
+  const groupIdSet = new Set<UUID>();
+  for (const row of cgRows ?? []) {
+    const courseId = row.course_id as UUID;
+    const groupId = row.group_id as UUID;
+    groupIdSet.add(groupId);
+    let list = coursesByGroup.get(groupId);
+    if (!list) {
+      list = [];
+      coursesByGroup.set(groupId, list);
+    }
+    list.push(courseId);
+  }
+  if (groupIdSet.size === 0) return counts;
+
+  const { data: pgRows } = await supabase
+    .from("participant_groups")
+    .select("participant_id, group_id, participant:participants!inner(deleted_at)")
+    .in("group_id", Array.from(groupIdSet))
+    .eq("status", "active")
+    .is("participant.deleted_at", null);
+
+  const countedByCourse = new Map<UUID, Set<UUID>>();
+  for (const row of pgRows ?? []) {
+    const groupId = row.group_id as UUID;
+    const participantId = row.participant_id as UUID;
+    const courses = coursesByGroup.get(groupId);
+    if (!courses) continue;
+    for (const courseId of courses) {
+      let seen = countedByCourse.get(courseId);
+      if (!seen) {
+        seen = new Set<UUID>();
+        countedByCourse.set(courseId, seen);
+      }
+      seen.add(participantId);
+    }
+  }
+  for (const [courseId, seen] of countedByCourse) {
+    counts.set(courseId, seen.size);
   }
   return counts;
 }

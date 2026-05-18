@@ -377,16 +377,29 @@ async function loadAttendanceTargets(
   sessionId: UUID,
 ): Promise<AttendanceTarget[]> {
   const supabase = await createSupabaseServerClient();
+
+  // 현재 수업에 연결된 그룹만 표시 — 연결 해제된 그룹의 보존된
+  // course_participant_groups 행이 "유령 그룹"으로 노출되지 않게 한다.
+  const { data: courseGroupRows } = await supabase
+    .from("course_groups")
+    .select("group_id")
+    .eq("workspace_id", workspaceId)
+    .eq("course_id", courseId);
+  const activeCourseGroupIds = new Set<UUID>(
+    (courseGroupRows ?? []).map((row) => row.group_id as UUID),
+  );
+
   const { data: rows } = await supabase
     .from("course_participants")
     .select(
       `id, participant_name_snapshot, status, participant_id,
-       participant:participants ( id, name, status ),
+       participant:participants!inner ( id, name, status, deleted_at ),
        groups:course_participant_groups ( group:groups ( id, name, description, status ) )`,
     )
     .eq("workspace_id", workspaceId)
     .eq("course_id", courseId)
-    .eq("status", "active");
+    .eq("status", "active")
+    .is("participant.deleted_at", null);
 
   const targets: Omit<AttendanceTarget, "record">[] = [];
   for (const row of rows ?? []) {
@@ -395,7 +408,8 @@ async function loadAttendanceTargets(
     const groupLinks = (row.groups ?? []) as unknown as Array<{ group: GroupSummary | null }>;
     const assignmentGroups = groupLinks
       .map((link) => link.group)
-      .filter((g): g is GroupSummary => !!g);
+      .filter((g): g is GroupSummary => !!g)
+      .filter((g) => activeCourseGroupIds.has(g.id as UUID));
     targets.push({
       participantId: p.id,
       participantName: p.name,

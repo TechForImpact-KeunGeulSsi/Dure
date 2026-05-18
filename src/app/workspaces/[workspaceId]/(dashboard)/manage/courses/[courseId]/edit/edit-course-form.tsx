@@ -87,14 +87,6 @@ export function EditCourseForm({
       return;
     }
 
-    if (removedGroupNames.length > 0) {
-      const confirmed = window.confirm(
-        `다음 그룹을 이 수업에서 제거합니다:\n· ${removedGroupNames.join("\n· ")}\n\n` +
-          "해당 그룹에만 속한 참여자는 그룹 없이 남게 됩니다.\n계속하시겠어요?",
-      );
-      if (!confirmed) return;
-    }
-
     // 변경된 필드만 추려서 전송
     const payload: Parameters<typeof updateCourseAction>[2] = {};
     if (name.trim() !== initial.name) payload.name = name.trim();
@@ -198,7 +190,7 @@ export function EditCourseForm({
             <FieldError errors={fieldErrors.groupIds} />
             {removedGroupNames.length > 0 && (
               <p className="text-xs text-amber-700">
-                제거 예정: {removedGroupNames.join(", ")} — 저장 시 확인 안내가 표시됩니다.
+                연결 해제 예정: {removedGroupNames.join(", ")} — 연결만 해제되며, 기존 참여자 배정은 보존되어 다시 연결 시 복구됩니다.
               </p>
             )}
           </div>

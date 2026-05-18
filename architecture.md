@@ -237,12 +237,21 @@ RLS 정책과 인덱스를 단순하게 유지하기 위해 조인 테이블에�
 - `selected_groups`일 때 공개 그룹 목록은 1개 이상이어야 한다.
 - 일반 일정은 연결 수업이 없으므로 전체 연결 그룹이라는 개념을 쓰지 않는다. `general_schedule_item_groups`에 공개 그룹을 항상 1개 이상 저장하고, 대표 운영자가 전체 공개 일정을 만들 때는 현재 활성 그룹 전체를 명시적으로 연결한다.
 
+### 참여자 수 표시 의미
+
+운영 화면에 보이는 "참여자 수" 카운트는 모두 동일한 의미를 따른다.
+
+- **그룹 인원 수** (`/manage/groups`): `participant_groups.status='active'` AND `participants.deleted_at IS NULL`인 distinct participant.
+- **수업 참여자 수** (`/manage/courses`, `/home` 카드): 해당 수업의 현재 `course_groups`(단 `groups.deleted_at IS NULL`인 그룹만) 합집합에 속한 distinct 활성 participant. `course_participants` 테이블의 명시 배정과 무관하게 그룹 연결만으로 결정된다.
+- `course_participants`는 출석 대상과 수업 내 그룹 메모(`course_participant_groups`) 보존 용도다. 카운트 표시에 사용하지 않으며, `excluded` 상태는 출석/배정 화면에만 영향을 준다.
+- 데이터 변경 시점에 모든 영향 받는 화면을 재검증해야 한다. 참여자/그룹/수업 mutation은 서비스 함수에서 `manage/participants`, `manage/groups`, `manage/courses`, `/home`을 함께 `revalidatePath`로 무효화하고, 수업 단위 변경은 `courses/[id]/home`과 `courses/[id]/participants`까지 함께 무효화한다.
+
 ### 주요 DB 불변 규칙
 
 - `course_recurrence_rules.ends_on`과 `course_recurrence_rules.session_count`는 둘 중 하나만 값이 있어야 한다.
 - `course_recurrence_rules.repeat_weekdays`는 1개 이상의 요일을 가져야 한다. 단발성 수업도 `session_count = 1`인 반복 규칙으로 저장한다.
 - `course_groups`는 수업당 1개 이상이어야 한다.
-- `course_participant_groups.group_id`는 해당 수업의 `course_groups.group_id` 중 하나여야 한다.
+- `course_participant_groups`의 **새 행 삽입/갱신 시점에 한해** `group_id`는 해당 수업의 `course_groups.group_id` 중 하나여야 한다. 수업의 `course_groups` 연결이 해제되더라도 기존 `course_participant_groups` 행은 보존되어 같은 그룹이 다시 연결될 때 자동으로 재사용된다. 표시/조회 계층은 현재 연결된 `course_groups`로 추가 필터링한다.
 - `course_participants`는 같은 `course_id`, `participant_id` 조합에 대해 활성 배정을 1개만 허용한다.
 - `materials.visibility_scope = selected_groups`이면 `material_groups`가 1개 이상이어야 하고, 각 그룹은 해당 수업의 연결 그룹이어야 한다.
 - `general_schedule_item_groups`는 일반 일정당 1개 이상이어야 한다.

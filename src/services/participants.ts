@@ -225,6 +225,9 @@ export async function upsertParticipantAction(
     }
 
     revalidatePath(`/workspaces/${workspaceId}/manage/participants`);
+    revalidatePath(`/workspaces/${workspaceId}/manage/groups`);
+    revalidatePath(`/workspaces/${workspaceId}/manage/courses`);
+    revalidatePath(`/workspaces/${workspaceId}/home`);
     return apiOk({ participantId: input.id });
   }
 
@@ -283,6 +286,9 @@ export async function upsertParticipantAction(
   }
 
   revalidatePath(`/workspaces/${workspaceId}/manage/participants`);
+  revalidatePath(`/workspaces/${workspaceId}/manage/groups`);
+  revalidatePath(`/workspaces/${workspaceId}/manage/courses`);
+  revalidatePath(`/workspaces/${workspaceId}/home`);
   return apiOk({ participantId: created.id });
 }
 
@@ -380,6 +386,9 @@ export async function updateParticipantGroupsAction(
 
   const finalGroupIds = await loadParticipantActiveGroupIds(participantId);
   revalidatePath(`/workspaces/${workspaceId}/manage/participants`);
+  revalidatePath(`/workspaces/${workspaceId}/manage/groups`);
+  revalidatePath(`/workspaces/${workspaceId}/manage/courses`);
+  revalidatePath(`/workspaces/${workspaceId}/home`);
   return apiOk({ groupIds: finalGroupIds });
 }
 
@@ -406,6 +415,9 @@ export async function deleteParticipantAction(
   if (error) return apiError("INTERNAL_ERROR", error.message);
 
   revalidatePath(`/workspaces/${workspaceId}/manage/participants`);
+  revalidatePath(`/workspaces/${workspaceId}/manage/groups`);
+  revalidatePath(`/workspaces/${workspaceId}/manage/courses`);
+  revalidatePath(`/workspaces/${workspaceId}/home`);
   return apiOk({ id: participantId });
 }
 

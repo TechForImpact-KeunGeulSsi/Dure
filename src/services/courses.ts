@@ -649,11 +649,16 @@ export async function getCourseEditData(input: {
 
   const { data: groupLinks, error: groupsError } = await supabase
     .from("course_groups")
-    .select("group_id")
+    .select("group_id, group:groups ( deleted_at )")
     .eq("workspace_id", input.workspaceId)
     .eq("course_id", input.courseId);
   if (groupsError) return apiError("INTERNAL_ERROR", groupsError.message);
-  const currentGroupIds = (groupLinks ?? []).map((row) => row.group_id as UUID);
+  const currentGroupIds = (groupLinks ?? [])
+    .filter((row) => {
+      const g = row.group as unknown as { deleted_at: string | null } | null;
+      return !!g && !g.deleted_at;
+    })
+    .map((row) => row.group_id as UUID);
 
   const accessibleGroupIds = await loadAccessibleGroupIds(input.workspaceId);
   const isOwner = membership.role === "owner_admin";
@@ -913,19 +918,15 @@ async function loadGroupsByCourse(
           deleted_at: string | null;
         }
       | null;
-    const summary: GroupSummary = group && !group.deleted_at
-      ? {
-          id: group.id,
-          name: group.name,
-          description: group.description,
-          status: group.status,
-        }
-      : {
-          id: row.group_id as UUID,
-          name: row.group_name_snapshot ?? "(삭제된 그룹)",
-          description: null,
-          status: "inactive",
-        };
+    // 소프트 삭제된 그룹은 연결 그룹 표시에서 제외.
+    // (course_groups 링크가 남아 있어도 사용자 입장에서 그룹은 사라진 상태.)
+    if (!group || group.deleted_at) continue;
+    const summary: GroupSummary = {
+      id: group.id,
+      name: group.name,
+      description: group.description,
+      status: group.status,
+    };
     const list = result.get(row.course_id as UUID) ?? [];
     list.push(summary);
     result.set(row.course_id as UUID, list);

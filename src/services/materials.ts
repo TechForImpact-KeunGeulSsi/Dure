@@ -594,14 +594,22 @@ async function loadCourseGroups(workspaceId: UUID, courseId: UUID): Promise<Grou
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from("course_groups")
-    .select("group:groups ( id, name, description, status )")
+    .select("group:groups ( id, name, description, status, deleted_at )")
     .eq("workspace_id", workspaceId)
     .eq("course_id", courseId);
 
   const groups: GroupSummary[] = [];
   for (const row of data ?? []) {
-    const g = row.group as unknown as GroupSummary | null;
-    if (g) groups.push(g);
+    const g = row.group as unknown as
+      | (GroupSummary & { deleted_at: string | null })
+      | null;
+    if (!g || g.deleted_at) continue;
+    groups.push({
+      id: g.id,
+      name: g.name,
+      description: g.description,
+      status: g.status,
+    });
   }
   return groups;
 }

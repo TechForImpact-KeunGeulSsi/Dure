@@ -492,13 +492,20 @@ async function loadGroupNamesByCourse(
   const admin = createSupabaseAdminClient();
   const { data } = await admin
     .from("course_groups")
-    .select("course_id, group_name_snapshot")
+    .select(
+      "course_id, group_name_snapshot, group:groups ( name, deleted_at )",
+    )
     .in("course_id", courseIds);
 
   for (const row of data ?? []) {
+    const g = row.group as unknown as
+      | { name: string; deleted_at: string | null }
+      | null;
+    // 소프트 삭제된 그룹은 공개 카탈로그에서도 표시하지 않음.
+    if (!g || g.deleted_at) continue;
     const courseId = row.course_id as UUID;
     const names = result.get(courseId) ?? [];
-    if (row.group_name_snapshot) names.push(row.group_name_snapshot);
+    names.push(g.name);
     result.set(courseId, names);
   }
 

@@ -17,6 +17,7 @@ import {
 } from "@/lib/validators/workspace-member";
 
 import { logActivity } from "./activity";
+import { isBlockingInviteDuplicateStatus } from "./invites.duplicates";
 
 export type AcceptInviteOutput = {
   workspaceId: UUID;
@@ -208,11 +209,12 @@ export async function createInvite(
 
   const { data: duplicate } = await admin
     .from("workspace_members")
-    .select("id")
+    .select("id, status")
     .eq("workspace_id", workspaceId)
     .eq("email", input.email)
+    .neq("status", "removed")
     .maybeSingle();
-  if (duplicate) {
+  if (duplicate && isBlockingInviteDuplicateStatus(duplicate.status)) {
     return apiError("CONFLICT", "이미 등록된 이메일입니다.");
   }
 

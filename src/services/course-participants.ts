@@ -18,9 +18,10 @@ import type {
 } from "@/lib/api/types";
 
 // ─────────────────────────────────────────────────────────────
-// course_participants / course_participant_groups의 INSERT/UPDATE는
-// `materials`와 같은 RLS 패턴 위험으로 admin client 우회.
-// 권한 검증은 service 레이어에서 수행 (owner_admin / group_admin + 접근 그룹 교차).
+// 수업 참여자 명단 = 현재 연결된 활성 그룹의 활성 마스터 멤버.
+// course_participants 행은 "명시 제외(status='excluded') 추적" 전용으로 사용.
+// 그룹 멤버십에 들어 있고 명시 제외되지 않은 참여자는 자동으로 노출된다.
+// 데이터 로더는 admin client로 RLS를 우회하며, 호출부에서 권한을 검증한다.
 // ─────────────────────────────────────────────────────────────
 
 type GroupRef = {
@@ -38,7 +39,7 @@ type ParticipantRef = {
 };
 
 type ParticipantStatusItem = {
-  courseParticipantId: UUID;
+  courseParticipantId: UUID | null;
   participant: ParticipantRef;
   assignmentGroups: GroupRef[];
   assignmentStatus: CourseParticipantStatus;
@@ -48,12 +49,6 @@ type ParticipantStatusItem = {
   attendanceRate: number | null;
   latestNote: string | null;
   canEditAssignment: boolean;
-};
-
-export type EligibleParticipantItem = {
-  id: UUID;
-  name: string;
-  groups: GroupRef[];
 };
 
 export type GetCourseParticipantsStatusResult = {
@@ -73,7 +68,6 @@ export type GetCourseParticipantsStatusResult = {
     countedSessionCount: number;
   };
   participants: ParticipantStatusItem[];
-  eligibleParticipants: EligibleParticipantItem[];
 };
 
 export async function getCourseParticipantsStatus(
@@ -82,19 +76,57 @@ export async function getCourseParticipantsStatus(
 ): Promise<ApiResult<GetCourseParticipantsStatusResult>> {
   await requireUser();
   const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return apiError("AUTH_REQUIRED", "로그인이 필요합니다.");
 
-  const { data: course } = await supabase
+  const { data: me } = await supabase
+    .from("workspace_members")
+    .select("id, role")
+    .eq("workspace_id", workspaceId)
+    .eq("user_id", user.id)
+    .eq("status", "active")
+    .maybeSingle();
+  if (!me) return apiError("WORKSPACE_ACCESS_DENIED", "워크스페이스 접근 권한이 없습니다.");
+
+  const admin = createSupabaseAdminClient();
+  const { data: courseRow } = await admin
     .from("courses")
-    .select("id, name, status, starts_on, ends_on, card_color, banner_url")
+    .select(
+      "id, name, status, starts_on, ends_on, card_color, banner_url, instructor_member_id",
+    )
     .eq("workspace_id", workspaceId)
     .eq("id", courseId)
     .maybeSingle();
-  if (!course) return apiError("NOT_FOUND", "수업을 찾을 수 없습니다.");
+  if (!courseRow) return apiError("NOT_FOUND", "수업을 찾을 수 없습니다.");
+
+  // 권한: 운영자 페이지이므로 owner_admin 또는 자기 접근 그룹이 수업과 교차하는 group_admin.
+  const accessibleGroupIds = await loadAccessibleGroupIds(workspaceId);
+  const isOwner = me.role === "owner_admin";
+  if (!isOwner) {
+    if (me.role === "instructor") {
+      return apiError("ROLE_FORBIDDEN", "이 페이지에 접근할 권한이 없습니다.");
+    }
+    // group_admin
+    const { data: cgs } = await admin
+      .from("course_groups")
+      .select("group_id")
+      .eq("workspace_id", workspaceId)
+      .eq("course_id", courseId);
+    const hasIntersection = (cgs ?? []).some((r) =>
+      accessibleGroupIds.has(r.group_id as UUID),
+    );
+    if (!hasIntersection) {
+      return apiError("SCOPE_FORBIDDEN", "이 수업에 접근할 권한이 없습니다.");
+    }
+  }
 
   const [countedSessionIds, courseGroupIds] = await Promise.all([
     loadCountedSessionIds(workspaceId, courseId),
     loadCourseGroupIds(workspaceId, courseId),
   ]);
+
   const rawParticipantRows = await loadCourseParticipantRows(
     workspaceId,
     courseId,
@@ -108,29 +140,25 @@ export async function getCourseParticipantsStatus(
   });
 
   const participants: ParticipantStatusItem[] = rawParticipantRows.map((row) => {
-    const participantId = row.participant?.id ?? "";
-    const agg = aggregates.byParticipant.get(participantId) ?? EMPTY_AGG;
-
+    const agg = aggregates.byParticipant.get(row.participant.id) ?? EMPTY_AGG;
     return {
-      courseParticipantId: row.id,
-      participant: {
-        id: participantId,
-        name: row.participant?.name ?? row.participant_name_snapshot,
-        email: null,
-        status: row.participant?.status ?? "deleted",
-      },
+      courseParticipantId: row.courseParticipantId,
+      participant: row.participant,
       assignmentGroups: row.groupRefs,
       assignmentStatus: row.status,
       presentCount: agg.present,
       partialCount: agg.partial,
       absentCount: agg.absent,
       attendanceRate: computeRate(agg, countedSessionCount),
-      latestNote: aggregates.latestNoteByParticipant.get(participantId) ?? null,
+      latestNote: aggregates.latestNoteByParticipant.get(row.participant.id) ?? null,
       canEditAssignment: true,
     };
   });
 
-  const totalAgg = participants.reduce(
+  const activeParticipants = participants.filter(
+    (p) => p.assignmentStatus === "active",
+  );
+  const totalAgg = activeParticipants.reduce(
     (acc, p) => ({
       present: acc.present + p.presentCount,
       partial: acc.partial + p.partialCount,
@@ -139,7 +167,7 @@ export async function getCourseParticipantsStatus(
     { present: 0, partial: 0, absent: 0 },
   );
 
-  const totalDenom = countedSessionCount * participants.length;
+  const totalDenom = countedSessionCount * activeParticipants.length;
   const summaryRate =
     totalDenom > 0
       ? Math.round(
@@ -147,26 +175,15 @@ export async function getCourseParticipantsStatus(
         ) / 10
       : null;
 
-  const alreadyActiveIds = new Set(
-    participants
-      .filter((p) => p.assignmentStatus === "active")
-      .map((p) => p.participant.id),
-  );
-  const eligibleParticipants = await loadEligibleParticipants({
-    workspaceId,
-    courseGroupIds,
-    excludeParticipantIds: alreadyActiveIds,
-  });
-
   return apiOk({
     course: {
-      id: course.id,
-      name: course.name,
-      status: course.status,
-      startsOn: course.starts_on,
-      endsOn: course.ends_on,
-      cardColor: course.card_color,
-      bannerUrl: course.banner_url,
+      id: courseRow.id,
+      name: courseRow.name,
+      status: courseRow.status,
+      startsOn: courseRow.starts_on,
+      endsOn: courseRow.ends_on,
+      cardColor: courseRow.card_color,
+      bannerUrl: courseRow.banner_url,
     },
     summary: {
       attendanceRate: summaryRate,
@@ -175,180 +192,89 @@ export async function getCourseParticipantsStatus(
       countedSessionCount,
     },
     participants,
-    eligibleParticipants,
   });
 }
 
-export async function addCourseParticipants(
+export async function excludeCourseParticipant(
   workspaceId: UUID,
   courseId: UUID,
-  participantIds: UUID[],
-): Promise<ApiResult<{ addedCount: number }>> {
-  if (participantIds.length === 0) {
-    return apiError("VALIDATION_FAILED", "추가할 참여자를 선택해 주세요.");
-  }
-
-  await requireUser();
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return apiError("AUTH_REQUIRED", "로그인이 필요합니다.");
-
-  const { data: me } = await supabase
-    .from("workspace_members")
-    .select("id, role")
-    .eq("workspace_id", workspaceId)
-    .eq("user_id", user.id)
-    .eq("status", "active")
-    .maybeSingle();
-  if (!me) return apiError("WORKSPACE_ACCESS_DENIED", "워크스페이스 접근 권한이 없습니다.");
-  if (me.role === "instructor") {
-    return apiError("ROLE_FORBIDDEN", "강사는 참여자 배정을 변경할 수 없습니다.");
-  }
-
-  const courseGroupIds = await loadCourseGroupIds(workspaceId, courseId);
-  if (courseGroupIds.length === 0) {
-    return apiError("VALIDATION_FAILED", "이 수업에 연결된 그룹이 없습니다.");
-  }
-
-  // 참여자별 그룹 정보 조회 (이름 snapshot과 코스 그룹 교차용)
-  const { data: pRows } = await supabase
-    .from("participants")
-    .select("id, name")
-    .eq("workspace_id", workspaceId)
-    .in("id", participantIds);
-  const nameById = new Map((pRows ?? []).map((r) => [r.id as UUID, r.name]));
-
-  const { data: pgRows } = await supabase
-    .from("participant_groups")
-    .select("participant_id, group_id, group:groups ( name )")
-    .eq("workspace_id", workspaceId)
-    .in("participant_id", participantIds)
-    .eq("status", "active");
-  const courseGroupSet = new Set(courseGroupIds);
-  const groupsByParticipant = new Map<UUID, Array<{ id: UUID; name: string }>>();
-  for (const row of pgRows ?? []) {
-    if (!courseGroupSet.has(row.group_id as UUID)) continue;
-    const g = row.group as unknown as { name: string } | null;
-    const arr = groupsByParticipant.get(row.participant_id as UUID) ?? [];
-    arr.push({ id: row.group_id as UUID, name: g?.name ?? "" });
-    groupsByParticipant.set(row.participant_id as UUID, arr);
-  }
+  participantId: UUID,
+): Promise<ApiResult<{ participantId: UUID }>> {
+  const guard = await requireOperator(workspaceId);
+  if (!guard.ok) return guard;
 
   const admin = createSupabaseAdminClient();
-  let addedCount = 0;
+  const now = new Date().toISOString();
 
-  for (const pid of participantIds) {
-    const name = nameById.get(pid);
-    if (!name) continue;
-    const groupsForP = groupsByParticipant.get(pid) ?? [];
-    if (groupsForP.length === 0) continue; // 코스 그룹과 교차 없음 — skip
+  const { data: pRow } = await admin
+    .from("participants")
+    .select("name")
+    .eq("workspace_id", workspaceId)
+    .eq("id", participantId)
+    .maybeSingle();
+  if (!pRow) return apiError("NOT_FOUND", "참여자를 찾을 수 없습니다.");
 
-    // upsert course_participants (unique (course_id, participant_id))
-    const { data: existing } = await admin
+  const { data: existing } = await admin
+    .from("course_participants")
+    .select("id")
+    .eq("workspace_id", workspaceId)
+    .eq("course_id", courseId)
+    .eq("participant_id", participantId)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await admin
       .from("course_participants")
-      .select("id")
-      .eq("workspace_id", workspaceId)
-      .eq("course_id", courseId)
-      .eq("participant_id", pid)
-      .maybeSingle();
-
-    let cpId: UUID;
-    if (existing) {
-      cpId = existing.id as UUID;
-      const { error: updErr } = await admin
-        .from("course_participants")
-        .update({
-          status: "active",
-          participant_name_snapshot: name,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", cpId);
-      if (updErr) continue;
-    } else {
-      const { data: inserted, error: insErr } = await admin
-        .from("course_participants")
-        .insert({
-          workspace_id: workspaceId,
-          course_id: courseId,
-          participant_id: pid,
-          status: "active",
-          participant_name_snapshot: name,
-        })
-        .select("id")
-        .single();
-      if (insErr || !inserted) continue;
-      cpId = inserted.id as UUID;
-    }
-
-    // course_participant_groups 채움 (이미 있는 row는 unique로 skip)
-    await admin
-      .from("course_participant_groups")
-      .delete()
-      .eq("course_participant_id", cpId);
-    const cpgRows = groupsForP.map((g) => ({
+      .update({ status: "excluded", updated_at: now })
+      .eq("id", existing.id);
+    if (error) return apiError("INTERNAL_ERROR", error.message);
+  } else {
+    const { error } = await admin.from("course_participants").insert({
       workspace_id: workspaceId,
-      course_participant_id: cpId,
-      group_id: g.id,
-      group_name_snapshot: g.name,
-    }));
-    if (cpgRows.length > 0) {
-      await admin.from("course_participant_groups").insert(cpgRows);
-    }
-
-    addedCount += 1;
+      course_id: courseId,
+      participant_id: participantId,
+      status: "excluded",
+      participant_name_snapshot: pRow.name,
+    });
+    if (error) return apiError("INTERNAL_ERROR", error.message);
   }
 
   revalidatePath(`/workspaces/${workspaceId}/courses/${courseId}/participants`);
   revalidatePath(`/workspaces/${workspaceId}/manage/courses`);
   revalidatePath(`/workspaces/${workspaceId}/home`);
-  return apiOk({ addedCount });
+  return apiOk({ participantId });
 }
 
-export async function excludeCourseParticipant(
+export async function reincludeCourseParticipant(
   workspaceId: UUID,
-  courseParticipantId: UUID,
-): Promise<ApiResult<{ id: UUID }>> {
-  await requireUser();
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return apiError("AUTH_REQUIRED", "로그인이 필요합니다.");
-
-  const { data: me } = await supabase
-    .from("workspace_members")
-    .select("id, role")
-    .eq("workspace_id", workspaceId)
-    .eq("user_id", user.id)
-    .eq("status", "active")
-    .maybeSingle();
-  if (!me) return apiError("WORKSPACE_ACCESS_DENIED", "워크스페이스 접근 권한이 없습니다.");
-  if (me.role === "instructor") {
-    return apiError("ROLE_FORBIDDEN", "강사는 참여자 배정을 변경할 수 없습니다.");
-  }
-
-  const { data: cp } = await supabase
-    .from("course_participants")
-    .select("id, course_id")
-    .eq("workspace_id", workspaceId)
-    .eq("id", courseParticipantId)
-    .maybeSingle();
-  if (!cp) return apiError("NOT_FOUND", "수업 참여자 배정을 찾을 수 없습니다.");
+  courseId: UUID,
+  participantId: UUID,
+): Promise<ApiResult<{ participantId: UUID }>> {
+  const guard = await requireOperator(workspaceId);
+  if (!guard.ok) return guard;
 
   const admin = createSupabaseAdminClient();
-  const { error } = await admin
+  // 명시 제외 행이 있으면 active로 되돌린다. 없으면 그대로 — 그룹 멤버십 기반으로 이미 활성.
+  const { data: existing } = await admin
     .from("course_participants")
-    .update({ status: "excluded", updated_at: new Date().toISOString() })
+    .select("id")
     .eq("workspace_id", workspaceId)
-    .eq("id", courseParticipantId);
-  if (error) return apiError("INTERNAL_ERROR", error.message);
+    .eq("course_id", courseId)
+    .eq("participant_id", participantId)
+    .maybeSingle();
 
-  revalidatePath(`/workspaces/${workspaceId}/courses/${cp.course_id}/participants`);
+  if (existing) {
+    const { error } = await admin
+      .from("course_participants")
+      .update({ status: "active", updated_at: new Date().toISOString() })
+      .eq("id", existing.id);
+    if (error) return apiError("INTERNAL_ERROR", error.message);
+  }
+
+  revalidatePath(`/workspaces/${workspaceId}/courses/${courseId}/participants`);
   revalidatePath(`/workspaces/${workspaceId}/manage/courses`);
   revalidatePath(`/workspaces/${workspaceId}/home`);
-  return apiOk({ id: courseParticipantId });
+  return apiOk({ participantId });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -365,59 +291,111 @@ function computeRate(agg: Aggregate, countedSessionCount: number): number | null
 }
 
 type ParticipantRow = {
-  id: UUID;
-  participant_name_snapshot: string;
+  courseParticipantId: UUID | null;
   status: CourseParticipantStatus;
-  participant: ParticipantRef | null;
+  participant: ParticipantRef;
   groupRefs: GroupRef[];
 };
 
 async function loadCourseParticipantRows(
   workspaceId: UUID,
   courseId: UUID,
-  activeCourseGroupIds: UUID[],
+  linkedGroupIds: UUID[],
 ): Promise<ParticipantRow[]> {
-  const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
+  if (linkedGroupIds.length === 0) return [];
+  const admin = createSupabaseAdminClient();
+
+  // 1) 활성 그룹만 (소프트 삭제 제외)
+  const { data: groupRows } = await admin
+    .from("groups")
+    .select("id, name, description, status")
+    .in("id", linkedGroupIds)
+    .is("deleted_at", null);
+  const groupSummaryById = new Map<UUID, GroupRef>();
+  for (const row of groupRows ?? []) {
+    groupSummaryById.set(row.id as UUID, {
+      id: row.id as UUID,
+      name: row.name,
+      description: row.description,
+      status: row.status,
+    });
+  }
+  if (groupSummaryById.size === 0) return [];
+
+  // 2) 그룹 활성 멤버십
+  const { data: pgRows } = await admin
+    .from("participant_groups")
+    .select("participant_id, group_id")
+    .in("group_id", Array.from(groupSummaryById.keys()))
+    .eq("status", "active");
+  const candidateIds = Array.from(
+    new Set((pgRows ?? []).map((row) => row.participant_id as UUID)),
+  );
+  if (candidateIds.length === 0) return [];
+
+  // 3) 활성 마스터 참여자
+  const { data: participantRows } = await admin
+    .from("participants")
+    .select("id, name, status")
+    .in("id", candidateIds)
+    .is("deleted_at", null);
+  const participantById = new Map<UUID, ParticipantRef>();
+  for (const row of participantRows ?? []) {
+    if (row.status === "deleted") continue;
+    participantById.set(row.id as UUID, {
+      id: row.id as UUID,
+      name: row.name,
+      email: null,
+      status: row.status,
+    });
+  }
+  if (participantById.size === 0) return [];
+
+  // 4) course_participants 행 — 명시 제외/명시 활성 상태와 id 매핑용
+  const { data: cpRows } = await admin
     .from("course_participants")
-    .select(
-      `id, participant_name_snapshot, status,
-       participant:participants!inner ( id, name, status, deleted_at ),
-       groups:course_participant_groups ( group:groups ( id, name, description, status ) )`,
-    )
+    .select("id, participant_id, status")
     .eq("workspace_id", workspaceId)
     .eq("course_id", courseId)
-    .is("participant.deleted_at", null)
-    .order("assigned_at", { ascending: true });
+    .in("participant_id", Array.from(participantById.keys()));
+  const cpByParticipant = new Map<
+    UUID,
+    { id: UUID; status: CourseParticipantStatus }
+  >();
+  for (const row of cpRows ?? []) {
+    cpByParticipant.set(row.participant_id as UUID, {
+      id: row.id as UUID,
+      status: row.status,
+    });
+  }
 
-  const activeIds = new Set<UUID>(activeCourseGroupIds);
+  // 5) 조합 — 각 멤버십 행을 순회하며 distinct participant + 표시 그룹 집계
+  const rowByParticipant = new Map<UUID, ParticipantRow>();
+  for (const row of pgRows ?? []) {
+    const pid = row.participant_id as UUID;
+    const participant = participantById.get(pid);
+    if (!participant) continue;
+    const groupRef = groupSummaryById.get(row.group_id as UUID);
+    if (!groupRef) continue;
+    let entry = rowByParticipant.get(pid);
+    if (!entry) {
+      const cp = cpByParticipant.get(pid);
+      entry = {
+        courseParticipantId: cp?.id ?? null,
+        status: cp?.status ?? "active",
+        participant,
+        groupRefs: [],
+      };
+      rowByParticipant.set(pid, entry);
+    }
+    if (!entry.groupRefs.some((g) => g.id === groupRef.id)) {
+      entry.groupRefs.push(groupRef);
+    }
+  }
 
-  return (data ?? []).map((raw) => {
-    const r = raw as unknown as {
-      id: UUID;
-      participant_name_snapshot: string;
-      status: CourseParticipantStatus;
-      participant: { id: UUID; name: string; status: ParticipantStatus } | null;
-      groups: Array<{ group: GroupRef | null }>;
-    };
-    return {
-      id: r.id,
-      participant_name_snapshot: r.participant_name_snapshot,
-      status: r.status,
-      participant: r.participant
-        ? {
-            id: r.participant.id,
-            name: r.participant.name,
-            email: null,
-            status: r.participant.status,
-          }
-        : null,
-      groupRefs: (r.groups ?? [])
-        .map((link) => link.group)
-        .filter((g): g is GroupRef => g !== null)
-        .filter((g) => activeIds.has(g.id)),
-    };
-  });
+  return Array.from(rowByParticipant.values()).sort((a, b) =>
+    a.participant.name.localeCompare(b.participant.name, "ko"),
+  );
 }
 
 async function loadCountedSessionIds(
@@ -447,53 +425,42 @@ async function loadCourseGroupIds(
   return (data ?? []).map((row) => row.group_id as UUID);
 }
 
-async function loadEligibleParticipants(params: {
-  workspaceId: UUID;
-  courseGroupIds: UUID[];
-  excludeParticipantIds: Set<UUID>;
-}): Promise<EligibleParticipantItem[]> {
-  if (params.courseGroupIds.length === 0) return [];
+async function loadAccessibleGroupIds(workspaceId: UUID): Promise<Set<UUID>> {
   const supabase = await createSupabaseServerClient();
-
-  const { data } = await supabase
-    .from("participant_groups")
-    .select(
-      `participant_id,
-       group:groups!inner ( id, name, description, status ),
-       participant:participants!inner ( id, name, status )`,
-    )
-    .eq("workspace_id", params.workspaceId)
-    .eq("status", "active")
-    .in("group_id", params.courseGroupIds);
-
-  const byParticipant = new Map<UUID, EligibleParticipantItem>();
-  for (const raw of data ?? []) {
-    const row = raw as unknown as {
-      participant_id: UUID;
-      group: GroupRef | null;
-      participant: { id: UUID; name: string; status: ParticipantStatus } | null;
-    };
-    if (!row.participant || row.participant.status !== "active") continue;
-    if (params.excludeParticipantIds.has(row.participant.id)) continue;
-    if (!row.group) continue;
-
-    const existing = byParticipant.get(row.participant.id);
-    if (existing) {
-      if (!existing.groups.some((g) => g.id === row.group!.id)) {
-        existing.groups.push(row.group);
-      }
-    } else {
-      byParticipant.set(row.participant.id, {
-        id: row.participant.id,
-        name: row.participant.name,
-        groups: [row.group],
-      });
-    }
-  }
-
-  return Array.from(byParticipant.values()).sort((a, b) =>
-    a.name.localeCompare(b.name, "ko"),
+  const { data } = await supabase.rpc("accessible_group_ids", {
+    target_workspace_id: workspaceId,
+  });
+  return new Set<UUID>(
+    Array.isArray(data)
+      ? (data as Array<string | { accessible_group_ids: string }>).map((row) =>
+          typeof row === "string" ? row : (row.accessible_group_ids ?? ""),
+        )
+      : [],
   );
+}
+
+async function requireOperator(
+  workspaceId: UUID,
+): Promise<{ ok: true } | ReturnType<typeof apiError>> {
+  await requireUser();
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return apiError("AUTH_REQUIRED", "로그인이 필요합니다.");
+  const { data: me } = await supabase
+    .from("workspace_members")
+    .select("role")
+    .eq("workspace_id", workspaceId)
+    .eq("user_id", user.id)
+    .eq("status", "active")
+    .maybeSingle();
+  if (!me)
+    return apiError("WORKSPACE_ACCESS_DENIED", "워크스페이스 접근 권한이 없습니다.");
+  if (me.role === "instructor") {
+    return apiError("ROLE_FORBIDDEN", "강사는 참여자 배정을 변경할 수 없습니다.");
+  }
+  return { ok: true };
 }
 
 async function loadAttendanceAggregates(params: {
@@ -525,18 +492,15 @@ async function loadAttendanceAggregates(params: {
   }>;
 
   for (const row of rows) {
-    const prev = byParticipant.get(row.participant_id) ?? { ...EMPTY_AGG };
-    if (row.status === "present") prev.present += 1;
-    else if (row.status === "partial") prev.partial += 1;
-    else if (row.status === "absent") prev.absent += 1;
-    byParticipant.set(row.participant_id, prev);
+    const pid = row.participant_id;
+    const current = byParticipant.get(pid) ?? { present: 0, partial: 0, absent: 0 };
+    if (row.status === "present") current.present += 1;
+    else if (row.status === "partial") current.partial += 1;
+    else if (row.status === "absent") current.absent += 1;
+    byParticipant.set(pid, current);
 
-    if (
-      row.note &&
-      row.note.trim().length > 0 &&
-      !latestNoteByParticipant.has(row.participant_id)
-    ) {
-      latestNoteByParticipant.set(row.participant_id, row.note);
+    if (row.note && row.note.length > 0 && !latestNoteByParticipant.has(pid)) {
+      latestNoteByParticipant.set(pid, row.note);
     }
   }
 

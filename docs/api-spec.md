@@ -1221,7 +1221,7 @@ type GetCourseParticipantsStatusInput = {
 } & PaginationInput;
 
 type CourseParticipantStatusItem = {
-  courseParticipantId: UUID;
+  courseParticipantId: UUID | null;
   participant: ParticipantSummary;
   assignmentGroups: GroupSummary[];
   assignmentStatus: CourseParticipantStatus;
@@ -1242,11 +1242,17 @@ type GetCourseParticipantsStatusOutput = {
     countedSessionCount: number;
   };
   participants: CourseParticipantStatusItem[];
-  pageInfo: PageInfo;
 };
 ```
 
 계약명: `getCourseParticipantsStatus`
+
+명단 규칙:
+
+- 명단은 수업의 **현재 연결된 활성 그룹(`groups.deleted_at IS NULL`)의 활성 멤버**(`participant_groups.status='active'`, `participants.deleted_at IS NULL`)에서 자동으로 파생된다.
+- `course_participants.status='excluded'`로 명시 제외된 참여자는 `assignmentStatus='excluded'`로 표시된다(목록에서 사라지지 않는다 — 복구할 수 있도록 유지).
+- `courseParticipantId`는 명시 제외/활성 기록이 있는 경우만 UUID, 없으면 `null`.
+- 응답에 별도의 `eligibleParticipants` 필드는 없다(그룹 멤버는 자동 포함이므로 후보 개념이 무의미).
 
 집계 규칙:
 
@@ -1255,47 +1261,41 @@ type GetCourseParticipantsStatusOutput = {
 - `rollup_status = excluded`인 회차와 `progress_status = cancelled`인 회차는 계산에서 제외한다.
 - `partial`은 부분 출석으로 별도 합산한다.
 
-### 12.2 수업 참여자 후보 조회
+### 12.2 수업 참여자 제외
 
 ```ts
-type GetCourseParticipantCandidatesInput = {
-  workspaceId: UUID;
-  courseId: UUID;
-  search?: string;
-};
-
-type GetCourseParticipantCandidatesOutput = {
-  candidates: CourseParticipantCandidate[];
-};
-```
-
-계약명: `getCourseParticipantCandidates`
-
-규칙:
-
-- 워크스페이스 참여자 중 해당 수업에 활성 배정되지 않은 참여자를 반환한다.
-- 삭제된 참여자는 반환하지 않는다.
-- 그룹 운영자는 자기 접근 그룹 범위 후보만 받는다.
-
-### 12.3 수업 참여자 제거
-
-```ts
-type RemoveCourseParticipantInput = {
+type ExcludeCourseParticipantInput = {
   workspaceId: UUID;
   courseId: UUID;
   participantId: UUID;
-  groupIds?: UUID[];
 };
 ```
 
-계약명: `removeCourseParticipant`
+계약명: `excludeCourseParticipant`
 
 처리:
 
-- 대표 운영자는 수업 내 참여 그룹 목록 전체를 제거하고 배정을 `excluded`로 바꿀 수 있다.
-- 그룹 운영자는 자기 접근 그룹만 제거한다.
-- 남은 수업 내 참여 그룹이 없으면 배정을 `excluded`로 바꾼다.
-- 참여자 마스터 데이터는 삭제하지 않는다.
+- 대상 `course_participants` 행이 있으면 `status='excluded'`로 업데이트, 없으면 새 행을 `status='excluded'`로 insert한다.
+- 명시 제외된 참여자는 강사 출석부와 운영자 명단의 카운트(active) 대상에서 빠지지만, 명단 화면에는 `excluded` 표시로 남아 복구할 수 있다.
+- 강사는 호출할 수 없다.
+
+### 12.3 수업 참여자 복구
+
+```ts
+type ReincludeCourseParticipantInput = {
+  workspaceId: UUID;
+  courseId: UUID;
+  participantId: UUID;
+};
+```
+
+계약명: `reincludeCourseParticipant`
+
+처리:
+
+- 대상 `course_participants` 행이 있고 `status='excluded'`이면 `status='active'`로 되돌린다.
+- 명시 제외 기록이 없으면 그대로 통과(이미 그룹 멤버십으로 활성).
+- 강사는 호출할 수 없다.
 
 ## 13. 강사 콘솔 - 수업 홈
 

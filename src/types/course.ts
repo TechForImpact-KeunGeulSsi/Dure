@@ -86,7 +86,7 @@ export type CourseHomePageData = GetCourseHomeOutput & {
 };
 
 export type CourseParticipantStatusItem = {
-  courseParticipantId: UUID;
+  courseParticipantId: UUID | null;
   participant: ParticipantSummary;
   assignmentGroups: GroupSummary[];
   assignmentStatus: CourseParticipantStatus;

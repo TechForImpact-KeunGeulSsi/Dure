@@ -3,7 +3,7 @@
 import {
   AlertTriangle,
   CheckCircle2,
-  Plus,
+  RotateCcw,
   Search,
   Trash2,
   XCircle,
@@ -15,7 +15,6 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogBody, DialogFooter, DialogHeader } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -27,8 +26,8 @@ import {
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import {
-  addCourseParticipants,
   excludeCourseParticipant,
+  reincludeCourseParticipant,
   type GetCourseParticipantsStatusResult,
 } from '@/services/course-participants';
 import type {
@@ -74,10 +73,7 @@ export function ParticipantsStatusClient({ workspaceId, courseId, data }: Props)
   const accent = data.course.cardColor ?? '#2563EB';
   const [search, setSearch] = useState('');
   const [attendanceFilter, setAttendanceFilter] = useState<AttendanceFilter>('all');
-  const [addOpen, setAddOpen] = useState(false);
-  const [selectedToAdd, setSelectedToAdd] = useState<Set<string>>(new Set());
-  const [adding, setAdding] = useState(false);
-  const [excludingId, setExcludingId] = useState<string | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
   const filteredParticipants = useMemo(() => {
     return data.participants.filter((item) => {
@@ -93,11 +89,11 @@ export function ParticipantsStatusClient({ workspaceId, courseId, data }: Props)
     });
   }, [data.participants, search, attendanceFilter]);
 
-  const handleExclude = async (courseParticipantId: string, name: string) => {
+  const handleExclude = async (participantId: string, name: string) => {
     if (!window.confirm(`'${name}' 참여자를 이 수업에서 제외할까요?`)) return;
-    setExcludingId(courseParticipantId);
-    const result = await excludeCourseParticipant(workspaceId, courseParticipantId);
-    setExcludingId(null);
+    setPendingId(participantId);
+    const result = await excludeCourseParticipant(workspaceId, courseId, participantId);
+    setPendingId(null);
     if (!result.ok) {
       toast.error(result.error.message);
       return;
@@ -106,38 +102,15 @@ export function ParticipantsStatusClient({ workspaceId, courseId, data }: Props)
     router.refresh();
   };
 
-  const toggleSelect = (id: string) => {
-    setSelectedToAdd((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const closeAddDialog = () => {
-    setAddOpen(false);
-    setTimeout(() => setSelectedToAdd(new Set()), 200);
-  };
-
-  const handleAdd = async () => {
-    if (selectedToAdd.size === 0) {
-      toast.error('추가할 참여자를 1명 이상 선택해 주세요.');
-      return;
-    }
-    setAdding(true);
-    const result = await addCourseParticipants(
-      workspaceId,
-      courseId,
-      Array.from(selectedToAdd),
-    );
-    setAdding(false);
+  const handleReinclude = async (participantId: string, name: string) => {
+    setPendingId(participantId);
+    const result = await reincludeCourseParticipant(workspaceId, courseId, participantId);
+    setPendingId(null);
     if (!result.ok) {
       toast.error(result.error.message);
       return;
     }
-    toast.success(`참여자 ${result.data.addedCount}명을 추가했습니다.`);
-    closeAddDialog();
+    toast.success(`'${name}' 참여자를 복구했습니다.`);
     router.refresh();
   };
 
@@ -149,7 +122,7 @@ export function ParticipantsStatusClient({ workspaceId, courseId, data }: Props)
       >
         <h2 className="text-2xl font-bold text-white">참여자 현황</h2>
         <p className="mt-1 text-sm text-blue-100">
-          출석률과 참여자별 출석 상태, 특이사항을 한눈에 확인합니다.
+          출석률과 참여자별 출석 상태, 특이사항을 한눈에 확인합니다. 명단은 연결된 그룹의 활성 멤버에서 자동 생성됩니다.
         </p>
       </section>
 
@@ -227,10 +200,6 @@ export function ParticipantsStatusClient({ workspaceId, courseId, data }: Props)
               </button>
             ))}
           </div>
-          <Button type="button" className="flex-shrink-0" onClick={() => setAddOpen(true)}>
-            <Plus className="h-4 w-4" />
-            참여자 추가
-          </Button>
         </div>
       </Card>
 
@@ -264,8 +233,9 @@ export function ParticipantsStatusClient({ workspaceId, courseId, data }: Props)
             ) : (
               filteredParticipants.map((item) => {
                 const rowStatus = getRowStatus(item);
+                const isExcluded = item.assignmentStatus === 'excluded';
                 return (
-                  <TableRow key={item.courseParticipantId}>
+                  <TableRow key={item.participant.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-sm font-semibold text-blue-600">
@@ -298,22 +268,43 @@ export function ParticipantsStatusClient({ workspaceId, courseId, data }: Props)
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                        disabled={
-                          item.assignmentStatus === 'excluded' ||
-                          !item.canEditAssignment ||
-                          excludingId === item.courseParticipantId
-                        }
-                        onClick={() => handleExclude(item.courseParticipantId, item.participant.name)}
-                        aria-label={`${item.participant.name} 제외`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        제외
-                      </Button>
+                      {isExcluded ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                          disabled={
+                            !item.canEditAssignment ||
+                            pendingId === item.participant.id
+                          }
+                          onClick={() =>
+                            handleReinclude(item.participant.id, item.participant.name)
+                          }
+                          aria-label={`${item.participant.name} 복구`}
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                          복구
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                          disabled={
+                            !item.canEditAssignment ||
+                            pendingId === item.participant.id
+                          }
+                          onClick={() =>
+                            handleExclude(item.participant.id, item.participant.name)
+                          }
+                          aria-label={`${item.participant.name} 제외`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          제외
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
@@ -322,66 +313,6 @@ export function ParticipantsStatusClient({ workspaceId, courseId, data }: Props)
           </TableBody>
         </Table>
       </Card>
-
-      <Dialog open={addOpen} onOpenChange={closeAddDialog}>
-        <DialogHeader
-          title="참여자 추가"
-          description="이 수업의 연결 그룹에 속한 참여자 중 아직 배정되지 않은 사람을 선택합니다."
-        />
-        <DialogBody>
-          {data.eligibleParticipants.length === 0 ? (
-            <p className="py-6 text-center text-sm text-gray-500">
-              추가할 수 있는 참여자가 없습니다. 운영 메뉴에서 참여자를 먼저 그룹에 배정해
-              주세요.
-            </p>
-          ) : (
-            <div className="max-h-80 space-y-1 overflow-y-auto">
-              {data.eligibleParticipants.map((p) => {
-                const checked = selectedToAdd.has(p.id);
-                return (
-                  <label
-                    key={p.id}
-                    className={cn(
-                      'flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2 transition-colors',
-                      checked
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 bg-white hover:border-gray-300',
-                    )}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleSelect(p.id)}
-                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-gray-900">{p.name}</p>
-                      <p className="truncate text-xs text-gray-500">
-                        {p.groups.map((g) => g.name).join(', ')}
-                      </p>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          )}
-          <p className="mt-3 text-xs text-gray-500">
-            선택됨: {selectedToAdd.size}명
-          </p>
-        </DialogBody>
-        <DialogFooter>
-          <Button type="button" variant="secondary" onClick={closeAddDialog} disabled={adding}>
-            취소
-          </Button>
-          <Button
-            type="button"
-            onClick={handleAdd}
-            disabled={adding || selectedToAdd.size === 0}
-          >
-            {adding ? '추가 중...' : `${selectedToAdd.size}명 추가`}
-          </Button>
-        </DialogFooter>
-      </Dialog>
     </section>
   );
 }

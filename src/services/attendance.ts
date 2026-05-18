@@ -376,46 +376,108 @@ async function loadAttendanceTargets(
   courseId: UUID,
   sessionId: UUID,
 ): Promise<AttendanceTarget[]> {
-  const supabase = await createSupabaseServerClient();
+  // 호출부(getAttendanceBook, saveAttendance)가 이미 canAccessCourse로 권한을 확인했으므로
+  // admin client를 사용해 RLS 우회 — instructor 역할은 participant_groups SELECT 정책에서
+  // 빠져 있어 server client로는 빈 결과만 돌아온다.
+  const admin = createSupabaseAdminClient();
 
-  // 현재 수업에 연결된 그룹만 표시 — 연결 해제된 그룹의 보존된
-  // course_participant_groups 행이 "유령 그룹"으로 노출되지 않게 한다.
-  const { data: courseGroupRows } = await supabase
+  // 1) 수업에 현재 연결된 group_id 목록
+  const { data: cgRows } = await admin
     .from("course_groups")
     .select("group_id")
     .eq("workspace_id", workspaceId)
     .eq("course_id", courseId);
-  const activeCourseGroupIds = new Set<UUID>(
-    (courseGroupRows ?? []).map((row) => row.group_id as UUID),
+  const linkedGroupIds = Array.from(
+    new Set((cgRows ?? []).map((row) => row.group_id as UUID)),
   );
+  if (linkedGroupIds.length === 0) return [];
 
-  const { data: rows } = await supabase
-    .from("course_participants")
-    .select(
-      `id, participant_name_snapshot, status, participant_id,
-       participant:participants!inner ( id, name, status, deleted_at ),
-       groups:course_participant_groups ( group:groups ( id, name, description, status ) )`,
-    )
-    .eq("workspace_id", workspaceId)
-    .eq("course_id", courseId)
-    .eq("status", "active")
-    .is("participant.deleted_at", null);
-
-  const targets: Omit<AttendanceTarget, "record">[] = [];
-  for (const row of rows ?? []) {
-    const p = row.participant as unknown as { id: UUID; name: string; status: string } | null;
-    if (!p || p.status === "deleted") continue;
-    const groupLinks = (row.groups ?? []) as unknown as Array<{ group: GroupSummary | null }>;
-    const assignmentGroups = groupLinks
-      .map((link) => link.group)
-      .filter((g): g is GroupSummary => !!g)
-      .filter((g) => activeCourseGroupIds.has(g.id as UUID));
-    targets.push({
-      participantId: p.id,
-      participantName: p.name,
-      assignmentGroups,
+  // 2) 활성 그룹만 (소프트 삭제된 그룹 제외)
+  const { data: groupRows } = await admin
+    .from("groups")
+    .select("id, name, description, status")
+    .in("id", linkedGroupIds)
+    .is("deleted_at", null);
+  const groupSummaryById = new Map<UUID, GroupSummary>();
+  for (const row of groupRows ?? []) {
+    groupSummaryById.set(row.id as UUID, {
+      id: row.id as UUID,
+      name: row.name,
+      description: row.description,
+      status: row.status,
     });
   }
+  if (groupSummaryById.size === 0) return [];
+
+  // 3) 활성 멤버십
+  const { data: pgRows } = await admin
+    .from("participant_groups")
+    .select("participant_id, group_id")
+    .in("group_id", Array.from(groupSummaryById.keys()))
+    .eq("status", "active");
+
+  const candidateParticipantIds = Array.from(
+    new Set((pgRows ?? []).map((row) => row.participant_id as UUID)),
+  );
+  if (candidateParticipantIds.length === 0) return [];
+
+  // 4) 마스터 참여자 (소프트 삭제 제외)
+  const { data: participantRows } = await admin
+    .from("participants")
+    .select("id, name, status")
+    .in("id", candidateParticipantIds)
+    .is("deleted_at", null);
+  const participantById = new Map<
+    UUID,
+    { id: UUID; name: string; status: string }
+  >();
+  for (const row of participantRows ?? []) {
+    if (row.status === "deleted") continue;
+    participantById.set(row.id as UUID, {
+      id: row.id as UUID,
+      name: row.name,
+      status: row.status,
+    });
+  }
+  if (participantById.size === 0) return [];
+
+  // 5) 명시 제외된 참여자
+  const { data: excludedRows } = await admin
+    .from("course_participants")
+    .select("participant_id")
+    .eq("workspace_id", workspaceId)
+    .eq("course_id", courseId)
+    .eq("status", "excluded");
+  const excludedSet = new Set<UUID>(
+    (excludedRows ?? []).map((row) => row.participant_id as UUID),
+  );
+
+  // 조합 — 멤버십 행을 순회하며 distinct participant + 표시 그룹 목록 구성
+  const targetByParticipant = new Map<UUID, Omit<AttendanceTarget, "record">>();
+  for (const row of pgRows ?? []) {
+    const participantId = row.participant_id as UUID;
+    if (excludedSet.has(participantId)) continue;
+    const p = participantById.get(participantId);
+    if (!p) continue;
+    const groupRef = groupSummaryById.get(row.group_id as UUID);
+    if (!groupRef) continue;
+    let entry = targetByParticipant.get(participantId);
+    if (!entry) {
+      entry = {
+        participantId,
+        participantName: p.name,
+        assignmentGroups: [],
+      };
+      targetByParticipant.set(participantId, entry);
+    }
+    if (!entry.assignmentGroups.some((g) => g.id === groupRef.id)) {
+      entry.assignmentGroups.push(groupRef);
+    }
+  }
+
+  const targets = Array.from(targetByParticipant.values()).sort((a, b) =>
+    a.participantName.localeCompare(b.participantName, "ko"),
+  );
 
   const records = await loadAttendanceRecordsBySession(workspaceId, sessionId);
   const recordByParticipant = new Map(records.map((r) => [r.participantId, r]));

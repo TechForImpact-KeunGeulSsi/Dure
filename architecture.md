@@ -243,7 +243,9 @@ RLS 정책과 인덱스를 단순하게 유지하기 위해 조인 테이블에�
 
 - **그룹 인원 수** (`/manage/groups`): `participant_groups.status='active'` AND `participants.deleted_at IS NULL`인 distinct participant.
 - **수업 참여자 수** (`/manage/courses`, `/home` 카드): 해당 수업의 현재 `course_groups`(단 `groups.deleted_at IS NULL`인 그룹만) 합집합에 속한 distinct 활성 participant. `course_participants` 테이블의 명시 배정과 무관하게 그룹 연결만으로 결정된다.
-- `course_participants`는 출석 대상과 수업 내 그룹 메모(`course_participant_groups`) 보존 용도다. 카운트 표시에 사용하지 않으며, `excluded` 상태는 출석/배정 화면에만 영향을 준다.
+- `course_participants`는 **명시 제외(`status='excluded'`) 기록과 attendance_records의 FK 보호** 용도로만 사용한다. 카운트·명단·출석 대상 어느 화면도 이 테이블의 행 존재 여부로 참여자를 판단하지 않는다.
+- `course_participant_groups`는 더 이상 표시·집계에 사용하지 않는다(legacy 데이터는 보존). 수업 내 그룹 표시는 참여자의 `participant_groups` ∩ 수업의 현재 `course_groups`로 즉시 계산된다.
+- **출석 대상 / 운영자 명단**(`/teach/courses/[id]/attendance`, `/courses/[id]/participants`)도 동일하게 그룹 파생이다: distinct 활성 멤버 - 명시 제외. 데이터 로더는 `createSupabaseAdminClient()`를 사용하고 호출부에서 권한을 검증한다(instructor는 RLS상 `participant_groups` SELECT가 막혀 있기 때문에 admin client 우회가 필요).
 - 데이터 변경 시점에 모든 영향 받는 화면을 재검증해야 한다. 참여자/그룹/수업 mutation은 서비스 함수에서 `manage/participants`, `manage/groups`, `manage/courses`, `/home`을 함께 `revalidatePath`로 무효화하고, 수업 단위 변경은 `courses/[id]/home`과 `courses/[id]/participants`까지 함께 무효화한다.
 
 ### 주요 DB 불변 규칙

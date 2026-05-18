@@ -1,5 +1,6 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import Script from "next/script";
+import { createElement, type ReactNode } from "react";
 import { ArrowRight, Building2, CheckCircle2, MapPin } from "lucide-react";
 
 import { DureMark } from "@/components/auth/dure-mark";
@@ -199,83 +200,111 @@ function FeatureItem({
 }
 
 function TodayVillageMap({ catalog }: { catalog: PublicCourseCatalog }) {
-  const mapLabels = getMapLabels(catalog);
+  const globeLabels = getGlobeLabels(catalog);
+  const totals = getCatalogTotals(catalog);
 
   return (
     <section
-      className="relative min-h-[560px] overflow-hidden rounded-[22px] border border-[var(--color-border)] bg-white/90 shadow-[0_28px_80px_rgba(15,23,42,0.12)]"
+      className="relative min-h-[560px] overflow-hidden rounded-[22px] border border-[var(--color-border)] bg-slate-950 text-white shadow-[0_28px_80px_rgba(15,23,42,0.16)]"
       aria-label="오늘의 마을 교육 운영"
     >
-      <div className="flex items-center justify-between p-6">
+      <div className="relative z-20 flex items-center justify-between p-6">
         <div>
-          <h2 className="text-lg font-extrabold text-gray-950">
+          <h2 className="text-lg font-extrabold text-white">
             오늘의 마을 교육 운영
           </h2>
-          <p className="mt-1 text-xs font-medium text-slate-500">
-            지역별 수업 현황을 한눈에 보는 지도형 요약
-          </p>
         </div>
         <span className="size-3 rounded-full bg-emerald-500 shadow-[0_0_0_10px_rgba(34,197,94,0.12)]" />
       </div>
 
-      <div className="absolute inset-x-5 bottom-5 top-24 overflow-hidden rounded-[18px] bg-slate-50">
+      <div className="absolute inset-x-5 bottom-5 top-24 overflow-hidden rounded-[18px] border border-white/10 bg-[radial-gradient(circle_at_50%_34%,rgba(14,165,233,0.26),rgba(15,23,42,0)_44%),linear-gradient(180deg,rgba(15,23,42,0.64),#020617)]">
         <svg
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
-          className="pointer-events-none absolute inset-0 z-10 h-full w-full"
+          className="pointer-events-none absolute inset-0 z-20 h-full w-full"
           aria-hidden="true"
         >
-          {mapLabels.map((label) => (
+          {globeLabels.map((label) => (
             <g key={label.id}>
               <path
                 d={`M${label.labelAnchorX} ${label.labelAnchorY} L${label.dotX} ${label.dotY}`}
                 fill="none"
-                stroke="#38bdf8"
-                strokeWidth="1.4"
+                stroke="rgba(125, 211, 252, 0.72)"
+                strokeWidth="0.9"
                 strokeLinecap="round"
+                strokeDasharray="1 2"
               />
-              <circle cx={label.dotX} cy={label.dotY} r="1.8" fill="#2563eb" />
+              <circle cx={label.dotX} cy={label.dotY} r="1.25" fill="#7dd3fc" />
             </g>
           ))}
         </svg>
 
-        <img
-          src="/korea-map-reference.svg"
-          alt="대한민국 지도"
-          className="absolute left-1/2 top-[42%] z-0 h-[64%] max-h-[330px] w-auto -translate-x-1/2 -translate-y-1/2 opacity-95"
-        />
+        <div className="absolute left-1/2 top-[43%] z-10 grid aspect-square w-[min(76%,390px)] -translate-x-1/2 -translate-y-1/2 place-items-center">
+          <div className="absolute inset-[6%] rounded-full bg-sky-300/20 blur-3xl" />
+          <GlobeModel />
+          <div className="absolute bottom-[2%] h-8 w-[72%] rounded-full bg-slate-950/55 blur-xl" />
+        </div>
 
-        {mapLabels.map((label) => (
+        {globeLabels.map((label) => (
           <div
             key={label.id}
-            className="absolute z-20 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-2 text-xs font-extrabold text-white shadow-[0_12px_30px_rgba(37,99,235,0.22)]"
+            className="absolute z-30 rounded-[var(--radius-md)] border border-white/10 bg-white/10 px-3 py-2 text-xs font-extrabold text-white shadow-[0_12px_30px_rgba(2,6,23,0.24)] backdrop-blur-md"
             style={{ left: `${label.labelLeft}%`, top: `${label.labelTop}%` }}
           >
             {label.name}
-            <span className="ml-2 font-bold text-blue-100">
+            <span className="ml-2 font-bold text-cyan-100">
               {label.count}개
             </span>
           </div>
         ))}
 
-        <div className="absolute bottom-5 left-5 right-5 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-white/90 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.1)] backdrop-blur">
+        <div className="absolute bottom-5 left-5 right-5 z-30 rounded-[var(--radius-lg)] border border-white/10 bg-white/10 p-4 shadow-[0_18px_50px_rgba(2,6,23,0.22)] backdrop-blur-md">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-extrabold text-gray-950">
+              <p className="text-sm font-extrabold text-white">
                 전국 마을 수업 현황
               </p>
-              <p className="mt-1 text-xs leading-5 text-slate-500">
-                마을별 공개 수업이 늘어나면 지역 단위로 묶어 보여줍니다.
-              </p>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-right text-xs font-bold text-slate-600">
-              <span>표시 마을 {mapLabels.length}곳</span>
-              <span>공개 수업 {getCatalogTotals(catalog).courseCount}개</span>
+            <div className="grid grid-cols-2 gap-2 text-right text-xs font-bold text-slate-200">
+              <span>표시 마을 {globeLabels.length}곳</span>
+              <span>공개 수업 {totals.courseCount}개</span>
             </div>
           </div>
         </div>
       </div>
     </section>
+  );
+}
+
+function GlobeModel() {
+  return (
+    <>
+      <Script
+        type="module"
+        src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js"
+        strategy="afterInteractive"
+      />
+      {createElement("model-viewer", {
+        src: "/earth-globe.glb",
+        alt: "지구본",
+        "auto-rotate": "",
+        "auto-rotate-delay": "0",
+        "rotation-per-second": "16deg",
+        "camera-controls": "",
+        "disable-zoom": "",
+        "interaction-prompt": "none",
+        "shadow-intensity": "0.55",
+        "environment-image": "neutral",
+        exposure: "1",
+        "camera-orbit": "0deg 74deg 105%",
+        class:
+          "relative aspect-square w-full drop-shadow-[0_34px_72px_rgba(14,165,233,0.28)]",
+        style: {
+          background: "transparent",
+          minHeight: "320px",
+        },
+      })}
+    </>
   );
 }
 
@@ -294,7 +323,7 @@ function getCatalogTotals(catalog: PublicCourseCatalog) {
   );
 }
 
-function getMapLabels(catalog: PublicCourseCatalog) {
+function getGlobeLabels(catalog: PublicCourseCatalog) {
   const fallback = [
     { id: "capital", name: "수도권", courses: 2 },
     { id: "central", name: "충청권", courses: 1 },
@@ -314,38 +343,38 @@ function getMapLabels(catalog: PublicCourseCatalog) {
     id: item.id,
     name: item.name,
     count: item.courses,
-    ...MAP_LABEL_SLOTS[index % MAP_LABEL_SLOTS.length],
+    ...GLOBE_LABEL_SLOTS[index % GLOBE_LABEL_SLOTS.length],
   }));
 }
 
-const MAP_LABEL_SLOTS = [
+const GLOBE_LABEL_SLOTS = [
   {
-    dotX: 43,
-    dotY: 28,
+    dotX: 58,
+    dotY: 31,
     labelAnchorX: 28,
     labelAnchorY: 20,
     labelLeft: 5,
     labelTop: 17,
   },
   {
-    dotX: 48,
-    dotY: 45,
+    dotX: 40,
+    dotY: 47,
     labelAnchorX: 27,
     labelAnchorY: 44,
     labelLeft: 5,
     labelTop: 42,
   },
   {
-    dotX: 60,
-    dotY: 54,
+    dotX: 66,
+    dotY: 59,
     labelAnchorX: 78,
     labelAnchorY: 47,
     labelLeft: 71,
     labelTop: 44,
   },
   {
-    dotX: 44,
-    dotY: 80,
+    dotX: 47,
+    dotY: 69,
     labelAnchorX: 27,
     labelAnchorY: 74,
     labelLeft: 5,

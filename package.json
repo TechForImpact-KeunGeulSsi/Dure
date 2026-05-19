@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "seed:darori": "node scripts/seed-darori-user-test.mjs",
+    "test:darori-seed": "node --test scripts/seed-darori-user-test.test.mjs",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"
   },

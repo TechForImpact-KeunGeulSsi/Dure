@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { DureMark } from "@/components/auth/dure-mark";
 import { PublicCourseDetailView } from "@/components/public-catalog/public-course-detail-view";
+import { PublicCourseFeedbackForm } from "@/components/public-catalog/public-course-feedback-form";
 import { getPublicCourseDetail } from "@/services/public-catalog";
 
 type Props = {
@@ -45,6 +46,11 @@ export default async function PublicCourseDetailPage({ params }: Props) {
 
       <div className="mx-auto max-w-4xl px-5 py-8">
         <PublicCourseDetailView course={result.data} />
+        {!result.data.id.startsWith("demo-") ? (
+          <div className="mt-8">
+            <PublicCourseFeedbackForm courseId={result.data.id} />
+          </div>
+        ) : null}
       </div>
     </main>
   );

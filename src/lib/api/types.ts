@@ -25,6 +25,8 @@ export type MaterialReviewStatus = "pending" | "reviewed";
 export type AttendanceStatus = "present" | "partial" | "absent";
 export type MaterialVisibilityScope = "public" | "admin_only";
 export type SettlementRequestStatus = "pending" | "paid";
+export type CourseFeedbackCategory = "suggestion" | "praise" | "other";
+export type CourseFeedbackStatus = "new" | "reviewed";
 
 // --- Pagination (api-spec.md §1.5) ---
 
@@ -201,6 +203,7 @@ export type GetWorkspaceContextOutput = {
 
 export type ActivityTarget =
   | { type: "course"; courseId: UUID; href: string }
+  | { type: "course_feedback"; feedbackId: UUID; courseId: UUID; href: string }
   | { type: "course_material"; courseId: UUID; materialId: UUID; href: string }
   | { type: "attendance"; courseId: UUID; sessionId: UUID; href: string }
   | { type: "class_memo"; courseId: UUID; sessionId: UUID; href: string }
@@ -218,12 +221,31 @@ export type ActivityItem = {
 };
 
 export type LoggableTargetType =
+  | "course_feedback"
   | "material"
   | "attendance"
   | "class_memo"
   | "member"
   | "course"
   | "settlement_request";
+
+// --- Course feedback ---
+
+export type CourseFeedbackListItem = {
+  id: UUID;
+  workspaceId: UUID;
+  courseId: UUID;
+  courseName: string;
+  category: CourseFeedbackCategory;
+  status: CourseFeedbackStatus;
+  message: string;
+  authorName: string | null;
+  authorPhone: string | null;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+  canUpdateStatus: boolean;
+  canDelete: boolean;
+};
 
 // --- Settlement requests (정산 요청) ---
 

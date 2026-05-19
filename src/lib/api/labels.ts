@@ -4,6 +4,8 @@
 
 import type {
   AttendanceStatus,
+  CourseFeedbackCategory,
+  CourseFeedbackStatus,
   CourseStatus,
   GroupStatus,
   MaterialReviewStatus,
@@ -65,6 +67,28 @@ export function courseStatusLabel(status: CourseStatus): string {
       return "진행 중";
     case "completed":
       return "진행 완료";
+  }
+}
+
+export function courseFeedbackCategoryLabel(
+  category: CourseFeedbackCategory,
+): string {
+  switch (category) {
+    case "suggestion":
+      return "제안";
+    case "praise":
+      return "좋았던 점";
+    case "other":
+      return "기타";
+  }
+}
+
+export function courseFeedbackStatusLabel(status: CourseFeedbackStatus): string {
+  switch (status) {
+    case "new":
+      return "미확인";
+    case "reviewed":
+      return "확인됨";
   }
 }
 

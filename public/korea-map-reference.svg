@@ -1,78 +1,48 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 560" role="img" aria-labelledby="title desc">
-  <title id="title">대한민국 행정구역 지도</title>
-  <desc id="desc">수도권, 강원도, 충청도, 전라도, 경상도, 제주도를 포함한 대한민국 도 단위 지도입니다.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 560" role="img" aria-labelledby="title desc">
+  <title id="title">남한 행정구역 지도</title>
+  <desc id="desc">서해안과 남해안의 굴곡, 제주도, 도 단위 경계를 단순화해 그린 남한 지도입니다.</desc>
   <defs>
-    <linearGradient id="regionFill" x1="0" x2="0" y1="0" y2="1">
-      <stop offset="0" stop-color="#dce3ea"/>
-      <stop offset="1" stop-color="#c3ccd5"/>
-    </linearGradient>
-    <filter id="softShadow" x="-18%" y="-14%" width="136%" height="132%">
-      <feDropShadow dx="7" dy="11" stdDeviation="5" flood-color="#64748b" flood-opacity=".28"/>
+    <filter id="mapShadow" x="-18%" y="-12%" width="136%" height="130%">
+      <feDropShadow dx="6" dy="10" stdDeviation="6" flood-color="#0f172a" flood-opacity=".18"/>
     </filter>
     <style>
-      .region {
-        fill: url(#regionFill);
-        stroke: #7f8b96;
-        stroke-width: 3.8;
+      .land {
+        fill: #34b77a;
+        stroke: #249864;
+        stroke-width: 2.4;
+        stroke-linejoin: round;
+      }
+      .boundary {
+        fill: none;
+        stroke: rgba(255, 255, 255, .78);
+        stroke-width: 2.1;
         stroke-linecap: round;
         stroke-linejoin: round;
       }
-      .city {
-        fill: #cbd4dd;
-        stroke: #7f8b96;
-        stroke-width: 2.8;
-        stroke-linecap: round;
+      .island {
+        fill: #34b77a;
+        stroke: #249864;
+        stroke-width: 2.2;
         stroke-linejoin: round;
-      }
-      .label {
-        fill: #164253;
-        font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        font-size: 16px;
-        font-weight: 800;
-      }
-      .city-label {
-        font-size: 14px;
       }
     </style>
   </defs>
 
-  <g filter="url(#softShadow)">
-    <path class="region" d="M86 122 L118 94 L151 80 L171 58 L199 53 L222 28 L244 16 L259 42 L256 67 L276 88 L283 111 L306 132 L327 163 L347 201 L361 244 L369 289 L366 337 L352 382 L329 424 L298 460 L260 488 L219 506 L175 515 L132 508 L94 491 L65 463 L44 426 L31 382 L30 339 L43 299 L57 260 L54 223 L42 190 L46 159 L62 137 Z"/>
+  <g filter="url(#mapShadow)">
+    <path class="land" d="M225 20 L246 13 L256 42 L274 65 L286 97 L307 127 L323 163 L346 198 L362 236 L372 275 L383 322 L385 365 L377 408 L362 449 L335 483 L299 509 L257 529 L214 540 L172 533 L136 517 L107 491 L82 455 L65 414 L50 369 L49 326 L60 288 L57 257 L43 231 L49 203 L67 190 L80 165 L64 146 L45 151 L36 141 L54 125 L77 121 L95 106 L119 98 L135 82 L143 55 L165 38 L199 42 Z"/>
 
-    <path class="region" d="M86 122 L118 94 L151 80 L171 58 L199 53 L213 82 L209 118 L190 150 L157 169 L119 164 L88 145 Z"/>
-    <path class="region" d="M199 53 L222 28 L244 16 L259 42 L256 67 L276 88 L283 111 L306 132 L327 163 L347 201 L361 244 L334 257 L296 260 L258 247 L222 219 L200 183 L190 150 L209 118 L213 82 Z"/>
-    <path class="region" d="M88 145 L119 164 L157 169 L190 150 L200 183 L222 219 L209 255 L168 273 L124 264 L85 242 L57 260 L54 223 L42 190 L46 159 Z"/>
-    <path class="region" d="M57 260 L85 242 L124 264 L168 273 L209 255 L199 306 L159 326 L112 314 L71 291 Z"/>
-    <path class="region" d="M209 255 L222 219 L258 247 L296 260 L334 257 L361 244 L369 289 L366 337 L352 382 L318 389 L276 375 L238 352 L199 306 Z"/>
-    <path class="region" d="M71 291 L112 314 L159 326 L199 306 L238 352 L220 402 L178 416 L132 402 L90 374 L55 345 L43 299 Z"/>
-    <path class="region" d="M220 402 L238 352 L276 375 L318 389 L352 382 L329 424 L298 460 L260 488 L219 506 L178 416 Z"/>
-    <path class="region" d="M55 345 L90 374 L132 402 L178 416 L219 506 L175 515 L132 508 L94 491 L65 463 L44 426 L31 382 L30 339 Z"/>
+    <path class="boundary" d="M143 55 C157 70 181 69 199 78 C203 101 197 119 209 139"/>
+    <path class="boundary" d="M95 106 C115 128 137 138 159 139 C184 140 196 130 209 139 C232 154 251 160 279 151"/>
+    <path class="boundary" d="M80 165 C111 180 131 207 158 225 C181 239 208 241 232 255"/>
+    <path class="boundary" d="M209 139 C204 175 217 207 232 255 C261 276 288 291 323 286 C347 282 361 270 372 275"/>
+    <path class="boundary" d="M57 257 C93 265 122 281 149 304 C179 329 213 331 249 321"/>
+    <path class="boundary" d="M232 255 C239 286 249 321 279 347 C303 369 333 382 377 408"/>
+    <path class="boundary" d="M60 288 C91 321 126 341 171 353 C198 360 225 348 249 321"/>
+    <path class="boundary" d="M49 326 C80 354 108 388 142 410 C171 429 201 437 232 447"/>
+    <path class="boundary" d="M249 321 C252 362 242 401 232 447 C243 478 251 503 257 529"/>
+    <path class="boundary" d="M232 447 C270 437 303 425 335 400 C349 389 360 377 385 365"/>
+    <path class="boundary" d="M142 410 C147 452 158 493 172 533"/>
 
-    <path class="city" d="M62 225 L38 239 L18 229 L23 204 L48 194 L69 207 Z"/>
-    <path class="city" d="M148 121 L162 113 L177 121 L174 139 L157 146 L143 137 Z"/>
-    <path class="city" d="M184 287 L198 281 L213 290 L210 307 L193 313 L180 303 Z"/>
-    <path class="city" d="M300 368 L316 362 L329 372 L324 389 L308 394 L296 384 Z"/>
-    <path class="city" d="M321 423 L337 417 L351 428 L346 444 L329 450 L317 439 Z"/>
-    <path class="city" d="M136 434 L153 427 L168 439 L163 455 L145 460 L132 450 Z"/>
-    <path class="region" d="M137 534 L176 524 L220 531 L246 554 L225 581 L178 590 L139 576 L116 555 Z"/>
-  </g>
-
-  <g class="label">
-    <text class="city-label" x="145" y="116">서울</text>
-    <text class="city-label" x="47" y="190">인천</text>
-    <text x="124" y="157">경기도</text>
-    <text x="268" y="132">강원도</text>
-    <text x="186" y="235">충청북도</text>
-    <text x="91" y="300">충청남도</text>
-    <text class="city-label" x="184" y="286">대전</text>
-    <text x="282" y="316">경상북도</text>
-    <text x="98" y="370">전라북도</text>
-    <text x="244" y="438">경상남도</text>
-    <text class="city-label" x="300" y="367">대구</text>
-    <text class="city-label" x="326" y="424">울산</text>
-    <text class="city-label" x="313" y="473">부산</text>
-    <text class="city-label" x="131" y="432">광주</text>
-    <text x="93" y="487">전라남도</text>
-    <text x="154" y="560">제주도</text>
+    <path class="island" d="M102 536 C121 528 145 526 164 531 C174 535 177 545 168 551 C147 563 112 561 96 553 C89 549 91 541 102 536 Z"/>
   </g>
 </svg>

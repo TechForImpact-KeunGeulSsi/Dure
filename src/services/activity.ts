@@ -107,6 +107,7 @@ export async function getRecentActivity(input: {
       // 멤버 관리 이벤트는 owner_admin만
       if (membership.role !== "owner_admin") continue;
     } else if (
+      e.target_type === "course_feedback" ||
       e.target_type === "material" ||
       e.target_type === "attendance" ||
       e.target_type === "class_memo"
@@ -249,6 +250,15 @@ function buildTarget(
         href: `/workspaces/${workspaceId}/${base}/${courseId}/materials`,
       };
     }
+    case "course_feedback": {
+      if (!event.target_id || !courseId) return null;
+      return {
+        type: "course_feedback",
+        feedbackId: event.target_id,
+        courseId,
+        href: `/workspaces/${workspaceId}/feedback`,
+      };
+    }
     case "attendance": {
       if (!event.target_id || !courseId) return null;
       return {
@@ -346,6 +356,8 @@ function buildTitle(event: ActivityRow, actor: MemberSummary | null): string {
       return `${name}님이 정산을 요청했어요`;
     case "settlement_paid":
       return `${name}님이 지급 완료를 표시했어요`;
+    case "course_feedback_created":
+      return "공개 수업 의견이 도착했어요";
     default:
       return `${name}님의 활동`;
   }
@@ -404,6 +416,12 @@ function buildDescription(
           : `${formatted}원`;
       }
       return courseName ?? null;
+    }
+    case "course_feedback_created": {
+      const category = readMetadataString(event.metadata, "category");
+      const preview = readMetadataString(event.metadata, "preview");
+      if (courseName && preview) return `${courseName} · ${preview}`;
+      return preview ?? courseName ?? category;
     }
     default:
       return null;

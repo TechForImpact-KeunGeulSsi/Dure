@@ -185,7 +185,7 @@ export function ParticipantsClient({
         />
       ) : (
         <>
-          <Table>
+          <Table className="table-fixed">
             <THead>
               <Tr>
                 <Th>이름</Th>
@@ -222,8 +222,10 @@ export function ParticipantsClient({
                       status={participant.status as ParticipantStatus}
                     />
                   </Td>
-                  <Td className="max-w-xs truncate text-[var(--color-muted-foreground)]">
-                    {participant.memo ?? "—"}
+                  <Td className="w-[18rem] text-[var(--color-muted-foreground)]">
+                    <span className="block truncate">
+                      {participant.memo ?? "—"}
+                    </span>
                   </Td>
                   <Td>
                     <div className="flex items-center justify-end gap-1">

@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { KeyRound, Mail, User } from "lucide-react";
 
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { signupAction } from "@/services/auth";
 import { SignupInputSchema } from "@/lib/validators/workspace";
 
 type SignupFormProps = {
@@ -38,17 +38,12 @@ export function SignupForm({ next }: SignupFormProps) {
     }
 
     startTransition(async () => {
-      const supabase = createSupabaseBrowserClient();
-      const { error } = await supabase.auth.signUp({
-        email: parsed.data.email,
-        password: parsed.data.password,
-        options: {
-          data: { display_name: parsed.data.displayName },
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
-        },
+      const result = await signupAction({
+        ...parsed.data,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
       });
-      if (error) {
-        toast.error(translateSignupError(error.message));
+      if (!result.ok) {
+        toast.error(result.error.message);
         return;
       }
       toast.success("환영합니다. 계정이 만들어졌어요.");
@@ -156,15 +151,4 @@ function PillField({ id, label, icon, className, ...rest }: PillFieldProps) {
       </div>
     </div>
   );
-}
-
-function translateSignupError(message: string): string {
-  const lower = message.toLowerCase();
-  if (lower.includes("already registered") || lower.includes("already exists")) {
-    return "이미 가입된 이메일입니다. 로그인을 시도해 주세요.";
-  }
-  if (lower.includes("password should be")) {
-    return "비밀번호는 8자 이상이어야 합니다.";
-  }
-  return message;
 }

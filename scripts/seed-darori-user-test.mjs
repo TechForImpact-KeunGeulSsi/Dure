@@ -33,6 +33,70 @@ export const DARORI_TEST_ACCOUNTS = [
   },
 ];
 
+const ROLE_ASSIGNMENT_LABELS = {
+  owner: "대표 운영자",
+  instructor: "강사",
+};
+
+export function buildDaroriAccountsForLabel(label = "") {
+  if (!label) return DARORI_TEST_ACCOUNTS;
+  return DARORI_TEST_ACCOUNTS.map((account) => ({
+    ...account,
+    email: `darori.${account.key}+${label}@test.local`,
+    displayName: `${account.displayName} ${label}`,
+  }));
+}
+
+export function buildDaroriSeedSpec({
+  label = "",
+  assignmentRole = "owner",
+} = {}) {
+  return {
+    label,
+    assignmentRole,
+    workspaceName: label ? `${DARORI_WORKSPACE_NAME} ${label}` : DARORI_WORKSPACE_NAME,
+    accounts: buildDaroriAccountsForLabel(label),
+  };
+}
+
+export function buildDaroriGoogleFormSeedSpecs({
+  ownerCount = 10,
+  instructorCount = 10,
+} = {}) {
+  const specs = [];
+  for (let index = 1; index <= ownerCount; index += 1) {
+    specs.push(
+      buildDaroriSeedSpec({
+        label: `owner${String(index).padStart(2, "0")}`,
+        assignmentRole: "owner",
+      }),
+    );
+  }
+  for (let index = 1; index <= instructorCount; index += 1) {
+    specs.push(
+      buildDaroriSeedSpec({
+        label: `instructor${String(index).padStart(2, "0")}`,
+        assignmentRole: "instructor",
+      }),
+    );
+  }
+  return specs;
+}
+
+export function buildDaroriGoogleFormAssignmentRows(specs) {
+  return specs.map((spec) => {
+    const account = spec.accounts.find((item) => item.key === spec.assignmentRole);
+    return {
+      participantId: spec.label || spec.assignmentRole,
+      role: ROLE_ASSIGNMENT_LABELS[spec.assignmentRole] ?? spec.assignmentRole,
+      email: account.email,
+      password: account.password,
+      workspace: spec.workspaceName,
+      appUrl: "https://dure-user-test-dure-s-projects.vercel.app",
+    };
+  });
+}
+
 export const DARORI_TEST_GROUPS = [
   "다로리마을학교",
   "노는 엄마들",
@@ -195,11 +259,22 @@ export function buildDaroriSeedSummary() {
 }
 
 async function main() {
-  const dryRun = process.argv.includes("--dry-run");
-  const summary = buildDaroriSeedSummary();
+  const options = parseArgs(process.argv.slice(2));
+  const specs = options.googleForm
+    ? buildDaroriGoogleFormSeedSpecs({
+        ownerCount: options.ownerCount,
+        instructorCount: options.instructorCount,
+      })
+    : [buildDaroriSeedSpec()];
+  const summary = options.googleForm
+    ? buildDaroriBatchSeedSummary(specs)
+    : buildDaroriSeedSummary();
 
-  if (dryRun) {
+  if (options.dryRun) {
     console.log(JSON.stringify(summary, null, 2));
+    if (options.googleForm) {
+      printAssignmentRows(buildDaroriGoogleFormAssignmentRows(specs));
+    }
     return;
   }
 
@@ -216,20 +291,93 @@ async function main() {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  console.log(`Seeding ${DARORI_WORKSPACE_NAME}...`);
-  await cleanupExistingSeed(admin);
+  const results = [];
+  for (const spec of specs) {
+    console.log(`Seeding ${spec.workspaceName}...`);
+    results.push(await seedDaroriWorkspace(admin, spec));
+  }
 
-  const users = await createAuthUsers(admin);
+  console.log("Darori user test seed completed.");
+  console.log(JSON.stringify({ ...summary, workspaces: results }, null, 2));
+  if (options.googleForm) {
+    printAssignmentRows(buildDaroriGoogleFormAssignmentRows(specs));
+  }
+}
+
+function parseArgs(args) {
+  const options = {
+    dryRun: false,
+    googleForm: false,
+    ownerCount: 10,
+    instructorCount: 10,
+  };
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--dry-run") options.dryRun = true;
+    else if (arg === "--google-form") options.googleForm = true;
+    else if (arg === "--owner-count") {
+      options.ownerCount = Number.parseInt(args[index + 1] ?? "", 10);
+      index += 1;
+    } else if (arg === "--instructor-count") {
+      options.instructorCount = Number.parseInt(args[index + 1] ?? "", 10);
+      index += 1;
+    } else {
+      throw new Error(`Unknown option: ${arg}`);
+    }
+  }
+  if (!Number.isInteger(options.ownerCount) || options.ownerCount < 0) {
+    throw new Error("--owner-count must be a non-negative integer.");
+  }
+  if (!Number.isInteger(options.instructorCount) || options.instructorCount < 0) {
+    throw new Error("--instructor-count must be a non-negative integer.");
+  }
+  return options;
+}
+
+function buildDaroriBatchSeedSummary(specs) {
+  const assignmentRows = buildDaroriGoogleFormAssignmentRows(specs);
+  return {
+    workspacePrefix: DARORI_WORKSPACE_NAME,
+    workspaces: specs.length,
+    ownerAssignments: assignmentRows.filter((row) => row.role === "대표 운영자").length,
+    instructorAssignments: assignmentRows.filter((row) => row.role === "강사").length,
+    authAccounts: specs.length * DARORI_TEST_ACCOUNTS.length,
+    groupsPerWorkspace: DARORI_TEST_GROUPS.length,
+    participantsPerWorkspace: DARORI_TEST_PARTICIPANTS.length,
+    coursesPerWorkspace: DARORI_TEST_COURSES.length,
+  };
+}
+
+function printAssignmentRows(rows) {
+  console.log("\nparticipant_id,role,email,password,workspace,app_url");
+  for (const row of rows) {
+    console.log(
+      [
+        row.participantId,
+        row.role,
+        row.email,
+        row.password,
+        row.workspace,
+        row.appUrl,
+      ].join(","),
+    );
+  }
+}
+
+async function seedDaroriWorkspace(admin, spec) {
+  await cleanupExistingSeed(admin, spec);
+
+  const users = await createAuthUsers(admin, spec.accounts);
   const ownerUser = users.get("owner");
   if (!ownerUser) throw new Error("Owner user was not created.");
 
   const workspace = await insertSingle(admin, "workspaces", {
-    name: DARORI_WORKSPACE_NAME,
+    name: spec.workspaceName,
     timezone: "Asia/Seoul",
     created_by: ownerUser.id,
   });
 
-  const members = await createMembers(admin, workspace.id, users);
+  const members = await createMembers(admin, workspace.id, users, spec.accounts);
   const groups = await createGroups(admin, workspace.id);
   await createGroupAdminScope(admin, workspace.id, members, groups);
 
@@ -238,10 +386,12 @@ async function main() {
   const sessions = await createSessions(admin, workspace.id, courses);
   await createAttendanceAndMemos(admin, workspace.id, members, participants, courses, sessions);
   const materials = await createMaterials(admin, workspace.id, members, courses);
-  await createActivityLogs(admin, workspace.id, members, courses, materials, sessions);
-
-  console.log("Darori user test seed completed.");
-  console.log(JSON.stringify({ workspaceId: workspace.id, ...summary }, null, 2));
+  await createActivityLogs(admin, workspace.id, members, courses, materials, sessions, spec.accounts);
+  return {
+    label: spec.label,
+    workspaceId: workspace.id,
+    workspace: spec.workspaceName,
+  };
 }
 
 function loadEnv() {
@@ -263,11 +413,11 @@ function loadEnv() {
   return env;
 }
 
-async function cleanupExistingSeed(admin) {
+async function cleanupExistingSeed(admin, spec) {
   const { data: workspaces, error } = await admin
     .from("workspaces")
     .select("id")
-    .eq("name", DARORI_WORKSPACE_NAME);
+    .eq("name", spec.workspaceName);
   if (error) throw error;
 
   const archiveSuffix = new Date().toISOString().replace(/[:.]/g, "-");
@@ -280,13 +430,13 @@ async function cleanupExistingSeed(admin) {
         .eq("workspace_id", workspace.id)
         .in(
           "email",
-          DARORI_TEST_ACCOUNTS.map((account) => account.email),
+          spec.accounts.map((account) => account.email),
         ),
     );
     await checked(
       admin
         .from("workspaces")
-        .update({ name: `${DARORI_WORKSPACE_NAME} (archived ${archiveSuffix})` })
+        .update({ name: `${spec.workspaceName} (archived ${archiveSuffix})` })
         .eq("id", workspace.id),
     );
   }
@@ -316,9 +466,9 @@ async function listStoragePaths(bucket, prefix) {
   return result;
 }
 
-async function createAuthUsers(admin) {
+async function createAuthUsers(admin, accounts) {
   const users = new Map();
-  for (const account of DARORI_TEST_ACCOUNTS) {
+  for (const account of accounts) {
     const existingUser = await findAuthUserByEmail(admin, account.email);
     if (existingUser) {
       const { data, error } = await admin.auth.admin.updateUserById(existingUser.id, {
@@ -356,8 +506,8 @@ async function findAuthUserByEmail(admin, email) {
   return null;
 }
 
-async function createMembers(admin, workspaceId, users) {
-  const rows = DARORI_TEST_ACCOUNTS.map((account) => ({
+async function createMembers(admin, workspaceId, users, accounts) {
+  const rows = accounts.map((account) => ({
     workspace_id: workspaceId,
     user_id: users.get(account.key)?.id,
     email: account.email,
@@ -582,9 +732,11 @@ async function createMaterials(admin, workspaceId, members, courses) {
   return result;
 }
 
-async function createActivityLogs(admin, workspaceId, members, courses, materials, sessions) {
+async function createActivityLogs(admin, workspaceId, members, courses, materials, sessions, accounts) {
   const owner = members.get("owner_admin");
   const instructor = members.get("instructor");
+  const instructorAccount = accounts.find((account) => account.key === "instructor");
+  const groupAccount = accounts.find((account) => account.key === "group");
   const music = courses.get("마을학교 음원출시");
   const camping = courses.get("방과후, 캠핑");
   const campingSession1 = sessions.get("방과후, 캠핑").get(1);
@@ -629,7 +781,7 @@ async function createActivityLogs(admin, workspaceId, members, courses, material
         event_type: "member_invited",
         target_type: "member",
         target_id: instructor.id,
-        metadata: { role: "instructor", email: "darori.instructor@test.local" },
+        metadata: { role: "instructor", email: instructorAccount?.email },
       },
       {
         workspace_id: workspaceId,
@@ -653,7 +805,7 @@ async function createActivityLogs(admin, workspaceId, members, courses, material
         event_type: "member_invited",
         target_type: "member",
         target_id: members.get("group_admin").id,
-        metadata: { role: "group_admin", email: "darori.group@test.local" },
+        metadata: { role: "group_admin", email: groupAccount?.email },
       },
     ]),
   );

@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  COURSE_FEEDBACK_MESSAGE_MAX_LENGTH,
+  COURSE_FEEDBACK_MESSAGE_MIN_LENGTH,
+} from "@/lib/validators/course-feedback";
 import { createCourseFeedback } from "@/services/course-feedbacks";
 
 type Props = {
@@ -116,14 +120,20 @@ export function PublicCourseFeedbackForm({ courseId }: Props) {
         </label>
 
         <label className="space-y-1.5 text-sm font-medium text-gray-700">
-          <span>의견</span>
+          <span className="flex items-center justify-between gap-2">
+            <span>의견</span>
+            <span className="text-xs font-normal text-gray-500">
+              {COURSE_FEEDBACK_MESSAGE_MIN_LENGTH}자 이상{" "}
+              {COURSE_FEEDBACK_MESSAGE_MAX_LENGTH}자 이하
+            </span>
+          </span>
           <Textarea
             aria-invalid={Boolean(fieldErrors.message)}
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             placeholder="수업에 대한 의견을 남겨 주세요."
             rows={5}
-            maxLength={1000}
+            maxLength={COURSE_FEEDBACK_MESSAGE_MAX_LENGTH}
             disabled={pending}
           />
           <FieldError errors={fieldErrors.message} />

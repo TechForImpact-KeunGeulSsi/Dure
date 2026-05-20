@@ -8,6 +8,9 @@ export const CourseFeedbackCategorySchema = z.enum([
 
 export const CourseFeedbackStatusSchema = z.enum(["new", "reviewed"]);
 
+export const COURSE_FEEDBACK_MESSAGE_MIN_LENGTH = 10;
+export const COURSE_FEEDBACK_MESSAGE_MAX_LENGTH = 1000;
+
 const optionalTrimmed = (max: number) =>
   z
     .string()
@@ -22,8 +25,14 @@ export const CreateCourseFeedbackSchema = z
     message: z
       .string()
       .trim()
-      .min(10, "의견은 10자 이상 입력해 주세요.")
-      .max(1000, "의견은 1000자 이하로 입력해 주세요."),
+      .min(
+        COURSE_FEEDBACK_MESSAGE_MIN_LENGTH,
+        `의견은 ${COURSE_FEEDBACK_MESSAGE_MIN_LENGTH}자 이상 입력해 주세요.`,
+      )
+      .max(
+        COURSE_FEEDBACK_MESSAGE_MAX_LENGTH,
+        `의견은 ${COURSE_FEEDBACK_MESSAGE_MAX_LENGTH}자 이하로 입력해 주세요.`,
+      ),
     authorName: optionalTrimmed(50),
     authorPhone: optionalTrimmed(30).refine(
       (value) => {

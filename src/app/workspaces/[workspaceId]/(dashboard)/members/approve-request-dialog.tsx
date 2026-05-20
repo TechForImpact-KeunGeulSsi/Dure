@@ -15,11 +15,11 @@ import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Select } from "@/components/ui/select";
 import { workspaceRoleLabel } from "@/lib/api/labels";
-import type { GroupSummary } from "@/lib/api/types";
+import type { GroupSummary, WorkspaceRole } from "@/lib/api/types";
 import { approveJoinRequest } from "@/services/join-requests";
 import type { JoinRequestListItem } from "@/services/join-requests";
 
-type GrantRole = "instructor" | "group_admin";
+type GrantRole = WorkspaceRole;
 
 type Props = {
   request: JoinRequestListItem | null;
@@ -45,9 +45,7 @@ export function ApproveRequestDialog({
   useEffect(() => {
     if (open && request) {
       // 요청자의 희망 역할을 기본값으로
-      setRole(
-        request.desiredRole === "group_admin" ? "group_admin" : "instructor",
-      );
+      setRole(request.desiredRole);
       setGroupIds([]);
       setError(null);
     }
@@ -114,6 +112,7 @@ export function ApproveRequestDialog({
             value={role}
             onChange={(e) => setRole(e.target.value as GrantRole)}
           >
+            <option value="owner_admin">대표 운영자</option>
             <option value="instructor">강사</option>
             <option value="group_admin">그룹 운영자</option>
           </Select>

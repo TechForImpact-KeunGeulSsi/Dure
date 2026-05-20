@@ -42,7 +42,10 @@ export async function signupAction(
     email: parsed.data.email,
     password: parsed.data.password,
     options: {
-      data: { display_name: parsed.data.displayName },
+      data: {
+        display_name: parsed.data.displayName,
+        signup_preferred_role: parsed.data.preferredRole,
+      },
       emailRedirectTo: rawInput.emailRedirectTo,
     },
   });

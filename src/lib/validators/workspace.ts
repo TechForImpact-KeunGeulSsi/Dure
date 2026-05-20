@@ -1,5 +1,13 @@
 import { z } from "zod";
 
+export const SignupPreferredRoleSchema = z.enum(
+  ["owner_admin", "group_admin", "instructor"],
+  {
+    required_error: "역할을 선택해 주세요.",
+    invalid_type_error: "역할을 선택해 주세요.",
+  },
+);
+
 // architecture.md §6 — workspace name is required, timezone defaults to Asia/Seoul.
 // AGENTS.md §2: legacy 디자인의 "기관/마을"은 워크스페이스/그룹으로 통일.
 export const CreateWorkspaceInputSchema = z.object({
@@ -32,6 +40,7 @@ export const SignupInputSchema = z
       .min(8, "비밀번호는 8자 이상이어야 합니다.")
       .max(72, "비밀번호는 72자 이하로 입력해 주세요."),
     passwordConfirm: z.string(),
+    preferredRole: SignupPreferredRoleSchema,
     termsAccepted: z.literal(true, {
       errorMap: () => ({ message: "약관에 동의해 주세요." }),
     }),

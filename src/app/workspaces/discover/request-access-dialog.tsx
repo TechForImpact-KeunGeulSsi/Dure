@@ -17,18 +17,26 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { requestWorkspaceAccess } from "@/services/join-requests";
 import type { DiscoverableWorkspaceItem } from "@/services/join-requests";
+import type { JoinRequestDefaultRole } from "@/lib/auth/signup-preferred-role";
 
-type DesiredRole = "instructor" | "group_admin";
+type DesiredRole = JoinRequestDefaultRole;
 
 type Props = {
   workspace: DiscoverableWorkspaceItem | null;
+  defaultDesiredRole: DesiredRole;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
 
-export function RequestAccessDialog({ workspace, open, onOpenChange }: Props) {
+export function RequestAccessDialog({
+  workspace,
+  defaultDesiredRole,
+  open,
+  onOpenChange,
+}: Props) {
   const router = useRouter();
-  const [desiredRole, setDesiredRole] = useState<DesiredRole>("instructor");
+  const [desiredRole, setDesiredRole] =
+    useState<DesiredRole>(defaultDesiredRole);
   const [displayName, setDisplayName] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -38,7 +46,7 @@ export function RequestAccessDialog({ workspace, open, onOpenChange }: Props) {
     if (!open) {
       // dialog 닫힐 때 초기화
       const t = setTimeout(() => {
-        setDesiredRole("instructor");
+        setDesiredRole(defaultDesiredRole);
         setDisplayName("");
         setMessage("");
         setSubmitting(false);
@@ -46,7 +54,7 @@ export function RequestAccessDialog({ workspace, open, onOpenChange }: Props) {
       }, 200);
       return () => clearTimeout(t);
     }
-  }, [open]);
+  }, [defaultDesiredRole, open]);
 
   if (!workspace) return null;
 
@@ -83,6 +91,7 @@ export function RequestAccessDialog({ workspace, open, onOpenChange }: Props) {
             value={desiredRole}
             onChange={(e) => setDesiredRole(e.target.value as DesiredRole)}
           >
+            <option value="owner_admin">대표 운영자</option>
             <option value="instructor">강사</option>
             <option value="group_admin">그룹 운영자</option>
           </Select>

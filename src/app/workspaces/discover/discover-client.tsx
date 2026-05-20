@@ -15,6 +15,7 @@ import type {
   DiscoverableWorkspaceItem,
   ListDiscoverableOutput,
 } from "@/services/join-requests";
+import type { JoinRequestDefaultRole } from "@/lib/auth/signup-preferred-role";
 
 import { RequestAccessDialog } from "./request-access-dialog";
 
@@ -22,9 +23,15 @@ type Props = {
   initialSearch: string;
   page: number;
   data: ListDiscoverableOutput;
+  defaultDesiredRole: JoinRequestDefaultRole;
 };
 
-export function DiscoverClient({ initialSearch, page, data }: Props) {
+export function DiscoverClient({
+  initialSearch,
+  page,
+  data,
+  defaultDesiredRole,
+}: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(initialSearch);
@@ -135,6 +142,7 @@ export function DiscoverClient({ initialSearch, page, data }: Props) {
 
       <RequestAccessDialog
         workspace={requestTarget}
+        defaultDesiredRole={defaultDesiredRole}
         open={requestTarget !== null}
         onOpenChange={(open) => {
           if (!open) setRequestTarget(null);

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { ArrowRight, Building2, Home, ShieldCheck, Users } from "lucide-react";
 
 import { requireUser } from "@/lib/auth/require-user";
+import { workspaceRoleLabel } from "@/lib/api/labels";
+import { coerceSignupPreferredRole } from "@/lib/auth/signup-preferred-role";
 import { OnboardingHeader } from "./onboarding-header";
 
 import { NewWorkspaceForm } from "./new-workspace-form";
@@ -12,10 +14,16 @@ export default async function NewWorkspacePage() {
     typeof user.user_metadata?.display_name === "string"
       ? user.user_metadata.display_name
       : null;
+  const preferredRole = coerceSignupPreferredRole(
+    user.user_metadata?.signup_preferred_role,
+  );
+  const roleLabel = preferredRole
+    ? workspaceRoleLabel(preferredRole)
+    : "역할 미설정";
 
   return (
     <div className="min-h-screen bg-[#eaf2ff]">
-      <OnboardingHeader email={user.email ?? "이메일 미설정"} role="운영자" />
+      <OnboardingHeader email={user.email ?? "이메일 미설정"} role={roleLabel} />
       <main className="relative mx-auto max-w-5xl px-4 pt-8 pb-16">
         <header className="mb-8 text-center">
           <div className="mx-auto mb-4 size-16 rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center text-[var(--color-primary)] text-2xl font-bold">

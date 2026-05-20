@@ -3,12 +3,11 @@ import { z } from "zod";
 /**
  * Input the *requester* submits when asking to join a workspace.
  *
- * `desiredRole` is what they hope to be granted — the owner_admin makes the
- * final decision on approval. `owner_admin` is intentionally excluded; the
- * only way to obtain owner_admin is to create the workspace yourself.
+ * `desiredRole` is what they hope to be granted — an existing owner_admin makes
+ * the final decision on approval.
  */
 export const RequestAccessSchema = z.object({
-  desiredRole: z.enum(["group_admin", "instructor"], {
+  desiredRole: z.enum(["owner_admin", "group_admin", "instructor"], {
     required_error: "역할을 선택해 주세요.",
   }),
   displayName: z
@@ -37,7 +36,7 @@ export type RequestAccessInput = z.infer<typeof RequestAccessSchema>;
  */
 export const ApproveJoinRequestSchema = z
   .object({
-    role: z.enum(["group_admin", "instructor"], {
+    role: z.enum(["owner_admin", "group_admin", "instructor"], {
       required_error: "역할을 선택해 주세요.",
     }),
     groupIds: z.array(z.string().uuid()).optional(),

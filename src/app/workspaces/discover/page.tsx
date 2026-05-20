@@ -1,5 +1,10 @@
 import Link from "next/link";
 
+import { requireUser } from "@/lib/auth/require-user";
+import {
+  coerceSignupPreferredRole,
+  defaultJoinRequestRoleFromPreference,
+} from "@/lib/auth/signup-preferred-role";
 import { listDiscoverableWorkspaces } from "@/services/join-requests";
 
 import { DiscoverClient } from "./discover-client";
@@ -14,6 +19,10 @@ export default async function DiscoverWorkspacesPage({
   const { q, page: pageParam } = await searchParams;
   const search = (q ?? "").trim();
   const page = Math.max(1, Number.parseInt(pageParam ?? "1", 10) || 1);
+  const user = await requireUser();
+  const defaultDesiredRole = defaultJoinRequestRoleFromPreference(
+    coerceSignupPreferredRole(user.user_metadata?.signup_preferred_role),
+  );
 
   const result = await listDiscoverableWorkspaces({ search, page });
 
@@ -49,6 +58,7 @@ export default async function DiscoverWorkspacesPage({
           initialSearch={search}
           page={page}
           data={result.data}
+          defaultDesiredRole={defaultDesiredRole}
         />
 
         <div className="text-center">

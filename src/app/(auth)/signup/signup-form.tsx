@@ -3,14 +3,43 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { KeyRound, Mail, User } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  KeyRound,
+  Mail,
+  ShieldCheck,
+  User,
+} from "lucide-react";
 
 import { signupAction } from "@/services/auth";
 import { SignupInputSchema } from "@/lib/validators/workspace";
+import type { SignupPreferredRole } from "@/lib/auth/signup-preferred-role";
 
 type SignupFormProps = {
   next: string;
 };
+
+const ROLE_OPTIONS: Array<{
+  value: SignupPreferredRole;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "instructor",
+    label: "강사",
+    description: "기존 워크스페이스 참여 요청의 기본값이 강사로 설정됩니다.",
+  },
+  {
+    value: "group_admin",
+    label: "그룹 운영자",
+    description: "기존 워크스페이스 참여 요청의 기본값이 그룹 운영자로 설정됩니다.",
+  },
+  {
+    value: "owner_admin",
+    label: "대표 운영자",
+    description: "새 워크스페이스 만들기 흐름에 맞춰 안내됩니다.",
+  },
+];
 
 export function SignupForm({ next }: SignupFormProps) {
   const router = useRouter();
@@ -18,6 +47,8 @@ export function SignupForm({ next }: SignupFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [preferredRole, setPreferredRole] =
+    useState<SignupPreferredRole>("instructor");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -30,6 +61,7 @@ export function SignupForm({ next }: SignupFormProps) {
       email,
       password,
       passwordConfirm,
+      preferredRole,
       termsAccepted,
     });
     if (!parsed.success) {
@@ -104,6 +136,50 @@ export function SignupForm({ next }: SignupFormProps) {
           onChange={(event) => setPasswordConfirm(event.target.value)}
           required
         />
+        <fieldset className="space-y-2">
+          <legend className="block text-xs font-semibold text-white/80">
+            시작 역할
+          </legend>
+          <div className="grid gap-2">
+            {ROLE_OPTIONS.map((option) => {
+              const checked = preferredRole === option.value;
+              return (
+                <label
+                  key={option.value}
+                  className={`flex cursor-pointer items-start gap-3 rounded-[var(--radius-md)] border px-3 py-2.5 text-sm transition ${
+                    checked
+                      ? "border-white bg-white text-[var(--color-foreground)]"
+                      : "border-white/30 bg-white/10 text-white hover:bg-white/15"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="preferredRole"
+                    value={option.value}
+                    checked={checked}
+                    onChange={() => setPreferredRole(option.value)}
+                    className="mt-1 size-3.5 accent-[var(--color-primary)]"
+                  />
+                  <span className="flex gap-2">
+                    <RoleIcon role={option.value} checked={checked} />
+                    <span>
+                      <span className="block font-semibold">{option.label}</span>
+                      <span
+                        className={`mt-0.5 block text-xs ${
+                          checked
+                            ? "text-[var(--color-muted-foreground)]"
+                            : "text-white/75"
+                        }`}
+                      >
+                        {option.description}
+                      </span>
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
         <label className="flex items-center gap-2 text-xs text-white/90">
           <input
             type="checkbox"
@@ -124,6 +200,23 @@ export function SignupForm({ next }: SignupFormProps) {
       </form>
     </div>
   );
+}
+
+function RoleIcon({
+  role,
+  checked,
+}: {
+  role: SignupPreferredRole;
+  checked: boolean;
+}) {
+  const className = `mt-0.5 size-4 shrink-0 ${
+    checked ? "text-[var(--color-primary)]" : "text-white/80"
+  }`;
+  if (role === "owner_admin") return <ShieldCheck className={className} />;
+  if (role === "group_admin") {
+    return <BriefcaseBusiness className={className} />;
+  }
+  return <User className={className} />;
 }
 
 type PillFieldProps = React.InputHTMLAttributes<HTMLInputElement> & {

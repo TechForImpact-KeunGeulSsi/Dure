@@ -85,16 +85,16 @@ export function SignupForm({ next }: SignupFormProps) {
   }
 
   return (
-    <div className="relative translate-y-0 space-y-6 rounded-2xl border border-white/15 bg-blue-950/50 p-6 opacity-100 shadow-2xl shadow-black/35 backdrop-blur-xl transition-all delay-150 duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] starting:translate-y-4 starting:opacity-0 motion-reduce:transition-none motion-reduce:delay-0 motion-reduce:starting:translate-y-0 motion-reduce:starting:opacity-100">
+    <div className="relative translate-y-0 space-y-6 rounded-2xl border border-white/80 bg-white/70 p-7 opacity-100 shadow-xl shadow-blue-200/45 backdrop-blur-xl transition-all delay-150 duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] starting:translate-y-4 starting:opacity-0 motion-reduce:transition-none motion-reduce:delay-0 motion-reduce:starting:translate-y-0 motion-reduce:starting:opacity-100">
       <div className="text-center">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-100/80">
+        <p className="text-xs font-medium uppercase tracking-[0.2em] text-blue-600">
           DURE
         </p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-white drop-shadow-[0_0_28px_rgba(34,211,238,0.3)]">
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-800">
           회원가입
         </h1>
       </div>
-      <form className="space-y-5" onSubmit={handleSubmit}>
+      <form className="space-y-4" onSubmit={handleSubmit}>
         <PillField
           id="signup-name"
           label="이름"
@@ -139,7 +139,7 @@ export function SignupForm({ next }: SignupFormProps) {
           required
         />
         <fieldset className="space-y-3">
-          <legend className="block text-xs font-bold uppercase tracking-wider text-cyan-50/90">
+          <legend className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
             시작 역할
           </legend>
           <div className="grid gap-2.5">
@@ -150,8 +150,8 @@ export function SignupForm({ next }: SignupFormProps) {
                   key={option.value}
                   className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3.5 text-sm transition-all duration-200 ease-out hover:scale-[1.01] active:scale-[0.99] ${
                     checked
-                      ? "border-cyan-400/80 bg-gradient-to-r from-white/95 to-cyan-50/95 text-slate-900 shadow-[0_0_24px_rgba(34,211,238,0.35)]"
-                      : "border-white/15 bg-slate-900/40 text-white shadow-inner shadow-black/20 hover:border-cyan-400/40 hover:shadow-[0_0_12px_rgba(34,211,238,0.15)]"
+                      ? "border-blue-500 bg-gradient-to-r from-blue-50 to-white text-slate-800 shadow-[0_0_20px_rgba(37,99,235,0.2)]"
+                      : "border-blue-100 bg-blue-50/50 text-slate-800 shadow-inner shadow-blue-100/40 hover:border-blue-300 hover:shadow-[0_0_12px_rgba(37,99,235,0.12)]"
                   }`}
                 >
                   <input
@@ -160,7 +160,7 @@ export function SignupForm({ next }: SignupFormProps) {
                     value={option.value}
                     checked={checked}
                     onChange={() => setPreferredRole(option.value)}
-                    className="mt-1 size-4 accent-cyan-500"
+                    className="mt-1 size-4 accent-blue-600"
                   />
                   <span className="flex gap-2">
                     <RoleIcon role={option.value} checked={checked} />
@@ -170,7 +170,7 @@ export function SignupForm({ next }: SignupFormProps) {
                         className={`mt-0.5 block text-xs ${
                           checked
                             ? "text-[var(--color-muted-foreground)]"
-                            : "text-white/75"
+                            : "text-slate-600"
                         }`}
                       >
                         {option.description}
@@ -182,12 +182,12 @@ export function SignupForm({ next }: SignupFormProps) {
             })}
           </div>
         </fieldset>
-        <label className="flex items-center gap-2.5 text-sm text-white/90">
+        <label className="flex items-center gap-2.5 text-sm text-slate-700">
           <input
             type="checkbox"
             checked={termsAccepted}
             onChange={(event) => setTermsAccepted(event.target.checked)}
-            className="size-4 accent-cyan-400"
+            className="size-4 accent-blue-600"
             required
           />
           <span>약관 및 개인정보 처리방침에 동의합니다.</span>
@@ -195,7 +195,7 @@ export function SignupForm({ next }: SignupFormProps) {
         <button
           type="submit"
           disabled={pending}
-          className="w-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-600 px-6 py-4 text-lg font-bold tracking-wide text-white shadow-[0_0_20px_rgba(34,211,238,0.4)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:from-cyan-300 hover:to-blue-500 hover:shadow-[0_0_28px_rgba(34,211,238,0.55)] active:translate-y-0 active:scale-[0.98] disabled:opacity-70 disabled:hover:translate-y-0 disabled:hover:shadow-[0_0_20px_rgba(34,211,238,0.4)] disabled:active:scale-100"
+          className="w-full rounded-full bg-gradient-to-r from-blue-600 to-blue-500 px-6 py-4 text-lg font-semibold tracking-wide text-white shadow-lg shadow-blue-500/20 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:from-blue-700 hover:to-blue-600 hover:shadow-xl hover:shadow-blue-500/30 active:translate-y-0 active:scale-[0.98] disabled:opacity-70 disabled:hover:translate-y-0 disabled:hover:shadow-lg disabled:active:scale-100"
         >
           {pending ? "계정 만드는 중…" : "계정 만들기"}
         </button>
@@ -212,7 +212,7 @@ function RoleIcon({
   checked: boolean;
 }) {
   const className = `mt-0.5 size-4 shrink-0 ${
-    checked ? "text-[var(--color-primary)]" : "text-white/80"
+    checked ? "text-blue-600" : "text-slate-500"
   }`;
   if (role === "owner_admin") return <ShieldCheck className={className} />;
   if (role === "group_admin") {
@@ -232,16 +232,16 @@ function PillField({ id, label, icon, className, ...rest }: PillFieldProps) {
     <div className="space-y-2">
       <label
         htmlFor={id}
-        className="block text-xs font-bold uppercase tracking-wider text-cyan-50/90"
+        className="block text-xs font-semibold uppercase tracking-wider text-slate-600"
       >
         {label}
       </label>
-      <div className="flex h-12 items-center gap-3 rounded-xl border border-white/15 bg-slate-900/40 px-4 text-white shadow-inner shadow-black/20 transition-all duration-200 ease-out hover:border-white/25 focus-within:border-cyan-400/50 focus-within:ring-2 focus-within:ring-cyan-500/50 focus-within:shadow-[0_0_20px_rgba(34,211,238,0.2)]">
-        <span className="shrink-0 text-cyan-100/80">{icon}</span>
+      <div className="flex h-12 items-center gap-3 rounded-xl border border-blue-100 bg-blue-50/60 px-4 text-slate-800 shadow-inner shadow-blue-100/50 transition-all duration-200 ease-out hover:border-blue-200 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/25 focus-within:shadow-[0_0_16px_rgba(37,99,235,0.18)]">
+        <span className="shrink-0 text-blue-600">{icon}</span>
         <input
           id={id}
           className={
-            "h-full w-full border-0 bg-transparent text-base text-white outline-none placeholder:text-white/45" +
+            "h-full w-full border-0 bg-transparent text-base text-slate-800 outline-none placeholder:text-slate-400" +
             (className ? ` ${className}` : "")
           }
           {...rest}

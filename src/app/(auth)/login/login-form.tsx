@@ -47,12 +47,12 @@ export function LoginForm({ next }: LoginFormProps) {
   }
 
   return (
-    <div className="relative translate-y-0 space-y-8 rounded-2xl border border-white/15 bg-blue-950/50 p-6 opacity-100 shadow-2xl shadow-black/35 backdrop-blur-xl transition-all delay-150 duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] starting:translate-y-4 starting:opacity-0 motion-reduce:transition-none motion-reduce:delay-0 motion-reduce:starting:translate-y-0 motion-reduce:starting:opacity-100">
-      <h1 className="text-center text-3xl font-bold tracking-tight text-white drop-shadow-[0_0_32px_rgba(34,211,238,0.35)]">
+    <div className="relative translate-y-0 space-y-7 rounded-2xl border border-white/80 bg-white/70 p-7 opacity-100 shadow-xl shadow-blue-200/45 backdrop-blur-xl transition-all delay-150 duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] starting:translate-y-4 starting:opacity-0 motion-reduce:transition-none motion-reduce:delay-0 motion-reduce:starting:translate-y-0 motion-reduce:starting:opacity-100">
+      <h1 className="text-center text-3xl font-semibold tracking-tight text-slate-800">
         로그인
       </h1>
 
-      <form className="space-y-6" onSubmit={handleSubmit}>
+      <form className="space-y-4" onSubmit={handleSubmit}>
         <UnderlineField
           id="login-email"
           label="이메일"
@@ -72,19 +72,19 @@ export function LoginForm({ next }: LoginFormProps) {
           required
         />
 
-        <div className="flex items-center justify-between text-sm text-white/90">
+        <div className="flex items-center justify-between pt-1 text-sm font-medium text-slate-700">
           <label className="inline-flex items-center gap-2.5">
             <input
               type="checkbox"
               checked={keepSignedIn}
               onChange={(event) => setKeepSignedIn(event.target.checked)}
-              className="size-4 accent-cyan-400"
+              className="size-4 accent-blue-600"
             />
             <span>로그인 상태 유지</span>
           </label>
           <button
             type="button"
-            className="font-semibold text-cyan-200/90 transition-colors hover:text-cyan-100"
+            className="font-semibold text-blue-600 transition-colors hover:text-blue-700"
             onClick={() => toast.info("비밀번호 찾기는 곧 제공될 예정입니다.")}
           >
             비밀번호 찾기
@@ -95,7 +95,7 @@ export function LoginForm({ next }: LoginFormProps) {
           <button
             type="submit"
             disabled={pending}
-            className="w-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-600 px-6 py-4 text-lg font-bold tracking-wide text-white shadow-[0_0_20px_rgba(34,211,238,0.4)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:from-cyan-300 hover:to-blue-500 hover:shadow-[0_0_28px_rgba(34,211,238,0.55)] active:translate-y-0 active:scale-[0.98] disabled:opacity-70 disabled:hover:translate-y-0 disabled:hover:shadow-[0_0_20px_rgba(34,211,238,0.4)] disabled:active:scale-100"
+            className="w-full rounded-full bg-gradient-to-r from-blue-600 to-blue-500 px-6 py-4 text-lg font-semibold tracking-wide text-white shadow-lg shadow-blue-500/20 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:from-blue-700 hover:to-blue-600 hover:shadow-xl hover:shadow-blue-500/30 active:translate-y-0 active:scale-[0.98] disabled:opacity-70 disabled:hover:translate-y-0 disabled:hover:shadow-lg disabled:active:scale-100"
           >
             {pending ? "처리 중…" : "로그인"}
           </button>
@@ -104,7 +104,7 @@ export function LoginForm({ next }: LoginFormProps) {
         <div className="text-center">
           <button
             type="button"
-            className="text-sm text-white/80 underline-offset-4 transition-colors hover:text-cyan-100 hover:underline"
+            className="text-sm text-slate-600 underline-offset-4 transition-colors hover:text-blue-600 hover:underline"
             onClick={() => router.push("/")}
           >
             로그인 없이 둘러보기
@@ -125,14 +125,14 @@ function UnderlineField({ id, label, className, ...rest }: UnderlineFieldProps) 
     <div className="space-y-2">
       <label
         htmlFor={id}
-        className="block text-xs font-bold uppercase tracking-widest text-cyan-50/90"
+        className="block text-xs font-semibold uppercase tracking-widest text-slate-600"
       >
         {label}
       </label>
       <input
         id={id}
         className={
-          "w-full rounded-lg border border-white/15 border-b-2 border-b-white/25 bg-slate-900/40 px-4 py-3.5 text-base text-white shadow-inner shadow-black/20 placeholder:text-white/45 outline-none transition-all duration-200 ease-out hover:border-white/25 focus:border-cyan-400/80 focus:ring-2 focus:ring-cyan-500/50 focus:shadow-[0_0_16px_rgba(34,211,238,0.25)]" +
+          "w-full rounded-lg border border-blue-100 border-b-2 border-b-blue-200 bg-blue-50/60 px-4 py-3.5 text-base text-slate-800 shadow-inner shadow-blue-100/50 placeholder:text-slate-400 outline-none transition-all duration-200 ease-out hover:border-blue-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/25 focus:shadow-[0_0_16px_rgba(37,99,235,0.18)]" +
           (className ? ` ${className}` : "")
         }
         {...rest}

@@ -30,20 +30,20 @@ export function AuthShell({
   footer,
 }: AuthShellProps) {
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#eaf2ff] flex items-center justify-center px-4 py-12">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 px-4 py-12">
       <Decorations />
-      <div className="relative z-10 grid w-full max-w-4xl grid-cols-1 md:grid-cols-[1.05fr_1fr] items-stretch">
-        <section className="relative z-0 rounded-[var(--radius-lg)] bg-white shadow-sm md:shadow-md md:-mr-12 md:py-14 px-8 py-12 flex flex-col items-center justify-center text-center">
-          <p className="text-2xl font-extrabold tracking-tight text-[var(--color-primary)]">
+      <div className="relative z-10 grid w-full max-w-4xl grid-cols-1 items-stretch md:grid-cols-[1.05fr_1fr]">
+        <section className="relative z-0 flex translate-y-0 flex-col items-center justify-center rounded-[var(--radius-lg)] border border-white/15 bg-slate-800/50 px-8 py-12 text-center opacity-100 shadow-2xl shadow-black/30 backdrop-blur-xl transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] starting:translate-y-5 starting:opacity-0 motion-reduce:transition-none motion-reduce:starting:translate-y-0 motion-reduce:starting:opacity-100 md:-mr-12 md:py-14">
+          <p className="text-3xl font-extrabold tracking-tight text-white drop-shadow-[0_0_20px_rgba(34,211,238,0.25)] md:text-4xl">
             DURE
           </p>
-          <p className="mt-2 text-sm font-semibold text-[var(--color-foreground)]">
+          <p className="mt-3 text-base font-semibold text-cyan-100/90 md:text-lg">
             {tagline}
           </p>
           <DureMark className="mt-8 size-32 md:size-36" />
-          <div className="mt-10 w-full max-w-[220px]">{footer}</div>
+          <div className="mt-10 w-full max-w-[280px]">{footer}</div>
         </section>
-        <section className="relative z-10 rounded-[var(--radius-lg)] bg-[var(--color-primary)] text-white shadow-lg md:py-12 px-8 py-10 md:-ml-4 md:mt-6 md:mb-6">
+        <section className="relative z-10 translate-y-0 rounded-[var(--radius-lg)] border border-white/15 bg-blue-950/50 px-8 py-10 text-white opacity-100 shadow-2xl shadow-black/35 backdrop-blur-xl transition-all delay-100 duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] starting:translate-y-5 starting:opacity-0 motion-reduce:transition-none motion-reduce:delay-0 motion-reduce:starting:translate-y-0 motion-reduce:starting:opacity-100 md:-ml-4 md:mb-6 md:mt-6 md:py-12">
           {formCard}
         </section>
       </div>
@@ -56,11 +56,11 @@ function Decorations() {
     <div aria-hidden className="pointer-events-none absolute inset-0">
       <span
         className={cn(
-          "absolute -right-24 top-12 size-72 rounded-full bg-white/40 blur-sm",
+          "absolute -left-40 top-1/4 size-[28rem] rounded-full bg-cyan-400/20 blur-3xl",
         )}
       />
-      <span className="absolute right-12 top-44 size-40 rounded-full bg-white/50" />
-      <span className="absolute -left-20 bottom-10 size-44 rounded-full bg-white/40 blur-sm" />
+      <span className="absolute -right-32 bottom-1/4 size-[24rem] rounded-full bg-blue-500/25 blur-3xl" />
+      <span className="absolute left-1/2 top-1/2 size-[20rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300/15 blur-3xl" />
     </div>
   );
 }

@@ -85,14 +85,16 @@ export function SignupForm({ next }: SignupFormProps) {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="relative translate-y-0 space-y-6 rounded-2xl border border-white/15 bg-blue-950/50 p-6 opacity-100 shadow-2xl shadow-black/35 backdrop-blur-xl transition-all delay-150 duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] starting:translate-y-4 starting:opacity-0 motion-reduce:transition-none motion-reduce:delay-0 motion-reduce:starting:translate-y-0 motion-reduce:starting:opacity-100">
       <div className="text-center">
-        <p className="text-xs font-semibold tracking-wide text-white/80">DURE</p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight text-white">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-100/80">
+          DURE
+        </p>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight text-white drop-shadow-[0_0_28px_rgba(34,211,238,0.3)]">
           회원가입
         </h1>
       </div>
-      <form className="space-y-4" onSubmit={handleSubmit}>
+      <form className="space-y-5" onSubmit={handleSubmit}>
         <PillField
           id="signup-name"
           label="이름"
@@ -136,20 +138,20 @@ export function SignupForm({ next }: SignupFormProps) {
           onChange={(event) => setPasswordConfirm(event.target.value)}
           required
         />
-        <fieldset className="space-y-2">
-          <legend className="block text-xs font-semibold text-white/80">
+        <fieldset className="space-y-3">
+          <legend className="block text-xs font-bold uppercase tracking-wider text-cyan-50/90">
             시작 역할
           </legend>
-          <div className="grid gap-2">
+          <div className="grid gap-2.5">
             {ROLE_OPTIONS.map((option) => {
               const checked = preferredRole === option.value;
               return (
                 <label
                   key={option.value}
-                  className={`flex cursor-pointer items-start gap-3 rounded-[var(--radius-md)] border px-3 py-2.5 text-sm transition ${
+                  className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3.5 text-sm transition-all duration-200 ease-out hover:scale-[1.01] active:scale-[0.99] ${
                     checked
-                      ? "border-white bg-white text-[var(--color-foreground)]"
-                      : "border-white/30 bg-white/10 text-white hover:bg-white/15"
+                      ? "border-cyan-400/80 bg-gradient-to-r from-white/95 to-cyan-50/95 text-slate-900 shadow-[0_0_24px_rgba(34,211,238,0.35)]"
+                      : "border-white/15 bg-slate-900/40 text-white shadow-inner shadow-black/20 hover:border-cyan-400/40 hover:shadow-[0_0_12px_rgba(34,211,238,0.15)]"
                   }`}
                 >
                   <input
@@ -158,7 +160,7 @@ export function SignupForm({ next }: SignupFormProps) {
                     value={option.value}
                     checked={checked}
                     onChange={() => setPreferredRole(option.value)}
-                    className="mt-1 size-3.5 accent-[var(--color-primary)]"
+                    className="mt-1 size-4 accent-cyan-500"
                   />
                   <span className="flex gap-2">
                     <RoleIcon role={option.value} checked={checked} />
@@ -180,12 +182,12 @@ export function SignupForm({ next }: SignupFormProps) {
             })}
           </div>
         </fieldset>
-        <label className="flex items-center gap-2 text-xs text-white/90">
+        <label className="flex items-center gap-2.5 text-sm text-white/90">
           <input
             type="checkbox"
             checked={termsAccepted}
             onChange={(event) => setTermsAccepted(event.target.checked)}
-            className="size-3.5 accent-white"
+            className="size-4 accent-cyan-400"
             required
           />
           <span>약관 및 개인정보 처리방침에 동의합니다.</span>
@@ -193,7 +195,7 @@ export function SignupForm({ next }: SignupFormProps) {
         <button
           type="submit"
           disabled={pending}
-          className="w-full rounded-[var(--radius-md)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--color-primary)] hover:bg-white/90 disabled:opacity-70"
+          className="w-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-600 px-6 py-4 text-lg font-bold tracking-wide text-white shadow-[0_0_20px_rgba(34,211,238,0.4)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:from-cyan-300 hover:to-blue-500 hover:shadow-[0_0_28px_rgba(34,211,238,0.55)] active:translate-y-0 active:scale-[0.98] disabled:opacity-70 disabled:hover:translate-y-0 disabled:hover:shadow-[0_0_20px_rgba(34,211,238,0.4)] disabled:active:scale-100"
         >
           {pending ? "계정 만드는 중…" : "계정 만들기"}
         </button>
@@ -227,16 +229,19 @@ type PillFieldProps = React.InputHTMLAttributes<HTMLInputElement> & {
 
 function PillField({ id, label, icon, className, ...rest }: PillFieldProps) {
   return (
-    <div className="space-y-1">
-      <label htmlFor={id} className="block text-xs font-semibold text-white/80">
+    <div className="space-y-2">
+      <label
+        htmlFor={id}
+        className="block text-xs font-bold uppercase tracking-wider text-cyan-50/90"
+      >
         {label}
       </label>
-      <div className="flex h-10 items-center gap-2 rounded-[var(--radius-md)] bg-white pl-3 pr-3 text-[var(--color-foreground)]">
-        <span className="text-[var(--color-muted-foreground)]">{icon}</span>
+      <div className="flex h-12 items-center gap-3 rounded-xl border border-white/15 bg-slate-900/40 px-4 text-white shadow-inner shadow-black/20 transition-all duration-200 ease-out hover:border-white/25 focus-within:border-cyan-400/50 focus-within:ring-2 focus-within:ring-cyan-500/50 focus-within:shadow-[0_0_20px_rgba(34,211,238,0.2)]">
+        <span className="shrink-0 text-cyan-100/80">{icon}</span>
         <input
           id={id}
           className={
-            "h-full w-full border-0 bg-transparent text-sm outline-none placeholder:text-[var(--color-muted-foreground)]" +
+            "h-full w-full border-0 bg-transparent text-base text-white outline-none placeholder:text-white/45" +
             (className ? ` ${className}` : "")
           }
           {...rest}

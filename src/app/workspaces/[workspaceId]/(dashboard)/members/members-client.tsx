@@ -1,6 +1,6 @@
 'use client';
 
-import { Mail, MessageSquare, Search, UserPlus } from 'lucide-react';
+import { Mail, MessageSquare, Search } from 'lucide-react';
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -174,19 +174,11 @@ export function MembersClient({ workspaceId, initial, groups, pendingRequests }:
       )}
 
       <Card className="p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900">멤버 목록</h3>
-            <p className="mt-0.5 text-xs text-gray-500">
-              활성 {activeCount}명 · 전체 {initial.members.length}명
-            </p>
-          </div>
-          {initial.canInviteMembers && (
-            <Button type="button" onClick={() => setInviteOpen(true)}>
-              <UserPlus className="h-4 w-4" />
-              멤버 초대
-            </Button>
-          )}
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">멤버 목록</h3>
+          <p className="mt-0.5 text-xs text-gray-500">
+            활성 {activeCount}명 · 전체 {initial.members.length}명
+          </p>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           {ROLE_FILTERS.map((f) => (

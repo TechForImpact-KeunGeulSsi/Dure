@@ -1,8 +1,31 @@
 import { X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import type { GroupSummary } from '@/types/course';
 import type { CalendarItem } from '@/types/calendar';
 import { SESSION_CHIP_STYLES } from '@/types/calendar';
+
+export function formatGroupBracket(groups?: GroupSummary[] | null): string {
+  const names = (groups ?? [])
+    .map((group) => group?.name?.trim())
+    .filter((name): name is string => Boolean(name));
+  if (names.length === 0) return '';
+  return ` [${names.join(', ')}]`;
+}
+
+export function formatCourseSessionLabel(
+  courseName: string | undefined | null,
+  groups?: GroupSummary[] | null,
+): string {
+  const title = courseName?.trim() || '수업';
+  return `${title}${formatGroupBracket(groups)}`;
+}
+
+function getGroupNames(groups?: GroupSummary[] | null): string[] {
+  return (groups ?? [])
+    .map((group) => group?.name?.trim())
+    .filter((name): name is string => Boolean(name));
+}
 
 type CalendarChipProps = {
   item: CalendarItem;
@@ -11,9 +34,9 @@ type CalendarChipProps = {
 
 function getChipLabel(item: CalendarItem) {
   if (item.kind === 'course_session') {
-    return item.session.courseName;
+    return formatCourseSessionLabel(item.session?.courseName, item.groups);
   }
-  return item.item.title;
+  return item.item?.title ?? '';
 }
 
 function getChipClassName(item: CalendarItem) {
@@ -28,15 +51,30 @@ function getChipClassName(item: CalendarItem) {
 }
 
 export function CalendarChip({ item, onRemove }: CalendarChipProps) {
+  const label = getChipLabel(item);
+  const groupNames =
+    item.kind === 'course_session' ? getGroupNames(item.groups) : [];
+
   return (
     <span
       className={cn(
         'flex max-w-full items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium leading-tight',
         getChipClassName(item),
       )}
-      title={getChipLabel(item)}
+      title={label}
     >
-      <span className="truncate">{getChipLabel(item)}</span>
+      {item.kind === 'course_session' ? (
+        <>
+          <span className="min-w-0 truncate">{item.session?.courseName?.trim() || '수업'}</span>
+          {groupNames.length > 0 ? (
+            <span className="shrink-0 rounded bg-white/50 px-1 text-[10px] font-semibold leading-none">
+              [{groupNames.join(', ')}]
+            </span>
+          ) : null}
+        </>
+      ) : (
+        <span className="truncate">{label}</span>
+      )}
       {onRemove ? (
         <button
           type="button"

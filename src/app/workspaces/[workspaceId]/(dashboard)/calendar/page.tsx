@@ -10,16 +10,17 @@ import { CalendarClient } from './calendar-client';
 
 type CalendarPageProps = {
   params: Promise<{ workspaceId: string }>;
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ month?: string; groupId?: string }>;
 };
 
 export default async function CalendarPage({ params, searchParams }: CalendarPageProps) {
   const { workspaceId } = await params;
-  const { month: monthParam } = await searchParams;
+  const { month: monthParam, groupId: groupIdParam } = await searchParams;
   const month = monthParam ?? format(new Date(), 'yyyy-MM');
+  const groupId = groupIdParam?.trim() || undefined;
 
   const [calendarResult, groupsResult, contextResult] = await Promise.all([
-    getCalendarMonth({ workspaceId, month }),
+    getCalendarMonth({ workspaceId, month, groupId }),
     getGroupsPage({ workspaceId, status: 'active', pageSize: 100 }),
     getWorkspaceContext(workspaceId),
   ]);
@@ -55,6 +56,7 @@ export default async function CalendarPage({ params, searchParams }: CalendarPag
     <CalendarClient
       workspaceId={workspaceId}
       month={month}
+      groupId={groupId ?? ''}
       initialData={calendarResult.data}
       groupOptions={groupOptions}
     />

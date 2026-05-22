@@ -7,6 +7,10 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
+import {
+  formatCourseSessionLabel,
+  formatGroupBracket,
+} from '@/components/calendar/calendar-chip';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MultiSelect } from '@/components/ui/multi-select';
@@ -38,7 +42,16 @@ function getItemId(item: CalendarItem) {
 }
 
 function getItemTitle(item: CalendarItem) {
-  return item.kind === 'course_session' ? item.session.courseName : item.item.title;
+  if (item.kind === 'course_session') {
+    return formatCourseSessionLabel(item.session?.courseName, item.groups);
+  }
+  return item.item?.title ?? '';
+}
+
+function getCourseSessionGroupNames(item: Extract<CalendarItem, { kind: 'course_session' }>) {
+  return (item.groups ?? [])
+    .map((group) => group?.name?.trim())
+    .filter((name): name is string => Boolean(name));
 }
 
 function getItemTime(item: CalendarItem) {
@@ -48,11 +61,21 @@ function getItemTime(item: CalendarItem) {
   return formatTimeRange(item.item.startsAt, item.item.endsAt);
 }
 
-function getAssignee(item: CalendarItem) {
-  if (item.kind === 'course_session') {
-    return item.instructor?.displayName ?? item.instructor?.email ?? '미배정';
-  }
-  return item.item.groups.map((g) => g.name).join(', ') || '전체';
+function getInstructorLabel(item: CalendarItem) {
+  if (item.kind !== 'course_session') return null;
+  return (
+    item.instructor?.displayName?.trim() ??
+    item.instructor?.email?.trim() ??
+    '미배정'
+  );
+}
+
+function getGeneralScheduleGroupsLabel(item: CalendarItem) {
+  if (item.kind !== 'general_schedule_item') return '전체';
+  const names = (item.item?.groups ?? [])
+    .map((group) => group?.name?.trim())
+    .filter((name): name is string => Boolean(name));
+  return names.length > 0 ? names.join(', ') : '전체';
 }
 
 export function ScheduleSidePanel({
@@ -239,10 +262,30 @@ export function ScheduleSidePanel({
                   key={getItemId(item)}
                   className="flex items-start justify-between gap-3 rounded-lg border border-gray-100 bg-white p-3 shadow-sm"
                 >
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs text-gray-400">{getItemTime(item)}</p>
-                    <p className="mt-0.5 font-semibold text-gray-900">{getItemTitle(item)}</p>
-                    <p className="mt-0.5 text-xs text-gray-500">담당: {getAssignee(item)}</p>
+                    {item.kind === 'course_session' ? (
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <p className="font-semibold text-gray-900">
+                          {item.session?.courseName?.trim() || '수업'}
+                        </p>
+                        {getCourseSessionGroupNames(item).length > 0 ? (
+                          <span
+                            className="rounded-md bg-blue-50 px-1.5 py-0.5 text-[11px] font-medium text-blue-700"
+                            title={formatGroupBracket(item.groups)}
+                          >
+                            [{getCourseSessionGroupNames(item).join(', ')}]
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="mt-0.5 font-semibold text-gray-900">{getItemTitle(item)}</p>
+                    )}
+                    <p className="mt-1 text-xs text-gray-500">
+                      {item.kind === 'course_session'
+                        ? `강사: ${getInstructorLabel(item)}`
+                        : `그룹: ${getGeneralScheduleGroupsLabel(item)}`}
+                    </p>
                   </div>
                   {showDelete ? (
                     <Button

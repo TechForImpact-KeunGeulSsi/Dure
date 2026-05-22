@@ -57,6 +57,18 @@ export async function getCalendarMonth(
   const accessibleGroupIds = await loadAccessibleGroupIds(input.workspaceId);
   const isOwner = membership.role === "owner_admin";
 
+  if (input.groupId) {
+    const groupAllowed = await assertCalendarGroupFilterAllowed({
+      workspaceId: input.workspaceId,
+      groupId: input.groupId,
+      isOwner,
+      accessibleGroupIds,
+    });
+    if (!groupAllowed.ok) {
+      return groupAllowed as ApiResult<GetCalendarMonthOutput>;
+    }
+  }
+
   const [sessionItems, generalItems] = await Promise.all([
     loadCourseSessionItems({
       workspaceId: input.workspaceId,
@@ -65,6 +77,7 @@ export async function getCalendarMonth(
       isOwner,
       memberId: membership.memberId,
       accessibleGroupIds,
+      groupId: input.groupId,
     }),
     loadGeneralScheduleItems({
       workspaceId: input.workspaceId,
@@ -72,6 +85,7 @@ export async function getCalendarMonth(
       endDate: range.endExclusive,
       isOwner,
       memberId: membership.memberId,
+      groupId: input.groupId,
     }),
   ]);
 
@@ -338,6 +352,36 @@ async function loadAccessibleGroupIds(
   return new Set(ids.filter((id) => id.length > 0));
 }
 
+async function assertCalendarGroupFilterAllowed(params: {
+  workspaceId: UUID;
+  groupId: UUID;
+  isOwner: boolean;
+  accessibleGroupIds: Set<UUID>;
+}): Promise<ApiResult<void>> {
+  if (!params.isOwner && !params.accessibleGroupIds.has(params.groupId)) {
+    return apiError(
+      "SCOPE_FORBIDDEN",
+      "선택한 그룹에 대한 접근 권한이 없습니다.",
+    );
+  }
+
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin
+    .from("groups")
+    .select("id")
+    .eq("workspace_id", params.workspaceId)
+    .eq("id", params.groupId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (error) {
+    return apiError("INTERNAL_ERROR", error.message);
+  }
+  if (!data) {
+    return apiError("VALIDATION_FAILED", "선택한 그룹을 찾을 수 없습니다.");
+  }
+  return apiOk(undefined as never);
+}
+
 function monthRange(
   month: string,
 ): { startInclusive: string; endExclusive: string } | null {
@@ -387,10 +431,29 @@ async function loadCourseSessionItems(params: {
   isOwner: boolean;
   memberId: UUID;
   accessibleGroupIds: Set<UUID>;
+  groupId?: UUID;
 }): Promise<CalendarItem[]> {
   const admin = createSupabaseAdminClient();
 
-  const { data: sessionRows, error } = await admin
+  let filteredCourseIds: UUID[] | null = null;
+  if (params.groupId) {
+    const { data: courseGroupRows, error: courseGroupError } = await admin
+      .from("course_groups")
+      .select("course_id")
+      .eq("workspace_id", params.workspaceId)
+      .eq("group_id", params.groupId);
+    if (courseGroupError) {
+      return [];
+    }
+    filteredCourseIds = Array.from(
+      new Set((courseGroupRows ?? []).map((row) => row.course_id as UUID)),
+    );
+    if (filteredCourseIds.length === 0) {
+      return [];
+    }
+  }
+
+  let sessionQuery = admin
     .from("course_sessions")
     .select(
       `id, course_id, session_no, date, starts_at, ends_at, type,
@@ -399,7 +462,12 @@ async function loadCourseSessionItems(params: {
     )
     .eq("workspace_id", params.workspaceId)
     .gte("date", params.startDate)
-    .lt("date", params.endDate)
+    .lt("date", params.endDate);
+  if (filteredCourseIds) {
+    sessionQuery = sessionQuery.in("course_id", filteredCourseIds);
+  }
+
+  const { data: sessionRows, error } = await sessionQuery
     .order("date", { ascending: true })
     .order("starts_at", { ascending: true });
   if (error || !sessionRows) {
@@ -475,6 +543,10 @@ async function loadCourseSessionItems(params: {
       if (!overlap) continue;
     }
 
+    if (params.groupId && !groups.some((g) => g.id === params.groupId)) {
+      continue;
+    }
+
     const allInAccess = params.isOwner
       ? true
       : groups.every((g) => params.accessibleGroupIds.has(g.id));
@@ -534,11 +606,32 @@ async function loadGeneralScheduleItems(params: {
   endDate: string;
   isOwner: boolean;
   memberId: UUID;
+  groupId?: UUID;
 }): Promise<CalendarItem[]> {
   // RLS가 owner_admin / 접근 그룹 매핑 기반으로 자동 필터해주므로
   // 일반 server client로 SELECT.
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
+
+  let scheduleItemIds: UUID[] | null = null;
+  if (params.groupId) {
+    const admin = createSupabaseAdminClient();
+    const { data: linkRows, error: linkError } = await admin
+      .from("general_schedule_item_groups")
+      .select("schedule_item_id")
+      .eq("workspace_id", params.workspaceId)
+      .eq("group_id", params.groupId);
+    if (linkError) {
+      return [];
+    }
+    scheduleItemIds = Array.from(
+      new Set((linkRows ?? []).map((row) => row.schedule_item_id as UUID)),
+    );
+    if (scheduleItemIds.length === 0) {
+      return [];
+    }
+  }
+
+  let query = supabase
     .from("general_schedule_items")
     .select(
       `id, title, date, starts_at, ends_at, description, color, created_by,
@@ -548,13 +641,19 @@ async function loadGeneralScheduleItems(params: {
     )
     .eq("workspace_id", params.workspaceId)
     .gte("date", params.startDate)
-    .lt("date", params.endDate)
+    .lt("date", params.endDate);
+  if (scheduleItemIds) {
+    query = query.in("id", scheduleItemIds);
+  }
+
+  const { data, error } = await query
     .order("date", { ascending: true })
     .order("starts_at", { ascending: true, nullsFirst: false });
   if (error || !data) return [];
 
   const rows = data as unknown as GeneralScheduleRow[];
-  return rows.map((row) => {
+  const items: CalendarItem[] = [];
+  for (const row of rows) {
     const groups: GroupSummary[] = [];
     for (const link of row.groups ?? []) {
       const g = link.group;
@@ -566,9 +665,12 @@ async function loadGeneralScheduleItems(params: {
         status: g.status,
       });
     }
+    if (params.groupId && !groups.some((g) => g.id === params.groupId)) {
+      continue;
+    }
     const isCreator = row.created_by === params.memberId;
     const canModify = params.isOwner || isCreator;
-    return {
+    items.push({
       kind: "general_schedule_item",
       item: {
         id: row.id,
@@ -582,8 +684,9 @@ async function loadGeneralScheduleItems(params: {
         canEdit: canModify,
         canDelete: canModify,
       },
-    };
-  });
+    });
+  }
+  return items;
 }
 
 function collectFieldErrors(error: ZodError): Record<string, string[]> {

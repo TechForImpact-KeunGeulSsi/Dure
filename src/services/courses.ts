@@ -4,6 +4,7 @@ import "server-only";
 
 import { revalidatePath } from "next/cache";
 
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth/require-user";
 import { apiError, apiOk, type ApiResult } from "@/lib/api/errors";
@@ -110,7 +111,7 @@ export async function getCoursesPage(
   const [groupsByCourse, participantCounts, sessionCounts, instructorMap] =
     await Promise.all([
       loadGroupsByCourse(input.workspaceId, courseIds),
-      loadParticipantCounts(courseIds),
+      loadParticipantCounts(input.workspaceId, courseIds),
       loadSessionCounts(courseIds),
       loadInstructors(input.workspaceId, instructorIds),
     ]);
@@ -935,20 +936,41 @@ async function loadGroupsByCourse(
 }
 
 async function loadParticipantCounts(
+  workspaceId: UUID,
   courseIds: UUID[],
 ): Promise<Map<UUID, number>> {
   const counts = new Map<UUID, number>();
   if (courseIds.length === 0) return counts;
-  const supabase = await createSupabaseServerClient();
 
-  // 수업의 참여자 수 = 현재 연결된 활성 그룹들의 활성 구성원(distinct, 마스터 미삭제) 수.
-  // course_participants 배정 여부와 무관하게 그룹 연결로만 결정되어
-  // manage/groups의 그룹 인원수와 일관된다. 카운트 의미는 architecture.md "참여자 수 표시 의미" 참고.
-  const { data: cgRows } = await supabase
-    .from("course_groups")
-    .select("course_id, group_id, group:groups!inner(deleted_at)")
-    .in("course_id", courseIds)
-    .is("group.deleted_at", null);
+  // 출석부·참여자 현황과 동일한 "활성 참여자" 집계.
+  // admin client: 강사는 participant_groups RLS로 server client 조회 시 빈 결과가 된다.
+  const admin = createSupabaseAdminClient();
+
+  const [{ data: cgRows }, { data: excludedRows }] = await Promise.all([
+    admin
+      .from("course_groups")
+      .select("course_id, group_id, group:groups!inner(deleted_at)")
+      .eq("workspace_id", workspaceId)
+      .in("course_id", courseIds)
+      .is("group.deleted_at", null),
+    admin
+      .from("course_participants")
+      .select("course_id, participant_id")
+      .eq("workspace_id", workspaceId)
+      .in("course_id", courseIds)
+      .eq("status", "excluded"),
+  ]);
+  const excludedByCourse = new Map<UUID, Set<UUID>>();
+  for (const row of excludedRows ?? []) {
+    const courseId = row.course_id as UUID;
+    const participantId = row.participant_id as UUID;
+    let set = excludedByCourse.get(courseId);
+    if (!set) {
+      set = new Set<UUID>();
+      excludedByCourse.set(courseId, set);
+    }
+    set.add(participantId);
+  }
   const coursesByGroup = new Map<UUID, UUID[]>();
   const groupIdSet = new Set<UUID>();
   for (const row of cgRows ?? []) {
@@ -964,9 +986,10 @@ async function loadParticipantCounts(
   }
   if (groupIdSet.size === 0) return counts;
 
-  const { data: pgRows } = await supabase
+  const { data: pgRows } = await admin
     .from("participant_groups")
     .select("participant_id, group_id, participant:participants!inner(deleted_at)")
+    .eq("workspace_id", workspaceId)
     .in("group_id", Array.from(groupIdSet))
     .eq("status", "active")
     .is("participant.deleted_at", null);
@@ -978,6 +1001,7 @@ async function loadParticipantCounts(
     const courses = coursesByGroup.get(groupId);
     if (!courses) continue;
     for (const courseId of courses) {
+      if (excludedByCourse.get(courseId)?.has(participantId)) continue;
       let seen = countedByCourse.get(courseId);
       if (!seen) {
         seen = new Set<UUID>();

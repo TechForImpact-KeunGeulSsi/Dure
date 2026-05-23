@@ -9,6 +9,7 @@ import { PublicMaterialDownloadButton } from "./public-material-download-button"
 type PublicCourseDetailViewProps = {
   course: PublicCourseDetail;
   hiddenNotice?: boolean;
+  isLoggedIn?: boolean;
 };
 
 function formatPeriod(startsOn: string | null, endsOn: string | null) {
@@ -25,6 +26,7 @@ function formatTimeRange(startsAt: string, endsAt: string) {
 export function PublicCourseDetailView({
   course,
   hiddenNotice = false,
+  isLoggedIn = false,
 }: PublicCourseDetailViewProps) {
   const accent = course.cardColor ?? "#2563EB";
 
@@ -53,25 +55,31 @@ export function PublicCourseDetailView({
             </Badge>
           </div>
 
-          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="rounded-lg bg-gray-50 px-4 py-3">
-              <dt className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
-                <CalendarDays className="h-3.5 w-3.5" />
-                기간
-              </dt>
-              <dd className="mt-1 text-sm font-semibold text-gray-900">
-                {formatPeriod(course.startsOn, course.endsOn)}
-              </dd>
-            </div>
-            <div className="rounded-lg bg-gray-50 px-4 py-3">
-              <dt className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
-                <ListChecks className="h-3.5 w-3.5" />
-                회차
-              </dt>
-              <dd className="mt-1 text-sm font-semibold text-gray-900">
-                {course.sessionCount}회
-              </dd>
-            </div>
+          <dl
+            className={`grid grid-cols-1 gap-3 ${isLoggedIn ? "sm:grid-cols-3" : "sm:grid-cols-1"}`}
+          >
+            {isLoggedIn ? (
+              <>
+                <div className="rounded-lg bg-gray-50 px-4 py-3">
+                  <dt className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
+                    <CalendarDays className="h-3.5 w-3.5" />
+                    기간
+                  </dt>
+                  <dd className="mt-1 text-sm font-semibold text-gray-900">
+                    {formatPeriod(course.startsOn, course.endsOn)}
+                  </dd>
+                </div>
+                <div className="rounded-lg bg-gray-50 px-4 py-3">
+                  <dt className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
+                    <ListChecks className="h-3.5 w-3.5" />
+                    회차
+                  </dt>
+                  <dd className="mt-1 text-sm font-semibold text-gray-900">
+                    {course.sessionCount}회
+                  </dd>
+                </div>
+              </>
+            ) : null}
             <div className="rounded-lg bg-gray-50 px-4 py-3">
               <dt className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
                 <FileText className="h-3.5 w-3.5" />
@@ -98,30 +106,36 @@ export function PublicCourseDetailView({
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-gray-950">회차 일정</h2>
-        {course.sessions.length > 0 ? (
-          <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
-            {course.sessions.map((session) => (
-              <div
-                key={`${session.sessionNo}-${session.date}-${session.startsAt}`}
-                className="grid gap-2 px-4 py-3 sm:grid-cols-[80px_1fr_auto]"
-              >
-                <span className="text-sm font-semibold text-gray-900">
-                  {session.sessionNo}회차
-                </span>
-                <span className="text-sm text-gray-600">
-                  {session.date.replaceAll("-", ".")} ·{" "}
-                  {formatTimeRange(session.startsAt, session.endsAt)}
-                </span>
-                <span className="text-xs text-gray-500">
-                  {SESSION_TYPE_LABEL[session.type]} ·{" "}
-                  {SESSION_PROGRESS_LABEL[session.progressStatus]}
-                </span>
-              </div>
-            ))}
-          </div>
+        {isLoggedIn ? (
+          course.sessions.length > 0 ? (
+            <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
+              {course.sessions.map((session) => (
+                <div
+                  key={`${session.sessionNo}-${session.date}-${session.startsAt}`}
+                  className="grid gap-2 px-4 py-3 sm:grid-cols-[80px_1fr_auto]"
+                >
+                  <span className="text-sm font-semibold text-gray-900">
+                    {session.sessionNo}회차
+                  </span>
+                  <span className="text-sm text-gray-600">
+                    {session.date.replaceAll("-", ".")} ·{" "}
+                    {formatTimeRange(session.startsAt, session.endsAt)}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {SESSION_TYPE_LABEL[session.type]} ·{" "}
+                    {SESSION_PROGRESS_LABEL[session.progressStatus]}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-lg border border-dashed border-gray-200 bg-white px-4 py-6 text-sm text-gray-500">
+              등록된 회차 일정이 없습니다.
+            </p>
+          )
         ) : (
-          <p className="rounded-lg border border-dashed border-gray-200 bg-white px-4 py-6 text-sm text-gray-500">
-            등록된 회차 일정이 없습니다.
+          <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-600">
+            일정 상세 정보는 로그인 후 확인할 수 있습니다.
           </p>
         )}
       </section>

@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { DureMark } from "@/components/auth/dure-mark";
 import { PublicCourseDetailView } from "@/components/public-catalog/public-course-detail-view";
 import { PublicCourseFeedbackForm } from "@/components/public-catalog/public-course-feedback-form";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getPublicCourseDetail } from "@/services/public-catalog";
 
 type Props = {
@@ -13,6 +14,10 @@ type Props = {
 
 export default async function PublicCourseDetailPage({ params }: Props) {
   const { courseId } = await params;
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const result = await getPublicCourseDetail(courseId);
 
   if (!result.ok) {
@@ -45,7 +50,7 @@ export default async function PublicCourseDetailPage({ params }: Props) {
       </header>
 
       <div className="mx-auto max-w-4xl px-5 py-8">
-        <PublicCourseDetailView course={result.data} />
+        <PublicCourseDetailView course={result.data} isLoggedIn={!!user} />
         {!result.data.id.startsWith("demo-") ? (
           <div className="mt-8">
             <PublicCourseFeedbackForm courseId={result.data.id} />

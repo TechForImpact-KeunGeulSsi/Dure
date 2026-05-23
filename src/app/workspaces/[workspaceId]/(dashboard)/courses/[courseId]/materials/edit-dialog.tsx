@@ -1,7 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { Upload } from 'lucide-react';
+import { useId, useState } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ export function EditDialog({
   uploadPolicy,
 }: Props) {
   const router = useRouter();
+  const replaceFileInputId = useId();
   const [title, setTitle] = useState(material.title);
   const [description, setDescription] = useState(material.description ?? '');
   const [scope, setScope] = useState<MaterialVisibilityScope>(material.visibilityScope);
@@ -122,12 +124,34 @@ export function EditDialog({
             <p className="text-xs text-gray-500">
               현재 파일: {material.originalFilename ?? '—'}
             </p>
-            <Input
+            <input
+              id={replaceFileInputId}
               type="file"
               accept={uploadPolicy.allowedMimeTypes.join(',')}
               onChange={handleReplaceFile}
               disabled={replacing}
+              className="sr-only"
             />
+            <label
+              htmlFor={replacing ? undefined : replaceFileInputId}
+              className={`flex min-h-20 items-center gap-3 rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] bg-white px-4 py-3 transition-colors ${
+                replacing
+                  ? 'cursor-not-allowed opacity-60'
+                  : 'cursor-pointer hover:bg-[var(--color-muted)]'
+              }`}
+            >
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-muted)] text-[var(--color-foreground)]">
+                <Upload className="size-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-medium text-[var(--color-foreground)]">
+                  새 파일 선택
+                </span>
+                <span className="block text-xs text-[var(--color-muted-foreground)]">
+                  {formatMB(uploadPolicy.maxSizeBytes)} 이하
+                </span>
+              </span>
+            </label>
             {replacing && <p className="text-xs text-gray-500">교체 중...</p>}
           </div>
         )}
@@ -144,4 +168,8 @@ export function EditDialog({
       </DialogFooter>
     </Dialog>
   );
+}
+
+function formatMB(bytes: number): string {
+  return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
 }

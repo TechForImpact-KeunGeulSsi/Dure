@@ -117,6 +117,7 @@ export async function createCourseFeedback(
     metadata: {
       courseId: course.id,
       courseName: course.name,
+      instructorMemberId: course.instructor_member_id,
       category: parsed.data.category,
       preview: makePreview(parsed.data.message),
     },

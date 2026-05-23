@@ -45,6 +45,8 @@ export function CourseHomeClient({
   const gradientEnd = darkenHex(accent, 0.2);
   const groupLabel = course.groups.map((group) => group.name).join(', ') || '-';
   const instructorLabel = course.instructor?.displayName ?? course.instructor?.email ?? '미배정';
+  const courseHomeHref = `/workspaces/${workspaceId}/courses/${course.id}/home`;
+  const editHref = `/workspaces/${workspaceId}/manage/courses/${course.id}/edit?returnTo=${encodeURIComponent(courseHomeHref)}`;
 
   const infoItems = [
     { label: '수업명', value: course.name },
@@ -73,7 +75,7 @@ export function CourseHomeClient({
           </div>
           {course.canUpdateVisuals ? (
             <Link
-              href={`/workspaces/${workspaceId}/manage/courses/${course.id}/edit`}
+              href={editHref}
               className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-md)] border border-white/30 bg-white/10 px-3 text-xs font-medium text-white hover:bg-white/20"
             >
               <Pencil className="h-3.5 w-3.5" />

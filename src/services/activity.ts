@@ -119,6 +119,13 @@ export async function getRecentActivity(input: {
         course,
       });
       if (!allowed) continue;
+      if (
+        membership.role === "instructor" &&
+        e.target_type === "course_feedback" &&
+        readMetadataString(e.metadata, "instructorMemberId") !== membership.memberId
+      ) {
+        continue;
+      }
     } else if (e.target_type === "settlement_request") {
       // settlement_requested: 운영자만 봄
       // settlement_paid: 운영자 + 해당 강사 본인

@@ -8,10 +8,16 @@ import { EditCourseForm } from "./edit-course-form";
 
 type EditCoursePageProps = {
   params: Promise<{ workspaceId: string; courseId: string }>;
+  searchParams: Promise<{ returnTo?: string | string[] }>;
 };
 
-export default async function EditCoursePage({ params }: EditCoursePageProps) {
+export default async function EditCoursePage({
+  params,
+  searchParams,
+}: EditCoursePageProps) {
   const { workspaceId, courseId } = await params;
+  const { returnTo } = await searchParams;
+  const returnHref = normalizeReturnHref(workspaceId, returnTo);
   const result = await getCourseEditData({ workspaceId, courseId });
 
   if (!result.ok) {
@@ -52,8 +58,20 @@ export default async function EditCoursePage({ params }: EditCoursePageProps) {
     <EditCourseForm
       workspaceId={workspaceId}
       courseId={courseId}
+      returnHref={returnHref}
       initial={result.data.course}
       options={result.data.options}
     />
   );
+}
+
+function normalizeReturnHref(
+  workspaceId: string,
+  value: string | string[] | undefined,
+): string {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const fallback = `/workspaces/${workspaceId}/manage/courses`;
+  if (!raw) return fallback;
+  if (!raw.startsWith(`/workspaces/${workspaceId}/`)) return fallback;
+  return raw;
 }

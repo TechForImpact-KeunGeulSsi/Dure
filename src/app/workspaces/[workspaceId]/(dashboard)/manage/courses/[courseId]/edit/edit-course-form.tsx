@@ -21,6 +21,7 @@ import { updateCourseAction, type CourseEditData } from "@/services/courses";
 type Props = {
   workspaceId: string;
   courseId: string;
+  returnHref: string;
   initial: CourseEditData["course"];
   options: CourseEditData["options"];
 };
@@ -42,6 +43,7 @@ function setsEqual<T>(a: Iterable<T>, b: Iterable<T>): boolean {
 export function EditCourseForm({
   workspaceId,
   courseId,
+  returnHref,
   initial,
   options,
 }: Props) {
@@ -118,7 +120,7 @@ export function EditCourseForm({
     }
 
     toast.success("수업 정보를 저장했습니다.");
-    router.push(`/workspaces/${workspaceId}/manage/courses`);
+    router.push(returnHref);
     router.refresh();
   }
 
@@ -221,7 +223,7 @@ export function EditCourseForm({
 
       <div className="flex items-center justify-end gap-2">
         <Link
-          href={`/workspaces/${workspaceId}/manage/courses`}
+          href={returnHref}
           className="inline-flex h-9 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] bg-white px-4 text-sm font-medium text-[var(--color-foreground)] hover:bg-[var(--color-muted)]"
         >
           취소

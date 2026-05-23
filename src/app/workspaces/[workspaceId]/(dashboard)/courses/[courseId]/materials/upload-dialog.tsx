@@ -1,7 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { Upload } from 'lucide-react';
+import { useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -34,6 +35,8 @@ export function UploadDialog({
   uploadPolicy,
 }: Props) {
   const router = useRouter();
+  const fileInputId = useId();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -42,6 +45,7 @@ export function UploadDialog({
   const [error, setError] = useState<string | null>(null);
 
   const reset = () => {
+    if (fileInputRef.current) fileInputRef.current.value = '';
     setFile(null);
     setTitle('');
     setDescription('');
@@ -101,18 +105,31 @@ export function UploadDialog({
       />
       <DialogBody>
         <div className="space-y-1.5">
-          <Label htmlFor="file">파일</Label>
-          <Input
-            id="file"
+          <Label htmlFor={fileInputId}>파일</Label>
+          <input
+            ref={fileInputRef}
+            id={fileInputId}
             type="file"
             accept={uploadPolicy.allowedMimeTypes.join(',')}
             onChange={handleFileChange}
+            className="sr-only"
           />
-          {file && (
-            <p className="text-xs text-gray-500">
-              {file.name} · {formatMB(file.size)}
-            </p>
-          )}
+          <label
+            htmlFor={fileInputId}
+            className="flex min-h-24 cursor-pointer flex-col items-center justify-center gap-2 rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] bg-white px-4 py-5 text-center transition-colors hover:bg-[var(--color-muted)] focus-within:border-[var(--color-ring)] focus-within:ring-2 focus-within:ring-[var(--color-ring)]/20"
+          >
+            <span className="flex size-9 items-center justify-center rounded-full bg-[var(--color-muted)] text-[var(--color-foreground)]">
+              <Upload className="size-4" />
+            </span>
+            <span className="text-sm font-medium text-[var(--color-foreground)]">
+              {file ? file.name : '파일 선택'}
+            </span>
+            <span className="text-xs text-[var(--color-muted-foreground)]">
+              {file
+                ? formatMB(file.size)
+                : `${formatMB(uploadPolicy.maxSizeBytes)} 이하`}
+            </span>
+          </label>
         </div>
 
         <div className="space-y-1.5">

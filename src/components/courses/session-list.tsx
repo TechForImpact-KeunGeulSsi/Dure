@@ -143,7 +143,11 @@ export function SessionList({ initialSessions }: SessionListProps) {
                   )}
                 >
                   {Object.entries(SESSION_PROGRESS_LABEL).map(([value, label]) => (
-                    <option key={value} value={value}>
+                    <option
+                      key={value}
+                      value={value}
+                      className={cn(value === 'cancelled' ? 'text-red-600' : 'text-gray-900')}
+                    >
                       {label}
                     </option>
                   ))}

@@ -132,6 +132,7 @@ export function SessionList({ initialSessions }: SessionListProps) {
               <TableCell>
                 <Select
                   value={session.progressStatus}
+                  disabled={session.progressStatus === 'cancelled'}
                   onChange={(event) =>
                     updateSession(session.id, {
                       progressStatus: event.target.value as CourseSessionSummary['progressStatus'],
@@ -152,6 +153,11 @@ export function SessionList({ initialSessions }: SessionListProps) {
                     </option>
                   ))}
                 </Select>
+                {session.progressStatus === 'cancelled' && session.cancellationReason && (
+                  <p className="mt-1 max-w-xs text-xs text-rose-700">
+                    {session.cancellationReason}
+                  </p>
+                )}
               </TableCell>
               <TableCell className="text-right">
                 <Button type="button" variant="ghost" size="icon" aria-label="actions">

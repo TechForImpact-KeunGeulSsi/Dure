@@ -565,6 +565,7 @@ async function loadCourseSessionItems(params: {
         visibilityStatus: row.visibility_status,
         rollupStatus: row.rollup_status,
         progressStatus: row.progress_status,
+        cancellationReason: null,
       },
       instructor: row.course.instructor_member_id
         ? instructorMap.get(row.course.instructor_member_id) ?? null

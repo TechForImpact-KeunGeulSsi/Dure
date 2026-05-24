@@ -333,6 +333,27 @@ export async function createCourseAction(
     );
   }
 
+  const plannedSessionNos = new Set(sessions.map((plan) => plan.sessionNo));
+  const planBySessionNo = new Map(
+    input.sessionPlans.map((plan) => [plan.sessionNo, plan]),
+  );
+  for (const plan of input.sessionPlans) {
+    if (!plannedSessionNos.has(plan.sessionNo)) {
+      return apiError("VALIDATION_FAILED", "회차 상태가 일정과 일치하지 않습니다.");
+    }
+  }
+  if (input.sessionPlans.length > 0) {
+    const activeCount = input.sessionPlans.filter(
+      (plan) => plan.progressStatus === "scheduled",
+    ).length;
+    if (activeCount < 1) {
+      return apiError(
+        "VALIDATION_FAILED",
+        "최소 1회 이상 진행하는 회차가 있어야 합니다.",
+      );
+    }
+  }
+
   // 단계별 insert (best-effort transaction via cleanup on failure).
   const now = new Date().toISOString();
   const { data: courseRow, error: courseError } = await supabase
@@ -388,14 +409,25 @@ export async function createCourseAction(
     .insert(groupRows);
   if (groupError) return rollback(groupError.message);
 
-  const sessionRows = sessions.map((plan) => ({
-    workspace_id: workspaceId,
-    course_id: courseId,
-    session_no: plan.sessionNo,
-    date: plan.date,
-    starts_at: plan.startsAt,
-    ends_at: plan.endsAt,
-  }));
+  const sessionRows = sessions.map((plan) => {
+    const override = planBySessionNo.get(plan.sessionNo);
+    const progressStatus = override?.progressStatus ?? "scheduled";
+    const rollupStatus = override?.rollupStatus ?? "included";
+    const cancelled = progressStatus === "cancelled";
+    return {
+      workspace_id: workspaceId,
+      course_id: courseId,
+      session_no: plan.sessionNo,
+      date: plan.date,
+      starts_at: plan.startsAt,
+      ends_at: plan.endsAt,
+      progress_status: progressStatus,
+      rollup_status: rollupStatus,
+      cancellation_reason: cancelled ? (override?.cancellationReason ?? null) : null,
+      cancelled_at: cancelled ? now : null,
+      cancelled_by: cancelled ? membership.memberId : null,
+    };
+  });
   const { error: sessionError } = await supabase
     .from("course_sessions")
     .insert(sessionRows);
@@ -1022,8 +1054,9 @@ async function loadSessionCounts(courseIds: UUID[]): Promise<Map<UUID, number>> 
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from("course_sessions")
-    .select("course_id")
-    .in("course_id", courseIds);
+    .select("course_id, progress_status")
+    .in("course_id", courseIds)
+    .eq("progress_status", "scheduled");
   for (const row of data ?? []) {
     const id = row.course_id as UUID;
     counts.set(id, (counts.get(id) ?? 0) + 1);

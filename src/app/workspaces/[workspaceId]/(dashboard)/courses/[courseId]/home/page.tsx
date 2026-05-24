@@ -31,7 +31,8 @@ export default async function CourseHomePage({ params }: Props) {
       data={{
         course: courseResult.data,
         sessions: sessionsResult.data,
-        sessionCount: sessionsResult.data.length,
+        sessionCount: sessionsResult.data.filter((s) => s.progressStatus === "scheduled")
+          .length,
       }}
       publicPreview={
         publicPreviewResult.ok

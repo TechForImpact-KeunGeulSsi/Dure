@@ -217,6 +217,7 @@ function buildSessions(courseId: UUID, courseName: string): CourseSessionSummary
       visibilityStatus: 'visible',
       rollupStatus: 'included',
       progressStatus: 'scheduled',
+      cancellationReason: null,
     },
     {
       id: `${courseId}-session-2`,
@@ -230,6 +231,7 @@ function buildSessions(courseId: UUID, courseName: string): CourseSessionSummary
       visibilityStatus: 'visible',
       rollupStatus: 'included',
       progressStatus: 'scheduled',
+      cancellationReason: null,
     },
     {
       id: `${courseId}-session-3`,
@@ -243,6 +245,7 @@ function buildSessions(courseId: UUID, courseName: string): CourseSessionSummary
       visibilityStatus: 'hidden',
       rollupStatus: 'included',
       progressStatus: 'scheduled',
+      cancellationReason: null,
     },
     {
       id: `${courseId}-session-4`,
@@ -256,6 +259,7 @@ function buildSessions(courseId: UUID, courseName: string): CourseSessionSummary
       visibilityStatus: 'visible',
       rollupStatus: 'excluded',
       progressStatus: 'cancelled',
+      cancellationReason: '공휴일',
     },
   ];
 }

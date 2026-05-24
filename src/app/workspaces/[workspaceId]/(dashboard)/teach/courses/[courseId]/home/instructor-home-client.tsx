@@ -108,6 +108,31 @@ export function InstructorHomeClient({ workspaceId, courseId, data }: Props) {
           </Card>
         )}
       </section>
+
+      {data.cancelledSessions.length > 0 && (
+        <section className="space-y-3">
+          <h3 className="text-base font-semibold text-gray-900">휴강 회차</h3>
+          <Card>
+            <ul className="divide-y divide-gray-100">
+              {data.cancelledSessions.map((s) => (
+                <li key={s.id} className="space-y-1 bg-rose-50/40 p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-medium text-gray-500 line-through">
+                      {s.sessionNo}회차 · {formatDate(s.date)}
+                    </p>
+                    <Badge tone="neutral" className="bg-rose-100 text-rose-800">
+                      휴강
+                    </Badge>
+                  </div>
+                  {s.cancellationReason && (
+                    <p className="text-xs text-rose-800">{s.cancellationReason}</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </section>
+      )}
     </section>
   );
 }

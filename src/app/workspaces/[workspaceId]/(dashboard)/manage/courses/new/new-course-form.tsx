@@ -11,6 +11,11 @@ import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Select } from "@/components/ui/select";
 import { ColorPicker, COURSE_COLOR_PRESETS } from "@/components/courses/color-picker";
+import {
+  defaultSessionPlan,
+  PlannedSessionPreview,
+  type SessionPlanDraft,
+} from "@/components/courses/planned-session-preview";
 import { WeekdayPicker } from "@/components/courses/weekday-picker";
 import { planSessions } from "@/lib/courses/recurrence";
 import type {
@@ -74,6 +79,7 @@ export function NewCourseForm({
   >({});
   const [optionsLoading, setOptionsLoading] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [plansBySessionNo, setPlansBySessionNo] = useState<Record<number, SessionPlanDraft>>({});
   const fetchVersion = useRef(0);
 
   // 그룹 선택이 바뀔 때마다 참여자 후보 재로드.
@@ -158,6 +164,67 @@ export function NewCourseForm({
     [recurrencePayload],
   );
 
+  const validSessionCount = useMemo(
+    () =>
+      sessionPreview.filter(
+        (s) => (plansBySessionNo[s.sessionNo]?.progressStatus ?? "scheduled") === "scheduled",
+      ).length,
+    [sessionPreview, plansBySessionNo],
+  );
+
+  useEffect(() => {
+    setPlansBySessionNo((prev) => {
+      const next: Record<number, SessionPlanDraft> = {};
+      for (const session of sessionPreview) {
+        next[session.sessionNo] = prev[session.sessionNo] ?? defaultSessionPlan();
+      }
+      return next;
+    });
+  }, [sessionPreview]);
+
+  function handleToggleCancel(sessionNo: number) {
+    setPlansBySessionNo((prev) => ({
+      ...prev,
+      [sessionNo]: {
+        progressStatus: "cancelled",
+        rollupStatus: "excluded",
+        cancellationReason: prev[sessionNo]?.cancellationReason ?? "",
+      },
+    }));
+  }
+
+  function handleRestoreSession(sessionNo: number) {
+    setPlansBySessionNo((prev) => ({
+      ...prev,
+      [sessionNo]: defaultSessionPlan(),
+    }));
+  }
+
+  function handleChangeReason(sessionNo: number, reason: string) {
+    setPlansBySessionNo((prev) => ({
+      ...prev,
+      [sessionNo]: {
+        ...(prev[sessionNo] ?? defaultSessionPlan()),
+        cancellationReason: reason,
+      },
+    }));
+  }
+
+  function buildSessionPlans() {
+    return sessionPreview.map((session) => {
+      const plan = plansBySessionNo[session.sessionNo] ?? defaultSessionPlan();
+      return {
+        sessionNo: session.sessionNo,
+        progressStatus: plan.progressStatus,
+        rollupStatus: plan.rollupStatus,
+        cancellationReason:
+          plan.progressStatus === "cancelled"
+            ? plan.cancellationReason?.trim() || null
+            : null,
+      };
+    });
+  }
+
   const groupOptions = accessibleGroups
     .filter((group) => group.status === "active")
     .map((group) => ({ id: group.id, label: group.name }));
@@ -214,6 +281,18 @@ export function NewCourseForm({
       toast.error("선택한 조건으로 생성될 회차가 없습니다.");
       return;
     }
+    if (validSessionCount < 1) {
+      toast.error("최소 1회 이상 진행하는 회차가 있어야 합니다.");
+      return;
+    }
+    const sessionPlans = buildSessionPlans();
+    const missingReason = sessionPlans.find(
+      (plan) => plan.progressStatus === "cancelled" && !plan.cancellationReason,
+    );
+    if (missingReason) {
+      toast.error(`${missingReason.sessionNo}회차 휴강 사유를 입력해 주세요.`);
+      return;
+    }
 
     const assignments = options.participantCandidates
       .map((candidate) => {
@@ -240,6 +319,7 @@ export function NewCourseForm({
         cardColor,
         recurrence: recurrencePayload,
         participantAssignments: assignments,
+        sessionPlans,
       });
       if (!result.ok) {
         toast.error(result.error.message);
@@ -320,6 +400,11 @@ export function NewCourseForm({
       </Section>
 
       <Section title="회차 설정">
+        {sessionPreview.length > 0 && (
+          <p className="text-sm font-medium text-[var(--color-foreground)]">
+            유효 회차 수: {validSessionCount}회
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-2 sm:max-w-md">
           <ModePill
             active={mode === "one_time"}
@@ -426,7 +511,14 @@ export function NewCourseForm({
           )}
         </div>
 
-        <SessionPreview mode={mode} sessions={sessionPreview} />
+        <PlannedSessionPreview
+          mode={mode}
+          sessions={sessionPreview}
+          plansBySessionNo={plansBySessionNo}
+          onChangeReason={handleChangeReason}
+          onToggleCancel={handleToggleCancel}
+          onRestore={handleRestoreSession}
+        />
       </Section>
 
       <Section title="참여자 배정">
@@ -546,45 +638,5 @@ function ModePill({
     >
       {children}
     </button>
-  );
-}
-
-function SessionPreview({
-  mode,
-  sessions,
-}: {
-  mode: CourseMode;
-  sessions: { sessionNo: number; date: ISODate; startsAt: ISOTime; endsAt: ISOTime }[];
-}) {
-  if (sessions.length === 0) {
-    return (
-      <div className="rounded-[var(--radius-md)] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-        {mode === "one_time"
-          ? "수업 날짜와 시간을 다시 확인해 주세요."
-          : "선택한 조건으로 만들 수 있는 회차가 없습니다. 요일과 기간을 다시 확인해 주세요."}
-      </div>
-    );
-  }
-  const visible = sessions.slice(0, 5);
-  return (
-    <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-muted)]/30 px-4 py-3 text-sm">
-      <p className="font-medium text-[var(--color-foreground)]">
-        {mode === "one_time"
-          ? "1회 수업이 생성됩니다"
-          : `총 ${sessions.length}회 회차가 생성됩니다`}
-      </p>
-      <ul className="mt-2 grid gap-1 text-xs text-[var(--color-muted-foreground)]">
-        {visible.map((session) => (
-          <li key={session.sessionNo}>
-            {mode === "one_time"
-              ? `${session.date} · ${session.startsAt.slice(0, 5)}–${session.endsAt.slice(0, 5)}`
-              : `${session.sessionNo}회차 · ${session.date} · ${session.startsAt.slice(0, 5)}–${session.endsAt.slice(0, 5)}`}
-          </li>
-        ))}
-        {sessions.length > visible.length && (
-          <li>외 {sessions.length - visible.length}회</li>
-        )}
-      </ul>
-    </div>
   );
 }

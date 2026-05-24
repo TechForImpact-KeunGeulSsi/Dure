@@ -94,6 +94,7 @@ export async function getCourseMemos(
     visibilityStatus: row.visibility_status,
     rollupStatus: row.rollup_status,
     progressStatus: row.progress_status,
+    cancellationReason: null,
   }));
 
   const memos = await loadMemosByCourse(workspaceId, courseId);

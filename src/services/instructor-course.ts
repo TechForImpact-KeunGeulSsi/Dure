@@ -25,9 +25,13 @@ export type InstructorCourseHomeOutput = {
     }
   >;
   upcomingSessions: CourseSessionSummary[];
+  cancelledSessions: CourseSessionSummary[];
   materialCount: number;
   pendingMaterialCount: number;
 };
+
+const SESSION_SELECT =
+  "id, course_id, session_no, date, starts_at, ends_at, type, visibility_status, rollup_status, progress_status, cancellation_reason";
 
 /**
  * api-spec.md §13.1 강사 수업 홈 조회.
@@ -70,12 +74,14 @@ export async function getInstructorCourseHome(
 
   const todayDate = today ?? new Date().toISOString().slice(0, 10);
 
-  const [todayRows, upcomingRows, materialTotal, materialPending] = await Promise.all([
-    loadSessionsByDate(workspaceId, courseId, todayDate, "eq"),
-    loadSessionsByDate(workspaceId, courseId, todayDate, "gt", 5),
-    countMaterials(workspaceId, courseId),
-    countMaterials(workspaceId, courseId, "pending"),
-  ]);
+  const [todayRows, upcomingRows, cancelledRows, materialTotal, materialPending] =
+    await Promise.all([
+      loadScheduledSessionsByDate(workspaceId, courseId, todayDate, "eq"),
+      loadScheduledSessionsByDate(workspaceId, courseId, todayDate, "gt"),
+      loadCancelledSessions(workspaceId, courseId),
+      countMaterials(workspaceId, courseId),
+      countMaterials(workspaceId, courseId, "pending"),
+    ]);
 
   const todaySessions = todayRows.map((s) => ({
     ...mapSession(s, course.name),
@@ -84,6 +90,7 @@ export async function getInstructorCourseHome(
     classMemo: null,
   }));
   const upcomingSessions = upcomingRows.map((s) => mapSession(s, course.name));
+  const cancelledSessions = cancelledRows.map((s) => mapSession(s, course.name));
 
   return apiOk({
     course: {
@@ -97,6 +104,7 @@ export async function getInstructorCourseHome(
     },
     todaySessions,
     upcomingSessions,
+    cancelledSessions,
     materialCount: materialTotal,
     pendingMaterialCount: materialPending,
   });
@@ -113,28 +121,42 @@ type SessionRow = {
   visibility_status: CourseSessionSummary["visibilityStatus"];
   rollup_status: CourseSessionSummary["rollupStatus"];
   progress_status: CourseSessionSummary["progressStatus"];
+  cancellation_reason: string | null;
 };
 
-async function loadSessionsByDate(
+async function loadScheduledSessionsByDate(
   workspaceId: UUID,
   courseId: UUID,
   date: string,
   op: "eq" | "gt",
-  limit?: number,
 ): Promise<SessionRow[]> {
   const supabase = await createSupabaseServerClient();
   let q = supabase
     .from("course_sessions")
-    .select(
-      "id, course_id, session_no, date, starts_at, ends_at, type, visibility_status, rollup_status, progress_status",
-    )
+    .select(SESSION_SELECT)
     .eq("workspace_id", workspaceId)
-    .eq("course_id", courseId);
+    .eq("course_id", courseId)
+    .eq("progress_status", "scheduled");
   q = op === "eq" ? q.eq("date", date) : q.gt("date", date);
   q = q.order("date", { ascending: true }).order("starts_at", { ascending: true });
-  if (limit) q = q.limit(limit);
 
   const { data } = await q;
+  return (data ?? []) as SessionRow[];
+}
+
+async function loadCancelledSessions(
+  workspaceId: UUID,
+  courseId: UUID,
+): Promise<SessionRow[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("course_sessions")
+    .select(SESSION_SELECT)
+    .eq("workspace_id", workspaceId)
+    .eq("course_id", courseId)
+    .eq("progress_status", "cancelled")
+    .order("session_no", { ascending: true });
+
   return (data ?? []) as SessionRow[];
 }
 
@@ -151,6 +173,7 @@ function mapSession(row: SessionRow, courseName: string): CourseSessionSummary {
     visibilityStatus: row.visibility_status,
     rollupStatus: row.rollup_status,
     progressStatus: row.progress_status,
+    cancellationReason: row.cancellation_reason,
   };
 }
 

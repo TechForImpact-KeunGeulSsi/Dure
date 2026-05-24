@@ -339,6 +339,7 @@ async function loadSessions(
     )
     .eq("workspace_id", workspaceId)
     .eq("course_id", courseId)
+    .eq("progress_status", "scheduled")
     .order("session_no", { ascending: true });
 
   return (data ?? []).map((row) => ({
@@ -353,6 +354,7 @@ async function loadSessions(
     visibilityStatus: row.visibility_status,
     rollupStatus: row.rollup_status,
     progressStatus: row.progress_status,
+    cancellationReason: null,
   }));
 }
 

@@ -29,7 +29,7 @@ export async function getCourseSessions(
   const { data, error } = await supabase
     .from("course_sessions")
     .select(
-      "id, course_id, session_no, date, starts_at, ends_at, type, visibility_status, rollup_status, progress_status",
+      "id, course_id, session_no, date, starts_at, ends_at, type, visibility_status, rollup_status, progress_status, cancellation_reason",
     )
     .eq("workspace_id", workspaceId)
     .eq("course_id", courseId)
@@ -48,6 +48,7 @@ export async function getCourseSessions(
     visibilityStatus: row.visibility_status,
     rollupStatus: row.rollup_status,
     progressStatus: row.progress_status,
+    cancellationReason: row.cancellation_reason ?? null,
   }));
 
   return apiOk(sessions);

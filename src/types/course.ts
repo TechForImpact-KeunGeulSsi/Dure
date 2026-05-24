@@ -49,6 +49,7 @@ export type CourseSessionSummary = {
   visibilityStatus: SessionVisibilityStatus;
   rollupStatus: SessionRollupStatus;
   progressStatus: SessionProgressStatus;
+  cancellationReason: string | null;
 };
 
 export type ParticipantSummary = {

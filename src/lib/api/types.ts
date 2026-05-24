@@ -145,6 +145,7 @@ export type CourseSessionSummary = {
   visibilityStatus: SessionVisibilityStatus;
   rollupStatus: SessionRollupStatus;
   progressStatus: SessionProgressStatus;
+  cancellationReason: string | null;
 };
 
 // --- Material (api-spec.md §2.7) ---

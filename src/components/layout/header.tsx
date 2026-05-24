@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, LogOut } from "lucide-react";
+import { Bell, LogOut, X } from "lucide-react";
 
 import { cn } from "@/lib/utils/cn";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -46,8 +46,40 @@ function writeLastSeen(workspaceId: UUID, timestampMs: number): void {
   );
 }
 
+const DISMISSED_ACTIVITIES_KEY = "dismissed_activities";
+
+function readDismissedActivities(): Set<UUID> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem(DISMISSED_ACTIVITIES_KEY);
+    if (!raw) return new Set();
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((id): id is UUID => typeof id === "string"));
+  } catch {
+    return new Set();
+  }
+}
+
+function dismissActivity(id: UUID): void {
+  if (typeof window === "undefined") return;
+  const dismissed = readDismissedActivities();
+  dismissed.add(id);
+  window.localStorage.setItem(
+    DISMISSED_ACTIVITIES_KEY,
+    JSON.stringify([...dismissed]),
+  );
+}
+
+function filterVisibleActivities(items: ActivityItem[]): ActivityItem[] {
+  const dismissed = readDismissedActivities();
+  if (dismissed.size === 0) return items;
+  return items.filter((item) => !dismissed.has(item.id));
+}
+
 export function Header({ member, workspaceId }: HeaderProps) {
   const router = useRouter();
+  const activityRef = useRef<HTMLDivElement>(null);
   const [showActivity, setShowActivity] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [activityState, setActivityState] = useState<ActivityState>({
@@ -63,7 +95,10 @@ export function Header({ member, workspaceId }: HeaderProps) {
     setActivityState({ kind: "loading" });
     const result = await getRecentActivity({ workspaceId, limit: 20 });
     if (result.ok) {
-      setActivityState({ kind: "loaded", items: result.data.activities });
+      setActivityState({
+        kind: "loaded",
+        items: filterVisibleActivities(result.data.activities),
+      });
     } else {
       setActivityState({ kind: "error", message: result.error.message });
     }
@@ -74,6 +109,20 @@ export function Header({ member, workspaceId }: HeaderProps) {
     setLastSeenMs(readLastSeen(workspaceId));
     void loadActivities();
   }, [workspaceId, loadActivities]);
+
+  useEffect(() => {
+    if (!showActivity) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        activityRef.current &&
+        !activityRef.current.contains(event.target as Node)
+      ) {
+        setShowActivity(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showActivity]);
 
   const latestActivityMs = useMemo(() => {
     if (activityState.kind !== "loaded") return 0;
@@ -97,6 +146,17 @@ export function Header({ member, workspaceId }: HeaderProps) {
     }
   }
 
+  function handleDismissActivity(id: UUID) {
+    dismissActivity(id);
+    setActivityState((prev) => {
+      if (prev.kind !== "loaded") return prev;
+      return {
+        kind: "loaded",
+        items: prev.items.filter((item) => item.id !== id),
+      };
+    });
+  }
+
   async function handleLogout() {
     const supabase = createSupabaseBrowserClient();
     await supabase.auth.signOut();
@@ -106,7 +166,7 @@ export function Header({ member, workspaceId }: HeaderProps) {
 
   return (
     <header className="flex h-14 items-center justify-end gap-3 border-b border-[var(--color-border)] bg-[var(--color-card)] px-4">
-      <div className="relative">
+      <div ref={activityRef} className="relative">
         <button
           type="button"
           onClick={handleBellClick}
@@ -128,6 +188,7 @@ export function Header({ member, workspaceId }: HeaderProps) {
           <ActivityDropdown
             state={activityState}
             onItemClick={() => setShowActivity(false)}
+            onDismiss={handleDismissActivity}
             onRetry={loadActivities}
           />
         )}
@@ -181,10 +242,12 @@ export function Header({ member, workspaceId }: HeaderProps) {
 function ActivityDropdown({
   state,
   onItemClick,
+  onDismiss,
   onRetry,
 }: {
   state: ActivityState;
   onItemClick: () => void;
+  onDismiss: (id: UUID) => void;
   onRetry: () => void;
 }) {
   return (
@@ -218,11 +281,11 @@ function ActivityDropdown({
         {state.kind === "loaded" && state.items.length > 0 && (
           <ul className="divide-y divide-[var(--color-border)]">
             {state.items.map((item) => (
-              <li key={item.id}>
+              <li key={item.id} className="group relative">
                 <Link
                   href={item.target.href}
                   onClick={onItemClick}
-                  className="block px-4 py-3 hover:bg-[var(--color-muted)]"
+                  className="block px-4 py-3 pr-10 hover:bg-[var(--color-muted)]"
                 >
                   <div className="flex items-start gap-3">
                     <ActorAvatar actor={item.actor} title={item.title} />
@@ -241,6 +304,18 @@ function ActivityDropdown({
                     </div>
                   </div>
                 </Link>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onDismiss(item.id);
+                  }}
+                  className="absolute right-2 top-2 rounded p-1 text-muted-foreground hover:text-foreground"
+                  aria-label="알림 숨기기"
+                >
+                  <X className="size-3.5" />
+                </button>
               </li>
             ))}
           </ul>

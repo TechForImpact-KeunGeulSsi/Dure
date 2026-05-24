@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Pencil, Plus, Trash2, Users } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,8 +47,7 @@ type ParticipantsClientProps = {
 type DialogState =
   | { kind: "closed" }
   | { kind: "create" }
-  | { kind: "edit"; participant: ParticipantListItem }
-  | { kind: "groups"; participant: ParticipantListItem };
+  | { kind: "edit"; participant: ParticipantListItem };
 
 export function ParticipantsClient({
   workspaceId,
@@ -229,7 +228,9 @@ export function ParticipantsClient({
                   </Td>
                   <Td>
                     <div className="flex items-center justify-end gap-1">
-                      {participant.canEditMaster && (
+                      {(participant.canEditMaster ||
+                        participant.canRemoveFromAccessibleGroups ||
+                        canCreate) && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -239,19 +240,7 @@ export function ParticipantsClient({
                           aria-label="수정"
                         >
                           <Pencil className="size-4" />
-                        </Button>
-                      )}
-                      {(participant.canRemoveFromAccessibleGroups ||
-                        canCreate) && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() =>
-                            setDialog({ kind: "groups", participant })
-                          }
-                          aria-label="그룹 변경"
-                        >
-                          <Users className="size-4" />
+                          수정
                         </Button>
                       )}
                       {canDelete && (
@@ -292,17 +281,8 @@ export function ParticipantsClient({
         }}
         workspaceId={workspaceId}
         accessibleGroups={accessibleGroups}
+        canCreate={canCreate}
         isGroupAdmin={isGroupAdmin}
-      />
-      <GroupsDialog
-        state={dialog}
-        onClose={() => setDialog({ kind: "closed" })}
-        onSubmitted={() => {
-          setDialog({ kind: "closed" });
-          router.refresh();
-        }}
-        workspaceId={workspaceId}
-        accessibleGroups={accessibleGroups}
       />
     </div>
   );
@@ -314,6 +294,7 @@ type UpsertDialogProps = {
   onSubmitted: () => void;
   workspaceId: string;
   accessibleGroups: GroupSummary[];
+  canCreate: boolean;
   isGroupAdmin: boolean;
 };
 
@@ -323,6 +304,7 @@ function UpsertDialog({
   onSubmitted,
   workspaceId,
   accessibleGroups,
+  canCreate,
   isGroupAdmin,
 }: UpsertDialogProps) {
   const open = state.kind === "create" || state.kind === "edit";
@@ -337,10 +319,17 @@ function UpsertDialog({
 
   useEffect(() => {
     if (state.kind === "edit") {
+      const accessibleGroupIdSet = new Set(
+        accessibleGroups.map((group) => group.id),
+      );
       setName(state.participant.name);
       setMemo(state.participant.memo ?? "");
       setStatus(state.participant.status === "inactive" ? "inactive" : "active");
-      setGroupIds([]);
+      setGroupIds(
+        state.participant.groups
+          .map((group) => group.id)
+          .filter((id) => accessibleGroupIdSet.has(id)),
+      );
       return;
     }
     if (state.kind === "create") {
@@ -349,29 +338,50 @@ function UpsertDialog({
       setStatus("active");
       setGroupIds([]);
     }
-  }, [state]);
+  }, [accessibleGroups, state]);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending) return;
     startTransition(async () => {
-      const result = await upsertParticipantAction(workspaceId, {
-        id: editing?.id,
-        name: name.trim(),
-        memo: memo.trim().length === 0 ? null : memo.trim(),
-        status,
-        groupIds: isEdit ? undefined : groupIds,
-      });
-      if (!result.ok) {
-        toast.error(result.error.message);
-        return;
+      if (!isEdit || editing?.canEditMaster) {
+        const result = await upsertParticipantAction(workspaceId, {
+          id: editing?.id,
+          name: name.trim(),
+          memo: memo.trim().length === 0 ? null : memo.trim(),
+          status,
+          groupIds: isEdit ? undefined : groupIds,
+        });
+        if (!result.ok) {
+          toast.error(result.error.message);
+          return;
+        }
       }
-      toast.success(
-        isEdit ? "참여자를 수정했어요." : "참여자를 등록했어요.",
-      );
+
+      if (
+        isEdit &&
+        editing &&
+        (editing.canRemoveFromAccessibleGroups || canCreate)
+      ) {
+        const groupResult = await updateParticipantGroupsAction(
+          workspaceId,
+          editing.id,
+          { groupIds },
+        );
+        if (!groupResult.ok) {
+          toast.error(groupResult.error.message);
+          return;
+        }
+      }
+
+      toast.success(isEdit ? "참여자를 수정했어요." : "참여자를 등록했어요.");
       onSubmitted();
     });
   }
+
+  const canEditGroups =
+    !isEdit || !!editing?.canRemoveFromAccessibleGroups || canCreate;
+  const canEditMaster = !isEdit || !!editing?.canEditMaster;
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
@@ -379,7 +389,7 @@ function UpsertDialog({
         title={isEdit ? "참여자 수정" : "새 참여자"}
         description={
           isEdit
-            ? "이름과 메모만 변경됩니다. 그룹은 '그룹 변경'에서 별도로 관리해요."
+            ? "기본 정보와 소속 그룹을 한 번에 수정합니다."
             : "참여자 이름을 입력하고, 필요하면 소속 그룹을 선택해 주세요."
         }
       />
@@ -393,6 +403,7 @@ function UpsertDialog({
               onChange={(event) => setName(event.target.value)}
               maxLength={60}
               required
+              disabled={!canEditMaster}
             />
           </div>
           <div className="space-y-2">
@@ -403,9 +414,10 @@ function UpsertDialog({
               onChange={(event) => setMemo(event.target.value)}
               maxLength={500}
               rows={3}
+              disabled={!canEditMaster}
             />
           </div>
-          {!isEdit && (
+          {canEditGroups && (
             <div className="space-y-2">
               <Label>소속 그룹{isGroupAdmin ? " (필수)" : " (선택)"}</Label>
               <MultiSelect
@@ -417,6 +429,11 @@ function UpsertDialog({
                 onChange={setGroupIds}
                 placeholder="그룹 선택"
               />
+              {isEdit && (
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  접근 권한이 없는 그룹은 이 목록에 보이지 않으며 변경 대상이 아닙니다.
+                </p>
+              )}
             </div>
           )}
           <div className="space-y-2">
@@ -427,95 +444,11 @@ function UpsertDialog({
               onChange={(event) =>
                 setStatus(event.target.value as "active" | "inactive")
               }
+              disabled={!canEditMaster}
             >
               <option value="active">활성</option>
               <option value="inactive">비활성</option>
             </Select>
-          </div>
-        </DialogBody>
-        <DialogFooter>
-          <Button type="button" variant="ghost" onClick={onClose}>
-            취소
-          </Button>
-          <Button type="submit" disabled={pending}>
-            {pending ? "저장 중…" : "저장"}
-          </Button>
-        </DialogFooter>
-      </form>
-    </Dialog>
-  );
-}
-
-type GroupsDialogProps = {
-  state: DialogState;
-  onClose: () => void;
-  onSubmitted: () => void;
-  workspaceId: string;
-  accessibleGroups: GroupSummary[];
-};
-
-function GroupsDialog({
-  state,
-  onClose,
-  onSubmitted,
-  workspaceId,
-  accessibleGroups,
-}: GroupsDialogProps) {
-  const open = state.kind === "groups";
-  const participant = state.kind === "groups" ? state.participant : null;
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [pending, startTransition] = useTransition();
-
-  useEffect(() => {
-    if (state.kind === "groups") {
-      setSelectedIds(state.participant.groups.map((group) => group.id));
-    }
-  }, [state]);
-
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!participant || pending) return;
-    startTransition(async () => {
-      const result = await updateParticipantGroupsAction(
-        workspaceId,
-        participant.id,
-        { groupIds: selectedIds },
-      );
-      if (!result.ok) {
-        toast.error(result.error.message);
-        return;
-      }
-      toast.success("소속 그룹을 변경했어요.");
-      onSubmitted();
-    });
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogHeader
-        title="소속 그룹 변경"
-        description={
-          participant
-            ? `'${participant.name}'의 소속 그룹을 변경합니다.`
-            : undefined
-        }
-      />
-      <form onSubmit={handleSubmit}>
-        <DialogBody>
-          <div className="space-y-2">
-            <Label>접근 가능한 그룹</Label>
-            <MultiSelect
-              options={accessibleGroups.map((group) => ({
-                id: group.id,
-                label: group.name,
-              }))}
-              selectedIds={selectedIds}
-              onChange={setSelectedIds}
-              placeholder="그룹 선택"
-            />
-            <p className="text-xs text-[var(--color-muted-foreground)]">
-              접근 권한이 없는 그룹은 이 목록에 보이지 않으며 변경 대상이 아닙니다.
-            </p>
           </div>
         </DialogBody>
         <DialogFooter>

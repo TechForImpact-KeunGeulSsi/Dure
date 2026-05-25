@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Script from "next/script";
+import { redirect } from "next/navigation";
 import { createElement, type ReactNode } from "react";
 import { ArrowRight, Building2, CheckCircle2, MapPin } from "lucide-react";
 
@@ -11,13 +12,26 @@ import {
   type PublicCourseCatalog,
 } from "@/services/public-catalog";
 
-export default async function RootPage() {
+type RootPageProps = {
+  searchParams: Promise<{ stay?: string }>;
+};
+
+export default async function RootPage({ searchParams }: RootPageProps) {
+  const { stay } = await searchParams;
   const supabase = await createSupabaseServerClient();
   const [{ data: userResult }, catalogResult] = await Promise.all([
     supabase.auth.getUser(),
     getPublicCourseCatalog(),
   ]);
   const user = userResult.user;
+
+  // 로그인한 사용자가 루트로 진입하면 본인 워크스페이스로 바로 이동시킨다.
+  // `?stay=1` 쿼리가 있을 때만 마케팅 랜딩을 보여 준다(둘러보기 용도).
+  // /workspaces 페이지가 단일/복수/0개에 따라 후속 분기(직접 진입 vs 선택기 vs 새 워크스페이스)를 처리한다.
+  if (user && !stay) {
+    redirect("/workspaces");
+  }
+
   const catalog = catalogResult.ok ? catalogResult.data : { workspaces: [] };
   const totals = getCatalogTotals(catalog);
 

@@ -14,7 +14,7 @@ import { Select } from '@/components/ui/select';
 import { createInvite } from '@/services/invites';
 import type { GroupSummary, WorkspaceRole } from '@/lib/api/types';
 
-type InvitableRole = Extract<WorkspaceRole, 'group_admin' | 'instructor'>;
+type InvitableRole = Extract<WorkspaceRole, 'owner_admin' | 'group_admin' | 'instructor'>;
 
 type Props = {
   open: boolean;
@@ -158,6 +158,7 @@ export function InviteMemberDialog({ open, onOpenChange, workspaceId, groups }: 
             >
               <option value="instructor">강사</option>
               <option value="group_admin">그룹 운영자</option>
+              <option value="owner_admin">대표 운영자</option>
             </Select>
           </div>
 

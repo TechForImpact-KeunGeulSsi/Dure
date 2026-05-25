@@ -51,6 +51,19 @@ type ParticipantStatusItem = {
   canEditAssignment: boolean;
 };
 
+export type CourseSessionRef = {
+  id: UUID;
+  sessionNo: number;
+  date: string;
+};
+
+export type SessionAttendanceRecord = {
+  sessionId: UUID;
+  participantId: UUID;
+  status: AttendanceStatus;
+  note: string | null;
+};
+
 export type GetCourseParticipantsStatusResult = {
   course: {
     id: UUID;
@@ -68,6 +81,15 @@ export type GetCourseParticipantsStatusResult = {
     countedSessionCount: number;
   };
   participants: ParticipantStatusItem[];
+  /**
+   * 회차별 출결 보기를 위한 데이터.
+   * - sessions: 누적 통계에 포함되는 회차(rollup_status='included') 목록을 회차 번호 순으로.
+   * - records: 회차별 출결 기록. (sessionId, participantId)로 조인해서 사용.
+   */
+  sessionsView: {
+    sessions: CourseSessionRef[];
+    records: SessionAttendanceRecord[];
+  };
 };
 
 export async function getCourseParticipantsStatus(
@@ -122,10 +144,11 @@ export async function getCourseParticipantsStatus(
     }
   }
 
-  const [countedSessionIds, courseGroupIds] = await Promise.all([
-    loadCountedSessionIds(workspaceId, courseId),
+  const [countedSessions, courseGroupIds] = await Promise.all([
+    loadCountedSessions(workspaceId, courseId),
     loadCourseGroupIds(workspaceId, courseId),
   ]);
+  const countedSessionIds = countedSessions.map((s) => s.id);
 
   const rawParticipantRows = await loadCourseParticipantRows(
     workspaceId,
@@ -192,6 +215,10 @@ export async function getCourseParticipantsStatus(
       countedSessionCount,
     },
     participants,
+    sessionsView: {
+      sessions: countedSessions,
+      records: aggregates.sessionRecords,
+    },
   });
 }
 
@@ -398,18 +425,24 @@ async function loadCourseParticipantRows(
   );
 }
 
-async function loadCountedSessionIds(
+async function loadCountedSessions(
   workspaceId: UUID,
   courseId: UUID,
-): Promise<UUID[]> {
+): Promise<CourseSessionRef[]> {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from("course_sessions")
-    .select("id")
+    .select("id, session_no, date")
     .eq("workspace_id", workspaceId)
     .eq("course_id", courseId)
-    .eq("rollup_status", "included");
-  return (data ?? []).map((row) => row.id as UUID);
+    .eq("rollup_status", "included")
+    .eq("progress_status", "scheduled")
+    .order("session_no", { ascending: true });
+  return (data ?? []).map((row) => ({
+    id: row.id as UUID,
+    sessionNo: row.session_no as number,
+    date: row.date as string,
+  }));
 }
 
 async function loadCourseGroupIds(
@@ -469,27 +502,33 @@ async function loadAttendanceAggregates(params: {
 }): Promise<{
   byParticipant: Map<UUID, Aggregate>;
   latestNoteByParticipant: Map<UUID, string>;
+  sessionRecords: SessionAttendanceRecord[];
 }> {
   const byParticipant = new Map<UUID, Aggregate>();
   const latestNoteByParticipant = new Map<UUID, string>();
+  const sessionRecords: SessionAttendanceRecord[] = [];
   if (params.countedSessionIds.length === 0) {
-    return { byParticipant, latestNoteByParticipant };
+    return { byParticipant, latestNoteByParticipant, sessionRecords };
   }
 
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from("attendance_records")
-    .select("participant_id, status, note, updated_at")
+    .select("session_id, participant_id, status, note, updated_at")
     .eq("workspace_id", params.workspaceId)
     .in("session_id", params.countedSessionIds)
     .order("updated_at", { ascending: false });
 
   const rows = (data ?? []) as Array<{
+    session_id: UUID;
     participant_id: UUID;
     status: AttendanceStatus;
     note: string | null;
     updated_at: string;
   }>;
+
+  // 같은 (session, participant) 조합은 가장 최근 행 하나만 유지(updated_at 내림차순 정렬되어 있음).
+  const seenSessionParticipant = new Set<string>();
 
   for (const row of rows) {
     const pid = row.participant_id;
@@ -502,7 +541,18 @@ async function loadAttendanceAggregates(params: {
     if (row.note && row.note.length > 0 && !latestNoteByParticipant.has(pid)) {
       latestNoteByParticipant.set(pid, row.note);
     }
+
+    const dedupKey = `${row.session_id}:${pid}`;
+    if (!seenSessionParticipant.has(dedupKey)) {
+      seenSessionParticipant.add(dedupKey);
+      sessionRecords.push({
+        sessionId: row.session_id,
+        participantId: pid,
+        status: row.status,
+        note: row.note,
+      });
+    }
   }
 
-  return { byParticipant, latestNoteByParticipant };
+  return { byParticipant, latestNoteByParticipant, sessionRecords };
 }

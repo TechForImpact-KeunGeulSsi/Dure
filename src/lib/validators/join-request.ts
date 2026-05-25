@@ -11,12 +11,10 @@ export const RequestAccessSchema = z.object({
     required_error: "역할을 선택해 주세요.",
   }),
   displayName: z
-    .string()
+    .string({ required_error: "이름을 입력해 주세요." })
     .trim()
-    .max(80, "이름은 80자 이하로 입력해 주세요.")
-    .optional()
-    .nullable()
-    .transform((v) => (v && v.length > 0 ? v : null)),
+    .min(1, "이름을 입력해 주세요.")
+    .max(80, "이름은 80자 이하로 입력해 주세요."),
   message: z
     .string()
     .trim()

@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, LogOut, X } from "lucide-react";
+import { Bell, LogOut, MapPinned, UserCog, X } from "lucide-react";
 
 import { cn } from "@/lib/utils/cn";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { workspaceRoleLabel } from "@/lib/api/labels";
 import { getRecentActivity } from "@/services/activity";
 import type { ActivityItem, MemberSummary, UUID } from "@/lib/api/types";
+
+import { MyAccountDialog } from "./my-account-dialog";
 
 type HeaderProps = {
   member: MemberSummary;
@@ -82,6 +84,7 @@ export function Header({ member, workspaceId }: HeaderProps) {
   const activityRef = useRef<HTMLDivElement>(null);
   const [showActivity, setShowActivity] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showAccountDialog, setShowAccountDialog] = useState(false);
   const [activityState, setActivityState] = useState<ActivityState>({
     kind: "idle",
   });
@@ -226,6 +229,25 @@ export function Header({ member, workspaceId }: HeaderProps) {
             </div>
             <button
               type="button"
+              onClick={() => {
+                setShowUserMenu(false);
+                setShowAccountDialog(true);
+              }}
+              className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[var(--color-foreground)] hover:bg-[var(--color-muted)]"
+            >
+              <UserCog className="size-4" />
+              내 정보 수정
+            </button>
+            <Link
+              href="/workspaces"
+              onClick={() => setShowUserMenu(false)}
+              className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[var(--color-foreground)] hover:bg-[var(--color-muted)]"
+            >
+              <MapPinned className="size-4" />
+              지역 이동
+            </Link>
+            <button
+              type="button"
               onClick={handleLogout}
               className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[var(--color-foreground)] hover:bg-[var(--color-muted)]"
             >
@@ -235,6 +257,11 @@ export function Header({ member, workspaceId }: HeaderProps) {
           </div>
         )}
       </div>
+      <MyAccountDialog
+        open={showAccountDialog}
+        onOpenChange={setShowAccountDialog}
+        currentEmail={member.email}
+      />
     </header>
   );
 }

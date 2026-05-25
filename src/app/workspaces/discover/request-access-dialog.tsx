@@ -60,11 +60,16 @@ export function RequestAccessDialog({
 
   async function handleSubmit() {
     if (!workspace) return;
+    const trimmedName = displayName.trim();
+    if (!trimmedName) {
+      setError("이름을 입력해 주세요.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     const result = await requestWorkspaceAccess(workspace.workspaceId, {
       desiredRole,
-      displayName: displayName.trim() || null,
+      displayName: trimmedName,
       message: message.trim() || null,
     });
     setSubmitting(false);
@@ -101,7 +106,9 @@ export function RequestAccessDialog({
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="request-name">이름 (선택)</Label>
+          <Label htmlFor="request-name">
+            이름 <span className="text-rose-600">*</span>
+          </Label>
           <Input
             id="request-name"
             value={displayName}

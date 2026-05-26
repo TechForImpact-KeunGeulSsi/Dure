@@ -1,7 +1,9 @@
 ﻿'use client';
 
-import { MoreHorizontal } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useMemo, useState, useTransition } from 'react';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
@@ -15,6 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { deleteCourseSession } from '@/services/course-sessions';
 import type { CourseSessionSummary } from '@/types/course';
 import {
   SESSION_PROGRESS_LABEL,
@@ -24,6 +27,7 @@ import {
 } from '@/types/course';
 
 type SessionListProps = {
+  workspaceId: string;
   initialSessions: CourseSessionSummary[];
 };
 
@@ -35,8 +39,11 @@ function formatTimeRange(startsAt: string, endsAt: string) {
   return `${startsAt.slice(0, 5)} - ${endsAt.slice(0, 5)}`;
 }
 
-export function SessionList({ initialSessions }: SessionListProps) {
+export function SessionList({ workspaceId, initialSessions }: SessionListProps) {
+  const router = useRouter();
   const [sessions, setSessions] = useState(initialSessions);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
 
   const sortedSessions = useMemo(
     () => [...sessions].sort((a, b) => a.sessionNo - b.sessionNo),
@@ -52,6 +59,27 @@ export function SessionList({ initialSessions }: SessionListProps) {
     setSessions((prev) =>
       prev.map((session) => (session.id === sessionId ? { ...session, ...patch } : session)),
     );
+  };
+
+  const handleDelete = (session: CourseSessionSummary) => {
+    if (deletingId) return;
+    const ok = window.confirm(
+      `${session.sessionNo}회차(${session.date})를 삭제하시겠습니까?\n이 회차의 출석 기록과 수업 메모도 함께 삭제되며, 캘린더에서도 사라집니다.`,
+    );
+    if (!ok) return;
+    setDeletingId(session.id);
+    startTransition(async () => {
+      const result = await deleteCourseSession(workspaceId, session.id);
+      if (!result.ok) {
+        toast.error(result.error.message);
+        setDeletingId(null);
+        return;
+      }
+      setSessions((prev) => prev.filter((s) => s.id !== session.id));
+      toast.success(`${session.sessionNo}회차를 삭제했습니다.`);
+      setDeletingId(null);
+      router.refresh();
+    });
   };
 
   return (
@@ -160,8 +188,16 @@ export function SessionList({ initialSessions }: SessionListProps) {
                 )}
               </TableCell>
               <TableCell className="text-right">
-                <Button type="button" variant="ghost" size="icon" aria-label="actions">
-                  <MoreHorizontal className="h-4 w-4" />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="회차 삭제"
+                  title="회차 삭제"
+                  onClick={() => handleDelete(session)}
+                  disabled={deletingId === session.id}
+                >
+                  <Trash2 className="h-4 w-4 text-rose-500" />
                 </Button>
               </TableCell>
             </TableRow>

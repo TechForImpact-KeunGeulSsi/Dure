@@ -97,7 +97,7 @@ export function CourseHomeClient({
         </dl>
       </section>
 
-      <SessionList initialSessions={sessions} />
+      <SessionList workspaceId={workspaceId} initialSessions={sessions} />
 
       <CoursePublicPreviewSection
         workspaceId={workspaceId}

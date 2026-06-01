@@ -106,18 +106,20 @@ export function PublicCourseFeedbackForm({ courseId }: Props) {
           </label>
         </div>
 
-        <label className="space-y-1.5 text-sm font-medium text-gray-700">
-          <span>전화번호</span>
-          <Input
-            aria-invalid={Boolean(fieldErrors.authorPhone)}
-            value={authorPhone}
-            onChange={(event) => setAuthorPhone(event.target.value)}
-            placeholder="010-0000-0000"
-            maxLength={30}
-            disabled={pending}
-          />
-          <FieldError errors={fieldErrors.authorPhone} />
-        </label>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="space-y-1.5 text-sm font-medium text-gray-700">
+            <span>전화번호</span>
+            <Input
+              aria-invalid={Boolean(fieldErrors.authorPhone)}
+              value={authorPhone}
+              onChange={(event) => setAuthorPhone(event.target.value)}
+              placeholder="010-0000-0000"
+              maxLength={30}
+              disabled={pending}
+            />
+            <FieldError errors={fieldErrors.authorPhone} />
+          </label>
+        </div>
 
         <label className="space-y-1.5 text-sm font-medium text-gray-700">
           <span className="flex items-center justify-between gap-2">

@@ -6,6 +6,7 @@ import {
   CalendarDays,
   Home,
   LayoutGrid,
+  MapPinned,
   MessageSquare,
   Receipt,
   UserCog,
@@ -81,9 +82,19 @@ export function Sidebar({ workspace, capabilities }: SidebarProps) {
     <aside className="hidden md:flex h-screen w-64 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-card)]">
       <div className="px-5 py-5 border-b border-[var(--color-border)]">
         <p className="text-xs text-[var(--color-muted-foreground)]">워크스페이스</p>
-        <p className="mt-1 text-base font-semibold text-[var(--color-foreground)] truncate">
-          {workspace.name}
-        </p>
+        <div className="mt-1 flex items-center gap-2">
+          <p className="min-w-0 flex-1 truncate text-base font-semibold text-[var(--color-foreground)]">
+            {workspace.name}
+          </p>
+          <Link
+            href="/?stay=1#catalog"
+            aria-label="마을별 둘러보기"
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-border)] px-2.5 text-xs font-medium text-[var(--color-muted-foreground)] hover:border-blue-200 hover:bg-blue-50 hover:text-[var(--color-primary)]"
+          >
+            <MapPinned className="size-3.5" />
+            <span>마을별 둘러보기</span>
+          </Link>
+        </div>
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
         {items

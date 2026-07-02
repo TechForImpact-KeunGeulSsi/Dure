@@ -1,10 +1,10 @@
 # DURE Page API Specification
 
-이 문서는 `prd.md`, `architecture.md`, `context.md`, Supabase migration을 기준으로 DURE MVP의 화면별 데이터 계약을 정의한다. 개발 담당 범위가 프론트엔드/백엔드 계층이 아니라 페이지 단위로 나뉘므로, 이 명세는 특정 HTTP 방식보다 각 페이지가 호출해야 하는 `query`와 `action`의 입력, 출력, 권한, 오류를 고정한다.
+이 문서는 `architecture.md`, `context.md`, Supabase migration을 기준으로 DURE의 화면별 데이터 계약을 정의한다. 개발 담당 범위가 프론트엔드/백엔드 계층이 아니라 페이지 단위로 나뉘므로, 이 명세는 특정 HTTP 방식보다 각 페이지가 호출해야 하는 `query`와 `action`의 입력, 출력, 권한, 오류를 고정한다.
 
 구현자는 Next.js Server Action, Route Handler, Supabase RPC 중 적합한 방식을 선택할 수 있다. 단, 함수명, 입력 타입, 출력 타입, enum, 오류 코드는 이 문서를 기준으로 맞춘다.
 
-이 문서는 페이지와 서버 계층 사이의 계약을 다룬다. 제품 범위와 수락 기준은 `prd.md`, 용어 기준은 `context.md`, 시스템 구조와 DB/RLS 설계는 `architecture.md`에서 관리한다.
+이 문서는 페이지와 서버 계층 사이의 계약을 다룬다. 용어 기준은 `context.md`, 시스템 구조와 DB/RLS 설계는 `architecture.md`에서 관리한다. 과거 PRD는 `archive/phase-history/prd.md`에 보관한다.
 
 ## 0. Goal
 
@@ -120,7 +120,7 @@ type SessionProgressStatus = 'scheduled' | 'cancelled';
 type MaterialUploadStatus = 'uploading' | 'uploaded' | 'failed';
 type MaterialReviewStatus = 'pending' | 'reviewed';
 type AttendanceStatus = 'present' | 'partial' | 'absent';
-type MaterialVisibilityScope = 'all_course_groups' | 'selected_groups';
+type MaterialVisibilityScope = 'public' | 'admin_only';
 ```
 
 화면 표시 라벨은 각 페이지에서 아래처럼 변환한다.
@@ -134,6 +134,7 @@ type MaterialVisibilityScope = 'all_course_groups' | 'selected_groups';
 | `in_progress` | 진행 중 |
 | `completed` | 진행 완료 |
 | `public` | 공개 |
+| `admin_only` | 내부 전용 |
 | `hidden` | 숨김 |
 | `pending` | 확인 미정 |
 | `reviewed` | 확인됨 |
@@ -293,7 +294,6 @@ type MaterialListItem = {
   uploadStatus: MaterialUploadStatus;
   reviewStatus: MaterialReviewStatus;
   visibilityScope: MaterialVisibilityScope;
-  visibleGroups: GroupSummary[];
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
   canEdit: boolean;
@@ -1041,7 +1041,7 @@ type GetCourseMaterialsOutput = {
 권한:
 
 - 대표 운영자는 전체 자료를 본다.
-- 그룹 운영자는 자료 공개 범위가 자기 접근 그룹과 교차하는 자료만 본다.
+- 그룹 운영자는 자기 접근 그룹과 수업 연결 그룹이 교차하는 수업의 자료를 본다.
 - 담당 강사는 담당 수업 자료를 본다.
 
 ### 11.2 자료 업로드 준비
@@ -1056,7 +1056,6 @@ type PrepareMaterialUploadInput = {
   mimeType: string;
   sizeBytes: number;
   visibilityScope: MaterialVisibilityScope;
-  visibleGroupIds?: UUID[];
 };
 
 type PrepareMaterialUploadOutput = {
@@ -1076,13 +1075,12 @@ Route Handler 후보: `POST /api/materials/upload-url`
 - 파일당 최대 크기는 50MB다.
 - 허용 확장자는 `pdf`, `doc`, `docx`, `ppt`, `pptx`, `xls`, `xlsx`, `jpg`, `jpeg`, `png`, `txt`, `zip`이다.
 - 실행 파일과 스크립트 파일은 거부한다.
-- `visibilityScope = selected_groups`이면 `visibleGroupIds`가 1개 이상이어야 한다.
-- 공개 그룹은 해당 수업 연결 그룹이어야 한다.
+- `visibilityScope = public`이면 비로그인 사용자도 공개 수업 상세에서 자료를 볼 수 있고 다운로드할 수 있다.
+- `visibilityScope = admin_only`이면 권한 있는 워크스페이스 멤버만 자료에 접근할 수 있다.
 
 처리:
 
 - `materials`를 `upload_status = uploading`, `review_status = pending`으로 먼저 만든다.
-- `visibilityScope = selected_groups`이면 signed upload URL을 반환하기 전에 `material_groups`를 함께 저장한다.
 - storage path 형식은 `workspaces/{workspace_id}/courses/{course_id}/materials/{material_id}/{file_id}-{safe_filename}`이다.
 
 ### 11.3 자료 업로드 완료 확정
@@ -1118,7 +1116,6 @@ type UpdateMaterialInput = {
   title?: string;
   description?: string | null;
   visibilityScope?: MaterialVisibilityScope;
-  visibleGroupIds?: UUID[];
 };
 
 type UpdateMaterialOutput = {
@@ -1131,12 +1128,12 @@ type UpdateMaterialOutput = {
 처리:
 
 - 제목, 설명, 파일, 공개 범위가 바뀌면 `review_status = pending`으로 되돌린다.
-- `visibilityScope` 변경뿐 아니라 `visibleGroupIds` 추가, 제거, 교체도 공개 범위 변경으로 본다.
+- `visibilityScope` 변경은 공개 범위 변경으로 본다.
 
 권한:
 
 - 대표 운영자, 수업 전체 수정 가능한 그룹 운영자, 업로더가 수정 가능하다.
-- 그룹 운영자는 자기 접근 그룹이 공개 범위에 포함된 자료만 수정할 수 있다.
+- 그룹 운영자는 자기 접근 그룹과 수업 연결 그룹이 교차하는 수업의 자료만 수정할 수 있다.
 - 담당 강사는 담당 수업에서 자신이 업로드한 자료를 수정할 수 있다.
 
 ### 11.5 자료 파일 교체

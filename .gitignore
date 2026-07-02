@@ -1,6 +1,13 @@
 # Vercel local state
 .vercel
 
+# Local agent/tool state
+.claude/
+.codex/
+.playwright-mcp/
+.superpowers/
+.mcp.json
+
 # Environment files (never commit secrets)
 .env*
 !.env.example
@@ -23,6 +30,8 @@ next-env.d.ts
 
 # misc
 .DS_Store
+*.tmp
+.tmp-*
 *.pem
 
 # Logs
@@ -35,5 +44,6 @@ pnpm-debug.log*
 .idea
 .vscode
 
-# Local brainstorming artifacts
-.superpowers/
+# Supabase local state
+supabase/.branches/
+supabase/.temp/

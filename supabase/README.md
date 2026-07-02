@@ -2,7 +2,7 @@
 
 This directory contains the reproducible Supabase database baseline for the DURE MVP.
 
-For developer environment variables, local Supabase usage, and Vercel preview setup, see `docs/environment.md`.
+For developer environment variables and local Supabase usage, see `../docs/setup.md`.
 
 ## Current project
 
@@ -13,7 +13,7 @@ For developer environment variables, local Supabase usage, and Vercel preview se
 
 ## What is included
 
-- Core enums from `architecture.md`
+- Core enums from `../docs/architecture.md`
 - Workspace, member, group, participant, course, session, material, schedule, attendance, memo, invite, and activity tables
 - Tenant-scoped foreign keys and indexes
 - RLS helper functions:

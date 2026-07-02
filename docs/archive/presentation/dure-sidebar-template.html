@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DURE 발표 템플릿</title>
+    <style>
+      :root {
+        --background: #eef3f8;
+        --foreground: #0f172a;
+        --muted-foreground: #64748b;
+        --border: #e2e8f0;
+        --card: #ffffff;
+        --primary: #2563eb;
+        --primary-soft: #eff6ff;
+        --shadow: rgba(15, 23, 42, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: #d8e1eb;
+        color: var(--foreground);
+        font-family:
+          Pretendard,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      .deck {
+        display: grid;
+        gap: 40px;
+        padding: 40px;
+      }
+
+      .slide {
+        width: min(100%, 1600px);
+        aspect-ratio: 16 / 9;
+        margin: 0 auto;
+        overflow: hidden;
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        background: var(--background);
+        border: 1px solid rgba(15, 23, 42, 0.14);
+        border-radius: 0 0 16px 16px;
+        box-shadow: 0 26px 70px var(--shadow);
+      }
+
+      .toc {
+        display: flex;
+        flex-direction: column;
+        background: var(--card);
+        border-right: 1px solid var(--border);
+      }
+
+      .toc-brand {
+        min-height: 102px;
+        padding: 28px 22px 24px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .toc-label {
+        margin: 0 0 8px;
+        color: var(--muted-foreground);
+        font-size: 15px;
+        font-weight: 600;
+      }
+
+      .toc-title {
+        margin: 0;
+        font-size: 23px;
+        font-weight: 800;
+        letter-spacing: 0;
+      }
+
+      .toc-list {
+        flex: 1;
+        padding: 26px 18px;
+      }
+
+      /*
+        목차 항목은 나중에 아래 구조를 복사해서 채우면 됩니다.
+
+        <div class="toc-item is-active">
+          <span class="toc-number">01</span>
+          <span>섹션 제목</span>
+        </div>
+      */
+
+      .toc-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 44px;
+        margin-bottom: 8px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        color: var(--foreground);
+        font-size: 16px;
+        font-weight: 700;
+      }
+
+      .toc-item.is-active {
+        background: var(--primary);
+        color: #ffffff;
+      }
+
+      .toc-number {
+        min-width: 24px;
+        color: inherit;
+        font-size: 13px;
+        font-weight: 900;
+        opacity: 0.72;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-rows: 70px 1fr;
+        min-width: 0;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 18px;
+        padding: 0 36px;
+        background: var(--card);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .bell {
+        width: 24px;
+        height: 24px;
+        color: var(--foreground);
+      }
+
+      .profile {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .avatar {
+        display: grid;
+        width: 40px;
+        height: 40px;
+        place-items: center;
+        border-radius: 999px;
+        background: var(--primary);
+        color: #ffffff;
+        font-size: 17px;
+        font-weight: 800;
+      }
+
+      .profile-name {
+        margin: 0;
+        font-size: 17px;
+        font-weight: 800;
+        line-height: 1.25;
+      }
+
+      .profile-role {
+        margin: 2px 0 0;
+        color: var(--muted-foreground);
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .content {
+        display: flex;
+        align-items: flex-start;
+        padding: 86px 86px 76px;
+      }
+
+      .text-block {
+        max-width: 920px;
+      }
+
+      .eyebrow {
+        margin: 0 0 22px;
+        color: var(--primary);
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: 0;
+      }
+
+      h1 {
+        margin: 0;
+        color: var(--foreground);
+        font-size: 62px;
+        font-weight: 900;
+        letter-spacing: 0;
+        line-height: 1.12;
+      }
+
+      .body {
+        margin: 34px 0 0;
+        color: var(--muted-foreground);
+        font-size: 30px;
+        font-weight: 650;
+        line-height: 1.55;
+        word-break: keep-all;
+      }
+
+      .body p {
+        margin: 0 0 18px;
+      }
+
+      .body p:last-child {
+        margin-bottom: 0;
+      }
+
+      .page-number {
+        position: absolute;
+        right: 42px;
+        bottom: 30px;
+        color: rgba(100, 116, 139, 0.72);
+        font-size: 16px;
+        font-weight: 800;
+      }
+
+      @media print {
+        body {
+          background: white;
+        }
+
+        .deck {
+          display: block;
+          padding: 0;
+        }
+
+        .slide {
+          width: 100vw;
+          height: 100vh;
+          margin: 0;
+          border: 0;
+          border-radius: 0;
+          box-shadow: none;
+          page-break-after: always;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="deck">
+      <section class="slide">
+        <aside class="toc" aria-label="발표 목차">
+          <div class="toc-brand">
+            <p class="toc-label">워크스페이스</p>
+            <p class="toc-title">다로리인</p>
+          </div>
+          <nav class="toc-list" aria-label="목차">
+            <!-- 목차는 비워둔 상태입니다. 발표 순서가 정해지면 .toc-item을 추가하세요. -->
+          </nav>
+        </aside>
+
+        <div class="workspace">
+          <header class="topbar">
+            <svg
+              class="bell"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M10.27 21a2 2 0 0 0 3.46 0" />
+              <path
+                d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"
+              />
+            </svg>
+            <div class="profile">
+              <div class="avatar">운</div>
+              <div>
+                <p class="profile-name">운영자</p>
+                <p class="profile-role">대표 운영자</p>
+              </div>
+            </div>
+          </header>
+
+          <section class="content">
+            <div class="text-block">
+              <p class="eyebrow">SECTION LABEL</p>
+              <h1>발표 제목을 입력하세요</h1>
+              <div class="body">
+                <p>
+                  여기에 발표 내용을 입력하세요. 한 문단 기준으로 2~3줄 정도가 가장
+                  안정적으로 보이도록 크기를 맞췄습니다.
+                </p>
+                <p>
+                  내용이 길어질 경우 문단을 나누면 발표 화면에서 읽기 쉽습니다.
+                </p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

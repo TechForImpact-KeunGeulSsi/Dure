@@ -1,6 +1,6 @@
 # DURE Context
 
-이 문서는 DURE에서 사용하는 용어의 의미를 고정하기 위한 기준 문서다. 제품 요구사항, 화면별 기능, 수락 기준은 `prd.md`를 따르고, 기술 구조와 API 계약은 `architecture.md`, `docs/api-spec.md`를 따른다. 대화와 구현 문서에서 아래 용어를 일관되게 사용한다.
+이 문서는 DURE에서 사용하는 용어의 의미를 고정하기 위한 기준 문서다. 화면별 기능과 데이터 계약은 `api-spec.md`를 따르고, 기술 구조는 `architecture.md`를 따른다. 과거 PRD는 `archive/phase-history/prd.md`에 보관한다. 대화와 구현 문서에서 아래 용어를 일관되게 사용한다.
 
 ## 용어 원칙
 

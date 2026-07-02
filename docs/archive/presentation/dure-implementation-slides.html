@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DURE 구현 발표 슬라이드</title>
+    <style>
+      :root {
+        --ink: #15201b;
+        --muted: #65736d;
+        --line: #d9e2dc;
+        --paper: #f8faf7;
+        --panel: #ffffff;
+        --accent: #1f8a63;
+        --accent-2: #f2b84b;
+        --dark: #0f1915;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: #dfe7e1;
+        color: var(--ink);
+        font-family:
+          Pretendard,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      .deck {
+        display: grid;
+        gap: 40px;
+        padding: 40px;
+      }
+
+      .slide {
+        position: relative;
+        width: min(100%, 1280px);
+        aspect-ratio: 16 / 9;
+        margin: 0 auto;
+        overflow: hidden;
+        background: var(--paper);
+        border: 1px solid rgba(15, 25, 21, 0.12);
+        box-shadow: 0 24px 60px rgba(15, 25, 21, 0.16);
+      }
+
+      .slide::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background:
+          linear-gradient(90deg, rgba(31, 138, 99, 0.08), transparent 42%),
+          radial-gradient(circle at 88% 12%, rgba(242, 184, 75, 0.22), transparent 24%);
+      }
+
+      .slide-inner {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: 0.9fr 1.1fr;
+        grid-template-rows: 1fr auto;
+        gap: 26px 40px;
+        height: 100%;
+        padding: 58px 64px 42px;
+      }
+
+      .slide-title {
+        align-self: center;
+      }
+
+      .eyebrow {
+        margin: 0 0 18px;
+        color: var(--accent);
+        font-size: 17px;
+        font-weight: 800;
+      }
+
+      h1,
+      h2 {
+        margin: 0;
+        letter-spacing: 0;
+        line-height: 1.08;
+      }
+
+      h1 {
+        max-width: 680px;
+        font-size: 76px;
+      }
+
+      h2 {
+        max-width: 520px;
+        font-size: 54px;
+      }
+
+      .summary {
+        max-width: 500px;
+        margin: 26px 0 0;
+        color: var(--muted);
+        font-size: 22px;
+        line-height: 1.55;
+      }
+
+      .media-slot {
+        align-self: center;
+        display: grid;
+        place-items: center;
+        min-height: 420px;
+        border: 2px dashed rgba(31, 138, 99, 0.44);
+        background:
+          linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.46)),
+          repeating-linear-gradient(
+            45deg,
+            rgba(31, 138, 99, 0.08) 0,
+            rgba(31, 138, 99, 0.08) 12px,
+            transparent 12px,
+            transparent 24px
+          );
+        border-radius: 22px;
+      }
+
+      .media-slot span {
+        display: block;
+        max-width: 360px;
+        color: rgba(21, 32, 27, 0.62);
+        font-size: 24px;
+        font-weight: 800;
+        line-height: 1.35;
+        text-align: center;
+      }
+
+      .script {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: 160px 1fr;
+        gap: 22px;
+        padding-top: 24px;
+        border-top: 1px solid var(--line);
+      }
+
+      .script-label {
+        color: var(--accent);
+        font-size: 16px;
+        font-weight: 900;
+      }
+
+      .script p {
+        margin: 0;
+        color: #35423d;
+        font-size: 18px;
+        line-height: 1.58;
+      }
+
+      .cover {
+        background: var(--dark);
+        color: #f7faf5;
+      }
+
+      .cover::before {
+        background:
+          linear-gradient(110deg, rgba(31, 138, 99, 0.46), transparent 52%),
+          radial-gradient(circle at 80% 18%, rgba(242, 184, 75, 0.36), transparent 24%);
+      }
+
+      .cover .slide-inner {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr auto;
+      }
+
+      .cover .slide-title {
+        align-self: end;
+      }
+
+      .cover h1 {
+        max-width: 850px;
+        font-size: 88px;
+      }
+
+      .cover .summary {
+        max-width: 780px;
+        color: rgba(247, 250, 245, 0.76);
+      }
+
+      .cover .script {
+        border-top-color: rgba(247, 250, 245, 0.2);
+      }
+
+      .cover .script p {
+        color: rgba(247, 250, 245, 0.82);
+      }
+
+      .page-num {
+        position: absolute;
+        right: 36px;
+        bottom: 26px;
+        z-index: 2;
+        color: rgba(21, 32, 27, 0.45);
+        font-size: 15px;
+        font-weight: 800;
+      }
+
+      .cover .page-num {
+        color: rgba(247, 250, 245, 0.5);
+      }
+
+      @media print {
+        body {
+          background: white;
+        }
+
+        .deck {
+          display: block;
+          padding: 0;
+        }
+
+        .slide {
+          width: 100vw;
+          height: 100vh;
+          margin: 0;
+          border: 0;
+          box-shadow: none;
+          page-break-after: always;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="deck">
+      <section class="slide cover">
+        <div class="slide-inner">
+          <div class="slide-title">
+            <p class="eyebrow">DURE 구현 발표</p>
+            <h1>발산하던 운영을 두레 속 수렴</h1>
+            <p class="summary">
+              운영자, 강사, 사용자의 핵심 흐름을 하나의 웹 서비스로 연결했습니다.
+            </p>
+          </div>
+          <div class="script">
+            <div class="script-label">대본</div>
+            <p>
+              저희 DURE는 마을 기반 수업 운영에서 발생하는 여러 업무를 하나의
+              흐름으로 모으기 위해 만든 웹 서비스입니다. 기존에는 수업 개설, 강사
+              관리, 자료 공유, 출석 기록, 수업 메모, 참여자 의견 수집 같은 업무가
+              각각 다른 도구나 메시지로 흩어져 관리되는 경우가 많았습니다. 저희는
+              이처럼 발산하던 운영 업무를 DURE 안으로 수렴시키는 것을 목표로
+              했습니다. 그래서 이번 구현에서는 운영자, 강사, 사용자 각각의 역할에
+              맞는 핵심 기능을 실제 웹 환경에서 동작하도록 만들었습니다.
+            </p>
+          </div>
+        </div>
+        <div class="page-num">01 / 06</div>
+      </section>
+
+      <section class="slide">
+        <div class="slide-inner">
+          <div class="slide-title">
+            <p class="eyebrow">운영자 사이드</p>
+            <h2>자신만의 운영 공간 만들기</h2>
+            <p class="summary">
+              워크스페이스는 마을이나 기관이 수업을 운영하는 기본 단위입니다.
+            </p>
+          </div>
+          <div class="media-slot">
+            <span>움짤 삽입 영역<br />워크스페이스 개설</span>
+          </div>
+          <div class="script">
+            <div class="script-label">대본</div>
+            <p>
+              먼저 운영자 사이드입니다. 운영자는 DURE에서 자신만의 운영 공간, 즉
+              워크스페이스를 만들 수 있습니다. 워크스페이스는 하나의 마을이나
+              기관이 수업을 운영하는 기본 단위입니다. 운영자는 이름과 기본 정보를
+              입력해 운영 공간을 개설하고, 이후 이 공간 안에서 수업과 구성원을
+              관리하게 됩니다. 이 기능을 통해 DURE는 단순한 수업 목록 서비스가
+              아니라, 각 운영 주체가 독립적으로 사용할 수 있는 운영 플랫폼 구조를
+              갖게 됩니다.
+            </p>
+          </div>
+        </div>
+        <div class="page-num">02 / 06</div>
+      </section>
+
+      <section class="slide">
+        <div class="slide-inner">
+          <div class="slide-title">
+            <p class="eyebrow">운영자 사이드</p>
+            <h2>원터치 수업 개설</h2>
+            <p class="summary">
+              운영자가 수업을 개설하는 순간 하나의 수업 운영 흐름이 시작됩니다.
+            </p>
+          </div>
+          <div class="media-slot">
+            <span>움짤 삽입 영역<br />수업 개설</span>
+          </div>
+          <div class="script">
+            <div class="script-label">대본</div>
+            <p>
+              워크스페이스를 만든 뒤에는 운영자가 수업을 개설할 수 있습니다.
+              수업명, 설명, 기간, 정원, 강사, 공개 여부 같은 수업 정보를 입력하면,
+              해당 워크스페이스 안에 수업이 생성됩니다. 여기서 중요한 점은 수업이
+              단순히 화면에만 추가되는 것이 아니라, 이후 강사의 수업 관리, 자료
+              업로드, 출석 기록, 사용자 탐색 흐름과 연결된다는 점입니다. 즉,
+              운영자가 수업을 개설하는 순간 DURE 안에서 하나의 수업 운영 흐름이
+              시작됩니다.
+            </p>
+          </div>
+        </div>
+        <div class="page-num">03 / 06</div>
+      </section>
+
+      <section class="slide">
+        <div class="slide-inner">
+          <div class="slide-title">
+            <p class="eyebrow">강사 사이드</p>
+            <h2>수업 운영 기록 남기기</h2>
+            <p class="summary">
+              출석 상태와 수업 메모를 수업 단위의 운영 이력으로 정리합니다.
+            </p>
+          </div>
+          <div class="media-slot">
+            <span>움짤 삽입 영역<br />출석과 수업 메모</span>
+          </div>
+          <div class="script">
+            <div class="script-label">대본</div>
+            <p>
+              다음은 강사 사이드입니다. 강사는 자신에게 배정된 수업에 들어가
+              출석을 기록할 수 있습니다. 수강생별로 출석, 지각, 결석 상태를
+              저장하고, 수업별 출석 이력을 관리할 수 있도록 구현했습니다. 또한
+              수업 메모 기능을 통해 그날의 진행 내용이나 특이사항을 남길 수
+              있습니다. 이 기능들은 강사가 수업을 진행하면서 매번 따로 기록해야
+              했던 운영 정보를 DURE 안에 남기도록 만든 부분입니다. 수업이 끝난
+              뒤에도 출석과 메모가 수업 단위로 정리되어 확인될 수 있습니다.
+            </p>
+          </div>
+        </div>
+        <div class="page-num">04 / 06</div>
+      </section>
+
+      <section class="slide">
+        <div class="slide-inner">
+          <div class="slide-title">
+            <p class="eyebrow">강사 사이드</p>
+            <h2>수업 자료를 한 곳에서 관리</h2>
+            <p class="summary">
+              강사가 수업 자료를 업로드하고 수업 페이지에서 확인할 수 있습니다.
+            </p>
+          </div>
+          <div class="media-slot">
+            <span>움짤 삽입 영역<br />자료 업로드</span>
+          </div>
+          <div class="script">
+            <div class="script-label">대본</div>
+            <p>
+              강사는 수업 자료도 직접 업로드할 수 있습니다. 자료 업로드 기능은
+              파일을 선택해 수업에 연결하고, 업로드된 자료를 수업 페이지에서
+              확인할 수 있도록 구현했습니다. 초기에는 외부 스토리지 업로드 흐름을
+              분리해 설계했지만, 실제 SSR 환경에서 안정적인 업로드를 위해 서버
+              액션 기반의 직접 업로드 방식으로 정리했습니다. 이를 통해 강사는
+              수업별 자료를 DURE 안에서 관리할 수 있고, 운영자는 자료 공유가 개별
+              메신저나 외부 링크로 흩어지는 문제를 줄일 수 있습니다.
+            </p>
+          </div>
+        </div>
+        <div class="page-num">05 / 06</div>
+      </section>
+
+      <section class="slide">
+        <div class="slide-inner">
+          <div class="slide-title">
+            <p class="eyebrow">우리 모드</p>
+            <h2>마을을 살펴보고 의견을 제안하기</h2>
+            <p class="summary">
+              사용자가 여러 마을과 공개 수업을 탐색하고 참여 접점을 만들 수 있습니다.
+            </p>
+          </div>
+          <div class="media-slot">
+            <span>움짤 삽입 영역<br />마을 탐색과 의견 제출</span>
+          </div>
+          <div class="script">
+            <div class="script-label">대본</div>
+            <p>
+              마지막은 사용자, 즉 우리 모드입니다. 사용자는 여러 마을을 탐색하고,
+              공개된 수업 정보를 확인할 수 있습니다. 관심 있는 수업이나 마을이
+              있다면 의견을 제출하거나 참여 의사를 남길 수 있도록 구현했습니다. 이
+              흐름은 DURE가 운영자와 강사만을 위한 내부 관리 도구에 머무르지 않고,
+              실제 참여자와 연결되는 접점을 갖도록 만든 부분입니다. 결과적으로
+              DURE는 운영자가 수업을 만들고, 강사가 수업을 운영하고, 사용자가
+              마을과 수업을 발견해 의견을 남기는 하나의 연결된 웹 서비스로
+              구현되었습니다.
+            </p>
+          </div>
+        </div>
+        <div class="page-num">06 / 06</div>
+      </section>
+    </main>
+  </body>
+</html>

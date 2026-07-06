@@ -4,6 +4,8 @@
 # Local agent/tool state
 .claude/
 .codex/
+.hermes/
+agent-workbench/
 .playwright-mcp/
 .superpowers/
 .mcp.json

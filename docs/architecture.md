@@ -132,6 +132,8 @@ src/
   services/
     access.ts
     activity.ts
+    admin-copilot.ts
+    admin-copilot-logic.ts
     auth.ts
     calendar.ts
     class-memos.ts
@@ -297,6 +299,7 @@ Supabase RLS는 업무 테이블에 활성화되어 있다. 단, 현재 구현�
 - 공개 카탈로그 projection과 공개 여부 변경
 - 일반 일정 생성/수정/삭제
 - 정산 요청/영수증 파일 처리 중 RLS 충돌이 있는 서버 작업
+- Admin Copilot의 owner_admin 전용 읽기 집계. 자료, 출석, 피드백처럼 SSR/RLS 충돌 가능성이 있는 여러 테이블을 한 번에 조회하므로, 활성 멤버십과 `owner_admin` 역할을 먼저 확인한 뒤 admin client를 사용한다.
 
 이 패턴의 전제는 항상 같다.
 

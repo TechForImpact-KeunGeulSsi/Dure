@@ -83,5 +83,6 @@ npm run build
 - 워크스페이스 참여 요청
 - 헤더 최근 활동
 - 공개 수업 카탈로그와 공개 preview
+- 대표 운영자용 읽기 전용 Admin Copilot 운영 브리핑
 
 새 기능을 추가할 때는 `docs/context.md`, `docs/architecture.md`, `docs/api-spec.md`를 먼저 확인하고, 페이지에서는 `services/` 계층을 통해 데이터에 접근합니다.

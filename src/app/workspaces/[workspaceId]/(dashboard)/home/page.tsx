@@ -1,6 +1,7 @@
 import { EmptyState } from '@/components/courses/empty-state';
 import { requireUser } from '@/lib/auth/require-user';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { getAdminCopilotBriefing } from '@/services/admin-copilot';
 import { getCoursesPage } from '@/services/courses';
 import type { DashboardCourseItem } from '@/types/course';
 
@@ -34,7 +35,12 @@ export default async function DashboardHomePage({ params }: Props) {
     role === 'instructor' ? 'instructor' : 'manager';
   const canCreateCourse = role === 'owner_admin' || role === 'group_admin';
 
-  const result = await getCoursesPage({ workspaceId, pageSize: 100 });
+  const [result, copilotResult] = await Promise.all([
+    getCoursesPage({ workspaceId, pageSize: 100 }),
+    role === 'owner_admin'
+      ? getAdminCopilotBriefing({ workspaceId })
+      : Promise.resolve(null),
+  ]);
   if (!result.ok) {
     return <EmptyState message={result.error.message} />;
   }
@@ -61,6 +67,8 @@ export default async function DashboardHomePage({ params }: Props) {
       courses={courses}
       viewType={viewType}
       canCreateCourse={canCreateCourse}
+      copilotBriefing={copilotResult?.ok ? copilotResult.data : null}
+      copilotError={copilotResult && !copilotResult.ok ? copilotResult.error.message : undefined}
     />
   );
 }

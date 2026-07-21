@@ -1633,7 +1633,45 @@ type UpdateCoursePublicVisibilityOutput = {
 - group_admin은 해당 수업의 모든 연결 그룹이 자기 접근 그룹 안에 있을 때만 변경할 수 있다.
 - instructor는 변경할 수 없다.
 
-## 19. 페이지별 담당자 체크리스트
+## 19. Admin Copilot 운영 브리핑
+
+Query: `getAdminCopilotBriefing`
+
+```ts
+type GetAdminCopilotBriefingInput = {
+  workspaceId: UUID;
+  referenceDate?: string;
+};
+
+type AdminCopilotBriefing = {
+  window: {
+    timezone: string;
+    recentFrom: ISODate;
+    today: ISODate;
+    upcomingUntil: ISODate;
+  };
+  summary: {
+    upcomingSessionCount: number;
+    recentSessionCount: number;
+    pendingMaterialCount: number;
+    attendanceRiskParticipantCount: number;
+    newFeedbackCount: number;
+    completionCandidateCount: number;
+  };
+  tasks: AdminCopilotTask[];
+};
+```
+
+권한과 동작:
+
+- 현재 사용자가 활성 `owner_admin` 멤버일 때만 조회할 수 있다.
+- group_admin과 instructor는 `ROLE_FORBIDDEN`을 반환한다.
+- 최근 7일과 오늘부터 앞으로 7일을 워크스페이스 시간대로 계산한다.
+- 확인 미정 자료, 최근 3회 중 2회 이상 결석한 활성 참여자, 새 피드백, 종료 상태 확인이 필요한 수업을 반환한다.
+- 각 task는 판단 근거 entity와 사용자가 직접 처리할 관련 화면 경로를 포함한다.
+- v1은 읽기 전용이며 데이터 변경이나 LLM 호출을 수행하지 않는다.
+
+## 20. 페이지별 담당자 체크리스트
 
 각 페이지 담당자는 구현 전에 아래 항목을 확인한다.
 
@@ -1648,7 +1686,7 @@ type UpdateCoursePublicVisibilityOutput = {
 - 자료 업로드는 준비, 브라우저 업로드, 완료 확정의 3단계 흐름을 따르는가.
 - 삭제는 기록 보존 정책을 따르며 기존 snapshot 필드를 훼손하지 않는가.
 
-## 20. 구현 우선순위
+## 21. 구현 우선순위
 
 페이지별 병렬 개발을 위해 다음 순서로 공통 계약을 먼저 구현한다.
 

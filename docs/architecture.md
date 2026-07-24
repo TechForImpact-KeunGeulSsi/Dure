@@ -1,6 +1,6 @@
 # DURE Architecture
 
-이 문서는 현재 코드와 migration을 기준으로 DURE의 기술 구조를 설명한다. 용어 기준은 `context.md`, 페이지별 query/action 계약은 `api-spec.md`를 따른다. 과거 PRD와 단계별 설계 산출물은 `archive/`에 보관한다.
+이 문서는 현재 코드와 migration을 기준으로 DURE의 기술 구조를 설명한다. 용어 기준은 `context.md`, 페이지별 query/action 계약은 `api-spec.md`를 따른다.
 
 ## 1. 설계 원칙
 

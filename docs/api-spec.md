@@ -4,7 +4,7 @@
 
 구현자는 Next.js Server Action, Route Handler, Supabase RPC 중 적합한 방식을 선택할 수 있다. 단, 함수명, 입력 타입, 출력 타입, enum, 오류 코드는 이 문서를 기준으로 맞춘다.
 
-이 문서는 페이지와 서버 계층 사이의 계약을 다룬다. 용어 기준은 `context.md`, 시스템 구조와 DB/RLS 설계는 `architecture.md`에서 관리한다. 과거 PRD는 `archive/phase-history/prd.md`에 보관한다.
+이 문서는 페이지와 서버 계층 사이의 계약을 다룬다. 용어 기준은 `context.md`, 시스템 구조와 DB/RLS 설계는 `architecture.md`에서 관리한다.
 
 ## 0. Goal
 

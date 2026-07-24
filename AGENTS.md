@@ -5,13 +5,16 @@
 ## 우선순위 문서
 
 1. `AGENTS.md`
-2. `docs/context.md`
-3. `docs/architecture.md`
-4. `docs/api-spec.md`
-5. `README.md`
-6. `supabase/README.md`
+2. `docs/STATUS.md`
+3. `docs/context.md`
+4. `docs/architecture.md`
+5. `docs/api-spec.md`
+6. `README.md`
+7. `supabase/README.md`
 
-과거 PRD, 발표 자료, brainstorm/spec 산출물은 `docs/archive/`에만 보관합니다. 현재 구현 판단의 근거로 사용할 때는 최신 문서와 코드가 우선입니다.
+작업을 시작할 때는 `docs/STATUS.md`의 현재 상태, blocker, 다음 작업을 먼저 확인합니다. 상태가 바뀌면 같은 파일을 갱신하고, 개인 Vault에는 작업 상태를 복제하지 않습니다.
+
+이 브랜치에서는 과거 PRD, 발표 자료, brainstorm/spec 산출물을 작업 컨텍스트에 포함하지 않습니다. 필요한 과거 자료는 `main` 브랜치 또는 Git 이력에서 확인하고, 현재 구현 판단에는 최신 문서와 코드를 사용합니다.
 
 ## 작업 원칙
 
@@ -53,7 +56,7 @@ admin client 우회는 RLS의 `current_member_id(workspace_id)` 비교가 SSR �
 - 현재 개발과 운영에 필요한 문서
 - 실제 앱에서 참조하는 정적 자산
 
-다음은 삭제하거나 `docs/archive/`로 이동합니다.
+다음은 현재 브랜치에 두지 않습니다. 필요한 경우 `main` 브랜치 또는 Git 이력에서 확인합니다.
 
 - `.DS_Store`, `.tmp-*`, 로컬 screenshot
 - `.claude/`, `.codex/`, `.playwright-mcp/`, `.superpowers/`, `.vercel/`

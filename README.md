@@ -2,7 +2,7 @@
 
 DURE는 여러 운영 단위의 수업, 참여자, 강사, 일정, 자료, 출석 기록을 한 워크스페이스 안에서 관리하는 웹 서비스입니다.
 
-이 레포는 제품 개발의 기준이 되는 마스터 레포입니다. 실행 가능한 앱 코드, Supabase migration, 현재 기준 문서만 루트와 `docs/`에 두고, 발표 자료와 과거 단계 산출물은 `docs/archive/`에 보관합니다.
+이 브랜치는 대표 운영자용 Admin Copilot을 개발하는 작업 브랜치입니다. 실행 가능한 앱 코드, Supabase migration, 현재 구현 판단에 필요한 문서만 포함합니다. 발표 자료와 과거 단계 산출물은 `main` 브랜치 또는 Git 이력에서 확인합니다.
 
 ## 핵심 문서
 
@@ -12,14 +12,6 @@ DURE는 여러 운영 단위의 수업, 참여자, 강사, 일정, 자료, 출�
 - [페이지별 query/action 계약](docs/api-spec.md)
 - [로컬 셋업](docs/setup.md)
 - [Supabase 기준](supabase/README.md)
-
-보관용 자료:
-
-- `docs/archive/phase-history/` — 과거 PRD, 환경 문서, 단계별 설계 문서
-- `docs/archive/presentation/` — 발표 HTML과 시연 자산
-- `docs/archive/superpowers/` — 과거 brainstorm/spec/mockup 산출물
-- `docs/archive/user-testing/` — 특정 테스트 배포와 Google Form 운영 가이드
-- `docs/archive/reference-data/` — 유저 테스트나 기초 데이터 추출 자료
 
 ## 기술 스택
 
@@ -41,11 +33,14 @@ supabase/
   migrations/         # DB schema and policy history
   config.toml         # Local Supabase config
 docs/
+  STATUS.md
+  admin-copilot-prd.md
+  admin-copilot-implementation-plan.md
+  ontology.md
   context.md
   architecture.md
   api-spec.md
   setup.md
-  archive/
 ```
 
 ## 로컬 실행

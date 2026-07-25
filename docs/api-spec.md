@@ -37,14 +37,14 @@ type Query<TInput, TOutput> = (input: TInput) => Promise<ApiResult<TOutput>>;
 type Action<TInput, TOutput> = (input: TInput) => Promise<ApiResult<TOutput>>;
 ```
 
-파일 업로드/다운로드처럼 브라우저가 직접 HTTP URL을 필요로 하는 기능은 Route Handler로 구현한다.
+파일 다운로드처럼 브라우저가 HTTP URL을 필요로 하는 기능은 Route Handler로 구현할 수 있다. 자료 업로드와 파일 교체는 server action이 `FormData`를 받아 admin storage client로 처리한다.
 
 | 기능 | 구현 방식 |
 | --- | --- |
 | 목록/상세 조회 | Server query 또는 server component data loader |
 | 생성/수정/삭제/상태 변경 | Server Action 또는 Supabase RPC |
 | 복수 테이블 트랜잭션 | Supabase RPC 또는 서버 서비스 함수 |
-| 자료 업로드 URL 발급 | Route Handler |
+| 자료 업로드/파일 교체 | Server Action + `FormData` + admin `storage.upload()` |
 | 자료 다운로드 URL 발급 | Route Handler |
 | 초대 링크 수락 | Route Handler 또는 Server Action |
 | cron | Route Handler |
@@ -1044,31 +1044,26 @@ type GetCourseMaterialsOutput = {
 - 그룹 운영자는 자기 접근 그룹과 수업 연결 그룹이 교차하는 수업의 자료를 본다.
 - 담당 강사는 담당 수업 자료를 본다.
 
-### 11.2 자료 업로드 준비
+### 11.2 자료 업로드
 
 ```ts
-type PrepareMaterialUploadInput = {
-  workspaceId: UUID;
-  courseId: UUID;
-  title: string;
-  description?: string | null;
-  originalFilename: string;
-  mimeType: string;
-  sizeBytes: number;
-  visibilityScope: MaterialVisibilityScope;
-};
-
-type PrepareMaterialUploadOutput = {
-  materialId: UUID;
-  storagePath: string;
-  signedUploadUrl: string;
-  expiresAt: ISODateTime;
-};
+type UploadMaterial = (
+  workspaceId: UUID,
+  courseId: UUID,
+  formData: FormData,
+) => Promise<ApiResult<{ material: MaterialListItem }>>;
 ```
 
-계약명: `prepareMaterialUpload`
+계약명: `uploadMaterial`
 
-Route Handler 후보: `POST /api/materials/upload-url`
+`FormData` 필드:
+
+- `file`: 업로드할 `File`.
+- `title`: 자료 제목.
+- `description`: 선택 설명.
+- `visibilityScope`: `public | admin_only`.
+
+`POST /api/materials/upload-url`은 사용 중단된 410 route이며 새 업로드 흐름에서 사용하지 않는다.
 
 검증:
 
@@ -1080,34 +1075,13 @@ Route Handler 후보: `POST /api/materials/upload-url`
 
 처리:
 
-- `materials`를 `upload_status = uploading`, `review_status = pending`으로 먼저 만든다.
-- storage path 형식은 `workspaces/{workspace_id}/courses/{course_id}/materials/{material_id}/{file_id}-{safe_filename}`이다.
+- 서버에서 파일과 메타데이터를 검증한다.
+- admin client로 `materials` row를 `upload_status = uploading`, `review_status = pending`으로 만든다.
+- storage path는 `workspaces/{workspace_id}/courses/{course_id}/materials/{material_id}/{file_id}-{safe_filename}` 형식을 사용한다.
+- admin storage client가 파일을 직접 업로드한 뒤 `upload_status = uploaded`로 변경한다.
+- 실패 시 가능한 범위에서 row와 storage object를 best-effort rollback한다.
 
-### 11.3 자료 업로드 완료 확정
-
-```ts
-type CompleteMaterialUploadInput = {
-  workspaceId: UUID;
-  materialId: UUID;
-};
-
-type CompleteMaterialUploadOutput = {
-  material: MaterialListItem;
-};
-```
-
-계약명: `completeMaterialUpload`
-
-권한:
-
-- 자료를 수정할 수 있는 사용자만 호출할 수 있다.
-- `materialId`가 가리키는 자료의 `storagePath`에 실제 파일이 존재해야 한다.
-
-처리:
-
-- 실제 업로드 여부를 Storage에서 확인한 뒤 `upload_status = uploaded`로 변경한다.
-
-### 11.4 자료 메타데이터 수정
+### 11.3 자료 메타데이터 수정
 
 ```ts
 type UpdateMaterialInput = {
@@ -1136,32 +1110,26 @@ type UpdateMaterialOutput = {
 - 그룹 운영자는 자기 접근 그룹과 수업 연결 그룹이 교차하는 수업의 자료만 수정할 수 있다.
 - 담당 강사는 담당 수업에서 자신이 업로드한 자료를 수정할 수 있다.
 
-### 11.5 자료 파일 교체
+### 11.4 자료 파일 교체
 
 ```ts
-type ReplaceMaterialFileInput = {
-  workspaceId: UUID;
-  materialId: UUID;
-  originalFilename: string;
-  mimeType: string;
-  sizeBytes: number;
-};
-
-type ReplaceMaterialFileOutput = {
-  storagePath: string;
-  signedUploadUrl: string;
-  expiresAt: ISODateTime;
-};
+type ReplaceMaterialFile = (
+  workspaceId: UUID,
+  materialId: UUID,
+  formData: FormData,
+) => Promise<ApiResult<{ material: MaterialListItem }>>;
 ```
 
 계약명: `replaceMaterialFile`
 
 처리:
 
-- 새 storage path를 발급하고 `upload_status = uploading`, `review_status = pending`으로 변경한다.
-- 업로드 완료 후 `completeMaterialUpload`를 호출한다.
+- `FormData`의 `file`을 서버에서 검증한다.
+- admin storage client로 새 파일을 직접 업로드하고 metadata를 갱신한다.
+- 성공 시 이전 storage object를 정리하고 `upload_status = uploaded`, `review_status = pending`으로 변경한다.
+- 클라이언트 PUT signed upload URL이나 별도 완료 확정 action을 사용하지 않는다.
 
-### 11.6 자료 확인 상태 변경
+### 11.5 자료 확인 상태 변경
 
 ```ts
 type UpdateMaterialReviewStatusInput = {
@@ -1176,10 +1144,10 @@ type UpdateMaterialReviewStatusInput = {
 권한:
 
 - 대표 운영자 가능.
-- 자료 공개 그룹과 자기 접근 그룹이 교차하는 그룹 운영자 가능.
+- 자료가 속한 수업의 연결 그룹과 자기 접근 그룹이 교차하는 그룹 운영자 가능.
 - 강사는 불가.
 
-### 11.7 자료 다운로드 URL 발급
+### 11.6 자료 다운로드 URL 발급
 
 ```ts
 type GetMaterialDownloadUrlInput = {
@@ -1327,7 +1295,7 @@ type GetInstructorCourseHomeOutput = {
 
 ## 14. 강사 콘솔 - 수업 자료
 
-강사 콘솔 자료 화면은 `getCourseMaterials`, `prepareMaterialUpload`, `completeMaterialUpload`, `updateMaterial`, `replaceMaterialFile`, `getMaterialDownloadUrl` 계약을 그대로 사용한다.
+강사 콘솔 자료 화면은 `getCourseMaterials`, `uploadMaterial`, `updateMaterial`, `replaceMaterialFile`, `getMaterialDownloadUrl` 계약을 그대로 사용한다.
 
 추가 제한:
 
@@ -1683,7 +1651,7 @@ type AdminCopilotBriefing = {
 - `ApiResult` 오류를 화면에서 공통 처리할 수 있는가.
 - 참여자와 멤버를 혼동하지 않았는가.
 - 강사 화면에 일반 일정이나 운영자 전용 데이터가 섞이지 않았는가.
-- 자료 업로드는 준비, 브라우저 업로드, 완료 확정의 3단계 흐름을 따르는가.
+- 자료 업로드와 파일 교체는 server action의 `FormData`와 admin `storage.upload()` 흐름을 사용하며, 사용 중단된 upload URL route를 호출하지 않는가.
 - 삭제는 기록 보존 정책을 따르며 기존 snapshot 필드를 훼손하지 않는가.
 
 ## 21. 구현 우선순위

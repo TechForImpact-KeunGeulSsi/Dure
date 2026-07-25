@@ -4,7 +4,7 @@
 
 Build a read-only representative-operator Admin Copilot that summarizes DURE workspace operations and recommends unresolved administrative tasks with evidence and related screen links.
 
-## Current Implementation Status
+## Implemented Baseline
 
 The deterministic MVP is implemented without an AI provider dependency.
 
@@ -14,6 +14,8 @@ The deterministic MVP is implemented without an AI provider dependency.
 - Workspace home loads the briefing only for `owner_admin`.
 - `scripts/admin-copilot-logic.test.mjs` covers permissions, time windows, signal generation, attendance eligibility, and completion eligibility.
 - LLM phrasing remains intentionally deferred until an AI API provider and key are configured.
+
+Current verification results, blockers, and the next starting point are tracked only in `docs/STATUS.md`.
 
 ## Architecture
 
@@ -56,23 +58,20 @@ Supabase remains the source of truth. A new service-layer query computes determi
   - LLM-generated SQL.
   - Action execution.
 
-## Likely File Changes
-
-Create:
+## Implemented Files
 
 - `src/services/admin-copilot.ts`
-- `src/services/admin-copilot.test.ts`
+- `src/services/admin-copilot-logic.ts`
 - `src/components/admin-copilot/admin-copilot-briefing.tsx`
 - `src/components/admin-copilot/admin-copilot-task-card.tsx`
+- `scripts/admin-copilot-logic.test.mjs`
 
-Modify:
+Integrated page:
 
 - `src/app/workspaces/[workspaceId]/(dashboard)/home/page.tsx`
+- `src/app/workspaces/[workspaceId]/(dashboard)/home/home-client.tsx`
 
-Avoid unless necessary:
-
-- `supabase/migrations/`
-- Existing mutation services
+No Admin Copilot migration or mutation action was added.
 
 ## Implementation Tasks
 
@@ -129,7 +128,7 @@ Objective: create `getAdminCopilotBriefing` that validates authenticated owner-a
 Files:
 
 - `src/services/admin-copilot.ts`
-- `src/services/admin-copilot.test.ts`
+- `scripts/admin-copilot-logic.test.mjs`
 
 Behavior:
 
@@ -352,6 +351,6 @@ Manual scenarios:
 
 ## Open Questions for Implementation
 
-- Exact existing href convention for each related management page must be confirmed from current routes.
-- Whether to expose a follow-up question input in the first code implementation or leave it as a UI placeholder should be decided after deterministic briefing lands.
+- Related hrefs are implemented for materials, instructor attendance, feedback, and course edit routes, but must be clicked through during owner-admin manual QA.
+- Follow-up question input is deferred; v1 renders only the deterministic briefing.
 - Whether displayed task lists need a cap should be decided based on realistic workspace data size.

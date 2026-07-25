@@ -7,9 +7,12 @@ DURE는 여러 운영 단위의 수업, 참여자, 강사, 일정, 자료, 출�
 ## 핵심 문서
 
 - [작업 지침](AGENTS.md)
+- [현재 작업 상태와 다음 시작점](docs/STATUS.md)
 - [용어 기준](docs/context.md)
 - [시스템 구조](docs/architecture.md)
 - [페이지별 query/action 계약](docs/api-spec.md)
+- [Admin Copilot 범위](docs/admin-copilot-prd.md)
+- [운영 ontology](docs/ontology.md)
 - [로컬 셋업](docs/setup.md)
 - [Supabase 기준](supabase/README.md)
 
@@ -59,6 +62,8 @@ npm run dev
 
 ```bash
 npm run dev
+npm run test:admin-copilot
+npm run lint
 npm run typecheck
 npm run build
 ```
@@ -78,6 +83,8 @@ npm run build
 - 워크스페이스 참여 요청
 - 헤더 최근 활동
 - 공개 수업 카탈로그와 공개 preview
-- 대표 운영자용 읽기 전용 Admin Copilot 운영 브리핑
+- 대표 운영자용 읽기 전용 Admin Copilot 운영 브리핑(네 가지 결정론적 신호, 근거, 관련 화면 링크)
+
+Admin Copilot은 현재 AI provider나 LLM을 호출하지 않습니다. 실제 Supabase workspace 수동 QA와 production 배포 검증은 `docs/STATUS.md`의 미검증 항목을 따릅니다.
 
 새 기능을 추가할 때는 `docs/context.md`, `docs/architecture.md`, `docs/api-spec.md`를 먼저 확인하고, 페이지에서는 `services/` 계층을 통해 데이터에 접근합니다.

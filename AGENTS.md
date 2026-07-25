@@ -33,7 +33,7 @@ admin client 우회는 RLS의 `current_member_id(workspace_id)` 비교가 SSR �
 
 현재 admin client 우회가 사용되는 대표 작업:
 
-- `materials`, `material_groups`
+- `materials`와 `course-materials` storage
 - `attendance_records`
 - `class_memos`
 - `workspace_members`

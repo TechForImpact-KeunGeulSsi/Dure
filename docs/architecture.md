@@ -224,7 +224,7 @@ src/
 
 ### 참여자 수와 출석 대상
 
-현재 구현은 수업 참여 범위를 수업의 현재 연결 그룹과 참여자의 현재 활성 그룹 관계에서 파생한다.
+제품 기준과 일반 수업·출석 서비스는 수업 참여 범위를 수업의 현재 연결 그룹과 참여자의 현재 활성 그룹 관계에서 파생한다. 구현별 미준수 사항은 `docs/STATUS.md`의 blocker에서 관리한다.
 
 - 그룹 인원 수: `participant_groups.status='active'` AND `participants.deleted_at IS NULL`인 distinct participant.
 - 수업 참여자 수: 수업의 현재 `course_groups`에 속한 distinct 활성 participant.

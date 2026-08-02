@@ -10,6 +10,8 @@
 
 다음 제품 방향은 Supabase를 source of truth로 유지하면서 semantic object/link/function과 kinetic action/policy/audit를 결합한 operational ontology layer를 추가하는 것입니다. 첫 vertical slice는 `PendingMaterialReview -> ReviewMaterial proposal -> owner_admin human approval -> reviewed`이며, 현재는 설계와 구현 계약만 확정됐고 migration, action orchestration, 승인 UI는 아직 구현되지 않았습니다. `Material.review_status`는 `pending | reviewed` 두 상태를 유지하고, 제안 거절과 실행 결과는 별도 proposal/execution lifecycle에 기록합니다.
 
+Operational Ontology v1 공통 계약은 `docs/ontology-contract.md`에 구현했습니다. 현재 ontology의 11개 객체와 네 Admin Copilot task에 대해 source table·column, 양방향 cardinality, 관계 예외, 역할별 read/action scope, `권한 gate -> source query -> deterministic rule -> evidence -> 관련 화면` 경로를 고정했습니다. 이 변경은 문서와 drift 검증을 추가한 것이며 DB schema, runtime service, RLS, UI 동작은 변경하지 않았습니다.
+
 ## 최근 검증
 
 2026-07-25에 다음을 실행했습니다.
@@ -64,6 +66,15 @@ npm run build
 - `npm run typecheck`: passed
 - `npm run build`: passed with the same existing warnings 3건
 
+2026-08-02 Operational Ontology 공통 계약 검증:
+
+- `npm run test:ontology-contract`: 3 passed
+- `npm run test:admin-copilot`: 12 passed
+- `npm run typecheck`: passed
+- `npm run lint`: passed with existing warnings 3건
+- `npm run build`: passed with the same existing warnings 3건
+- `git diff --check`: passed
+
 ## 지금 시작할 곳
 
 Developer QA는 완료되었습니다. 다음 작업은 `docs/ontology-action-implementation-plan.md`의 Task 1에 따라 human-approved `ReviewMaterial` vertical slice의 DB foundation을 구현하는 것입니다.
@@ -77,6 +88,7 @@ Developer QA는 완료되었습니다. 다음 작업은 `docs/ontology-action-im
 - 자동 테스트는 순수 규칙 로직과 group-derived projection, 중복 제거, 명시 제외, 삭제 상태, 1,000행 초과 pagination, query 오류 전파를 검증합니다. 실제 Supabase query, 멤버십 권한, home 통합을 포함하는 service/integration test는 아직 없습니다.
 - LLM phrasing을 추가하려면 provider, 비용, permission-filtered input contract를 먼저 결정해야 합니다.
 - `ReviewMaterial` ontology action은 문서 계약만 존재합니다. durable proposal/execution audit, optimistic stale-state protection, 승인 UI, idempotent execution, signal-resolution integration test가 아직 없습니다.
+- Ontology contract test는 문서의 필수 항목과 migration/service identifier drift를 검증합니다. 실제 DB query 실행이나 역할별 브라우저 동작을 새로 검증하는 integration test는 아니며, 이번 변경에는 runtime query/action이 없습니다.
 
 ## 기준 문서
 
@@ -84,10 +96,11 @@ Developer QA는 완료되었습니다. 다음 작업은 `docs/ontology-action-im
 - 용어: `docs/context.md`
 - 구조: `docs/architecture.md`
 - API와 화면 계약: `docs/api-spec.md`
-- Admin Copilot 범위: `docs/admin-copilot-prd.md`
-- 구현 세부: `docs/admin-copilot-implementation-plan.md`
 - Operational ontology: `docs/ontology.md`
+- Operational ontology 공통 계약: `docs/ontology-contract.md`
+- 공통 계약 구현 계획: `docs/ontology-contract-implementation-plan.md`
 - Human-approved action 구현 계약: `docs/ontology-action-implementation-plan.md`
+- Developer QA: `docs/developer-qa.md`
 
 ## 상태 관리 원칙
 

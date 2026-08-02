@@ -2,7 +2,7 @@
 
 DURE는 여러 운영 단위의 수업, 참여자, 강사, 일정, 자료, 출석 기록을 한 워크스페이스 안에서 관리하는 웹 서비스입니다.
 
-이 브랜치는 대표 운영자용 Admin Copilot을 개발하는 작업 브랜치입니다. 실행 가능한 앱 코드, Supabase migration, 현재 구현 판단에 필요한 문서만 포함합니다. 발표 자료와 과거 단계 산출물은 `main` 브랜치 또는 Git 이력에서 확인합니다.
+이 브랜치는 대표 운영자용 Admin Copilot을 기반으로 human-approved ontology action을 개발하는 작업 브랜치입니다. 실행 가능한 앱 코드, Supabase migration, 현재 구현 판단에 필요한 문서만 포함합니다. 발표 자료와 과거 단계 산출물은 `main` 브랜치 또는 Git 이력에서 확인합니다.
 
 ## 핵심 문서
 
@@ -11,8 +11,9 @@ DURE는 여러 운영 단위의 수업, 참여자, 강사, 일정, 자료, 출�
 - [용어 기준](docs/context.md)
 - [시스템 구조](docs/architecture.md)
 - [페이지별 query/action 계약](docs/api-spec.md)
-- [Admin Copilot 범위](docs/admin-copilot-prd.md)
 - [운영 ontology](docs/ontology.md)
+- [Human-approved action 구현 계획](docs/ontology-action-implementation-plan.md)
+- [Developer QA fixture](docs/developer-qa.md)
 - [로컬 셋업](docs/setup.md)
 - [Supabase 기준](supabase/README.md)
 
@@ -37,12 +38,12 @@ supabase/
   config.toml         # Local Supabase config
 docs/
   STATUS.md
-  admin-copilot-prd.md
-  admin-copilot-implementation-plan.md
   ontology.md
+  ontology-action-implementation-plan.md
   context.md
   architecture.md
   api-spec.md
+  developer-qa.md
   setup.md
 ```
 
@@ -85,6 +86,6 @@ npm run build
 - 공개 수업 카탈로그와 공개 preview
 - 대표 운영자용 읽기 전용 Admin Copilot 운영 브리핑(네 가지 결정론적 신호, 근거, 관련 화면 링크)
 
-Admin Copilot은 현재 AI provider나 LLM을 호출하지 않습니다. 실제 Supabase workspace 수동 QA와 production 배포 검증은 `docs/STATUS.md`의 미검증 항목을 따릅니다.
+Admin Copilot은 현재 AI provider나 LLM을 호출하지 않습니다. 로컬 Supabase 기반 역할별 수동 QA는 완료되었고, production 배포 검증과 다음 `ReviewMaterial` 작업 범위는 `docs/STATUS.md`를 따릅니다.
 
 새 기능을 추가할 때는 `docs/context.md`, `docs/architecture.md`, `docs/api-spec.md`를 먼저 확인하고, 페이지에서는 `services/` 계층을 통해 데이터에 접근합니다.

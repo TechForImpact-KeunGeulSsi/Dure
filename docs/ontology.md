@@ -6,6 +6,8 @@ This document defines the lightweight ontology used by DURE Admin Copilot v1. It
 
 Supabase remains the source of truth. Service-layer permission checks remain mandatory.
 
+The canonical source-column mapping, bidirectional cardinality, relationship exceptions, role scope, and recommendation provenance are defined in [`ontology-contract.md`](./ontology-contract.md). New task implementations must reuse that contract instead of redefining joins locally.
+
 ## Design Principles
 
 - Model operational meaning, not just table names.
@@ -361,7 +363,7 @@ Recommended manual action:
 
 ## Graph-Shaped Context Contract
 
-Admin Copilot services should avoid passing raw rows directly to an LLM. Instead, service output should be shaped as graph context.
+`GraphContext` is a future permission-scoped LLM context contract, not a currently implemented runtime output. The current runtime output is `AdminCopilotTask` with `AdminCopilotEvidence`. A future LLM integration should avoid passing raw rows directly and may shape the already permission-filtered service projection as graph context.
 
 Recommended structure:
 
@@ -428,7 +430,7 @@ Included:
 - Attendance-risk participant detection.
 - New feedback detection.
 - Course completion candidate detection.
-- Graph-shaped context derived from relational data.
+- Current `AdminCopilotTask` / `AdminCopilotEvidence` projection derived from relational data.
 
 Excluded:
 
@@ -439,6 +441,7 @@ Excluded:
 - Mutations and autonomous actions.
 - Separate graph database.
 - Embedding-based retrieval.
+- Runtime `GraphContext` output.
 
 ## Future Ontology Extensions
 

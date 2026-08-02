@@ -132,6 +132,7 @@ src/
   services/
     access.ts
     activity.ts
+    admin-copilot-participant-projection.ts
     admin-copilot.ts
     admin-copilot-logic.ts
     auth.ts

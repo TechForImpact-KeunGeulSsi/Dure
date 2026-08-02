@@ -9,10 +9,12 @@ Build a read-only representative-operator Admin Copilot that summarizes DURE wor
 The deterministic MVP is implemented without an AI provider dependency.
 
 - `src/services/admin-copilot.ts` performs owner-admin authorization and permission-scoped read aggregation.
+- `src/services/admin-copilot-participant-projection.ts` derives attendance-risk eligibility from course groups and active participant-group relationships, excluding deleted entities and explicit course exclusions.
 - `src/services/admin-copilot-logic.ts` calculates the briefing window, four task signals, evidence, counts, and priority order.
 - `src/components/admin-copilot/` renders the dashboard briefing and evidence-backed task rows.
 - Workspace home loads the briefing only for `owner_admin`.
-- `scripts/admin-copilot-logic.test.mjs` covers permissions, time windows, signal generation, attendance eligibility, and completion eligibility.
+- `scripts/admin-copilot-logic.test.mjs` covers permissions, time windows, signal generation, attendance eligibility, completion eligibility, and the owner-accessible attendance-risk link.
+- `scripts/admin-copilot-participant-projection.test.mjs` covers group-derived participants, deduplication, exclusions, deleted entities, pagination, and query error propagation.
 - LLM phrasing remains intentionally deferred until an AI API provider and key are configured.
 
 Current verification results, blockers, and the next starting point are tracked only in `docs/STATUS.md`.
@@ -61,10 +63,12 @@ Supabase remains the source of truth. A new service-layer query computes determi
 ## Implemented Files
 
 - `src/services/admin-copilot.ts`
+- `src/services/admin-copilot-participant-projection.ts`
 - `src/services/admin-copilot-logic.ts`
 - `src/components/admin-copilot/admin-copilot-briefing.tsx`
 - `src/components/admin-copilot/admin-copilot-task-card.tsx`
 - `scripts/admin-copilot-logic.test.mjs`
+- `scripts/admin-copilot-participant-projection.test.mjs`
 
 Integrated page:
 

@@ -91,6 +91,10 @@ test("네 가지 업무 신호를 만들고 결정론적 우선순위로 정렬�
   assert.equal(briefing.summary.recentSessionCount, 3);
   assert.ok(briefing.tasks.every((task) => task.evidence.length > 0));
   assert.ok(briefing.tasks.every((task) => task.relatedHref.startsWith("/workspaces/")));
+  assert.equal(
+    briefing.tasks.find((task) => task.type === "attendance_risk_participant")?.relatedHref,
+    `/workspaces/${WORKSPACE_ID}/courses/course-attendance/participants`,
+  );
 });
 
 test("출석 기록이 3개 미만이거나 휴강 회차이면 위험 신호를 만들지 않는다", () => {

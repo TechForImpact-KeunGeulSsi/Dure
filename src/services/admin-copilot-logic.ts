@@ -442,8 +442,8 @@ function buildAttendanceRiskTasks(input: {
           };
         }),
       ],
-      relatedHref: `/workspaces/${input.workspaceId}/teach/courses/${courseId}/attendance`,
-      recommendedManualAction: "출석부에서 최근 기록을 확인하고 담당 강사와 후속 조치를 논의하세요.",
+      relatedHref: `/workspaces/${input.workspaceId}/courses/${courseId}/participants`,
+      recommendedManualAction: "참여자 현황에서 최근 출석 기록을 확인하고 담당 강사와 후속 조치를 논의하세요.",
       createdAt: sessionStartKey(input.sessionById.get(recent[0].session_id)),
     });
   }

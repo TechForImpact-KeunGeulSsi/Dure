@@ -14,6 +14,30 @@ Supabase remains the source of truth. Service-layer permission checks remain man
 - Treat the graph as a permission-scoped read model derived from relational data.
 - Keep administrative signals deterministic and testable.
 - Separate recommendations from mutations. v1 is read-only.
+- Keep domain object states minimal. Proposal, decision, and execution lifecycle states belong to their own records rather than expanding a domain object's enum.
+- Introduce execution authority per action type and policy, never as a blanket permission granted to an agent.
+
+## Operational Layer Boundary
+
+DURE's existing relational tables remain the authoritative operational state. The ontology adds two contracts over those tables:
+
+- Semantic elements: object types, properties, links, derived properties, and permission-scoped projections.
+- Kinetic elements: functions, action types, preconditions, human decisions, execution policies, and audit records.
+
+The ontology does not replace typed tables with generic node/edge or entity-attribute-value storage. A graph database, RDF export, or cached graph projection may be introduced later as a read model, but none becomes a second write authority.
+
+The intended control loop is:
+
+```text
+observe object state
+-> run deterministic ontology function
+-> produce evidence-backed action proposal
+-> obtain required human decision
+-> revalidate permission and current state
+-> execute through the existing service layer
+-> record decision and execution
+-> recompute the signal
+```
 
 ## Entity Types
 
@@ -255,6 +279,21 @@ Recommended manual action:
 
 - Open the course materials page and review the material.
 
+#### Material review state semantics
+
+`Material.review_status` intentionally remains binary:
+
+- `pending`: an authorized operator has not completed operational approval for the current material content, file, and visibility scope.
+- `reviewed`: an authorized operator has checked the material content and visibility scope and considers the current version usable for the course.
+
+The current database trigger resets the state to `pending` when review-relevant material data changes. Proposal rejection does not add a `rejected` or `changes_requested` material state. The material remains `pending`, while the human decision is recorded on the action proposal.
+
+The three independent material state dimensions must not be conflated:
+
+- Upload lifecycle: `uploading | uploaded | failed`.
+- Review state: `pending | reviewed`.
+- Visibility scope: `public | admin_only`.
+
 ### AttendanceRiskParticipant
 
 Target entity: `Participant`
@@ -420,3 +459,73 @@ Possible future graph infrastructure:
 - RDF/OWL vocabulary.
 - Embedding index for documents and class memo text.
 - Recommendation audit trail.
+
+## Next Vertical Slice: Human-Approved ReviewMaterial
+
+This section defines the first planned kinetic ontology slice. It is not part of the currently implemented read-only Admin Copilot.
+
+### Action type
+
+```text
+ActionType: ReviewMaterial
+Target: Material
+Transition: review_status pending -> reviewed
+Initial approval mode: always_required
+Initial actor scope: active owner_admin
+```
+
+The existing `updateMaterialReviewStatus` service remains the mutation authority. The ontology action orchestrates proposal, decision, stale-state protection, execution, and audit around that service contract; it must not introduce a direct LLM-to-database mutation path.
+
+### Preconditions
+
+- The actor has an active membership in the target workspace.
+- The actor is `owner_admin` for the initial Admin Copilot slice.
+- The material belongs to the target workspace.
+- `upload_status = 'uploaded'`.
+- `review_status = 'pending'`.
+- The proposal still refers to the current material version.
+
+Permission and preconditions are recalculated when the human approves. Evidence captured when the proposal was created is not sufficient authorization for execution.
+
+### Human decision
+
+- `approved`: attempt the state transition after revalidation.
+- `rejected`: keep the material `pending` and record the decision reason.
+
+Human approval is mandatory for every execution in the first slice. A future delegation policy may promote an individual low-risk, reversible action type to conditional automatic execution only after measured operational evidence. Agent-wide execution authority is not allowed.
+
+### Proposal and execution lifecycle
+
+Domain state, proposal state, and execution state remain separate:
+
+```text
+Material.review_status: pending | reviewed
+ActionProposal.status: pending | approved | rejected | expired
+ActionExecution.status: succeeded | failed
+```
+
+A proposal must carry a deterministic source fingerprint based on the action type, target object, and target version. Replaying the same approved proposal must not execute the mutation twice. If the material changes after proposal creation, approval returns a conflict and the stale proposal becomes non-executable.
+
+### Required audit evidence
+
+- Workspace, target type, and target id.
+- Action type and action contract version.
+- Signal reason and evidence snapshot.
+- Material version or `updated_at` observed at proposal time.
+- Human decision, member id, timestamp, and optional note.
+- State immediately before execution.
+- State after execution, or a structured failure.
+- Idempotency key and execution timestamp.
+
+`activity_logs` remains the recent-activity feed. It is fire-and-forget and does not replace the durable proposal and execution audit records.
+
+### Acceptance criteria
+
+- No material mutation occurs without an explicit human approval.
+- Approval rechecks owner membership, workspace ownership of the target, upload state, review state, and target version.
+- A stale or replayed proposal cannot produce a second mutation.
+- Rejection leaves `Material.review_status = 'pending'`.
+- Successful execution changes only the intended material to `reviewed`.
+- The proposal, human decision, execution result, and before/after state can be reconstructed.
+- The corresponding `PendingMaterialReview` signal disappears after successful execution and briefing recomputation.
+- Existing manual material management and group-admin permissions remain unchanged outside this owner-admin Admin Copilot slice.

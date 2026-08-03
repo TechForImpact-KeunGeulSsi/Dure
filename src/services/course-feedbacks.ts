@@ -55,6 +55,7 @@ export type GetCourseFeedbacksInput = {
 };
 
 export type GetCourseFeedbacksOutput = {
+  timezone: string;
   feedbacks: CourseFeedbackListItem[];
   courseOptions: Array<{ id: UUID; name: string }>;
   counts: {
@@ -139,6 +140,17 @@ export async function getCourseFeedbacks(
   }
 
   const admin = createSupabaseAdminClient();
+  const { data: workspace, error: workspaceError } = await admin
+    .from("workspaces")
+    .select("timezone")
+    .eq("id", input.workspaceId)
+    .single();
+  if (workspaceError || !workspace) {
+    return apiError(
+      "INTERNAL_ERROR",
+      workspaceError?.message ?? "워크스페이스 시간대를 불러오지 못했습니다.",
+    );
+  }
   const accessibleCourseIds =
     membership.role === "owner_admin"
       ? null
@@ -146,6 +158,7 @@ export async function getCourseFeedbacks(
 
   if (accessibleCourseIds && accessibleCourseIds.length === 0) {
     return apiOk({
+      timezone: workspace.timezone,
       feedbacks: [],
       courseOptions: [],
       counts: { new: 0, reviewed: 0 },
@@ -175,6 +188,7 @@ export async function getCourseFeedbacks(
   const feedbacks = rows.map((row) => toListItem(row, canDelete));
 
   return apiOk({
+    timezone: workspace.timezone,
     feedbacks,
     courseOptions: buildCourseOptions(rows),
     counts: countByStatus(rows),

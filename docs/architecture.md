@@ -1,6 +1,6 @@
 # DURE Architecture
 
-이 문서는 현재 코드와 migration을 기준으로 DURE의 기술 구조를 설명한다. 용어 기준은 `context.md`, 페이지별 query/action 계약은 `api-spec.md`를 따른다. 과거 PRD와 단계별 설계 산출물은 `archive/`에 보관한다.
+이 문서는 현재 코드와 migration을 기준으로 DURE의 기술 구조를 설명한다. 용어 기준은 `context.md`, 페이지별 query/action 계약은 `api-spec.md`를 따른다.
 
 ## 1. 설계 원칙
 
@@ -132,6 +132,9 @@ src/
   services/
     access.ts
     activity.ts
+    admin-copilot-participant-projection.ts
+    admin-copilot.ts
+    admin-copilot-logic.ts
     auth.ts
     calendar.ts
     class-memos.ts
@@ -222,7 +225,7 @@ src/
 
 ### 참여자 수와 출석 대상
 
-현재 구현은 수업 참여 범위를 수업의 현재 연결 그룹과 참여자의 현재 활성 그룹 관계에서 파생한다.
+제품 기준과 일반 수업·출석 서비스는 수업 참여 범위를 수업의 현재 연결 그룹과 참여자의 현재 활성 그룹 관계에서 파생한다. 구현별 미준수 사항은 `docs/STATUS.md`의 blocker에서 관리한다.
 
 - 그룹 인원 수: `participant_groups.status='active'` AND `participants.deleted_at IS NULL`인 distinct participant.
 - 수업 참여자 수: 수업의 현재 `course_groups`에 속한 distinct 활성 participant.
@@ -297,6 +300,7 @@ Supabase RLS는 업무 테이블에 활성화되어 있다. 단, 현재 구현�
 - 공개 카탈로그 projection과 공개 여부 변경
 - 일반 일정 생성/수정/삭제
 - 정산 요청/영수증 파일 처리 중 RLS 충돌이 있는 서버 작업
+- Admin Copilot의 owner_admin 전용 읽기 집계. 자료, 출석, 피드백처럼 SSR/RLS 충돌 가능성이 있는 여러 테이블을 한 번에 조회하므로, 활성 멤버십과 `owner_admin` 역할을 먼저 확인한 뒤 admin client를 사용한다.
 
 이 패턴의 전제는 항상 같다.
 

@@ -2,24 +2,20 @@
 
 DURE는 여러 운영 단위의 수업, 참여자, 강사, 일정, 자료, 출석 기록을 한 워크스페이스 안에서 관리하는 웹 서비스입니다.
 
-이 레포는 제품 개발의 기준이 되는 마스터 레포입니다. 실행 가능한 앱 코드, Supabase migration, 현재 기준 문서만 루트와 `docs/`에 두고, 발표 자료와 과거 단계 산출물은 `docs/archive/`에 보관합니다.
+이 브랜치는 대표 운영자용 Admin Copilot을 기반으로 human-approved ontology action을 개발하는 작업 브랜치입니다. 실행 가능한 앱 코드, Supabase migration, 현재 구현 판단에 필요한 문서만 포함합니다. 발표 자료와 과거 단계 산출물은 `main` 브랜치 또는 Git 이력에서 확인합니다.
 
 ## 핵심 문서
 
 - [작업 지침](AGENTS.md)
+- [현재 작업 상태와 다음 시작점](docs/STATUS.md)
 - [용어 기준](docs/context.md)
 - [시스템 구조](docs/architecture.md)
 - [페이지별 query/action 계약](docs/api-spec.md)
+- [운영 ontology](docs/ontology.md)
+- [Human-approved action 구현 계획](docs/ontology-action-implementation-plan.md)
+- [Developer QA fixture](docs/developer-qa.md)
 - [로컬 셋업](docs/setup.md)
 - [Supabase 기준](supabase/README.md)
-
-보관용 자료:
-
-- `docs/archive/phase-history/` — 과거 PRD, 환경 문서, 단계별 설계 문서
-- `docs/archive/presentation/` — 발표 HTML과 시연 자산
-- `docs/archive/superpowers/` — 과거 brainstorm/spec/mockup 산출물
-- `docs/archive/user-testing/` — 특정 테스트 배포와 Google Form 운영 가이드
-- `docs/archive/reference-data/` — 유저 테스트나 기초 데이터 추출 자료
 
 ## 기술 스택
 
@@ -41,11 +37,14 @@ supabase/
   migrations/         # DB schema and policy history
   config.toml         # Local Supabase config
 docs/
+  STATUS.md
+  ontology.md
+  ontology-action-implementation-plan.md
   context.md
   architecture.md
   api-spec.md
+  developer-qa.md
   setup.md
-  archive/
 ```
 
 ## 로컬 실행
@@ -64,6 +63,8 @@ npm run dev
 
 ```bash
 npm run dev
+npm run test:admin-copilot
+npm run lint
 npm run typecheck
 npm run build
 ```
@@ -83,5 +84,8 @@ npm run build
 - 워크스페이스 참여 요청
 - 헤더 최근 활동
 - 공개 수업 카탈로그와 공개 preview
+- 대표 운영자용 읽기 전용 Admin Copilot 운영 브리핑(네 가지 결정론적 신호, 근거, 관련 화면 링크)
+
+Admin Copilot은 현재 AI provider나 LLM을 호출하지 않습니다. 로컬 Supabase 기반 역할별 수동 QA는 완료되었고, production 배포 검증과 다음 `ReviewMaterial` 작업 범위는 `docs/STATUS.md`를 따릅니다.
 
 새 기능을 추가할 때는 `docs/context.md`, `docs/architecture.md`, `docs/api-spec.md`를 먼저 확인하고, 페이지에서는 `services/` 계층을 통해 데이터에 접근합니다.

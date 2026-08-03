@@ -14,7 +14,7 @@ For developer environment variables and local Supabase usage, see `../docs/setup
 ## What is included
 
 - Core enums from `../docs/architecture.md`
-- Workspace, member, group, participant, course, session, material, schedule, attendance, memo, invite, and activity tables
+- Workspace, member, group, participant, course, session, material, schedule, attendance, memo, invite, join-request, settlement, feedback, and activity tables
 - Tenant-scoped foreign keys and indexes
 - RLS helper functions:
   - `current_member_id(workspace_id)`
@@ -29,7 +29,6 @@ For developer environment variables and local Supabase usage, see `../docs/setup
 - Invariant triggers for:
   - last active owner protection
   - course participant group membership within course groups
-  - material group membership within course groups
   - material review reset after file/title/description replacement
 - Private `course-materials` Storage bucket and Storage object policies
 
@@ -95,4 +94,4 @@ vercel env add CRON_SECRET
 workspaces/{workspace_id}/courses/{course_id}/materials/{material_id}/{file_id}-{safe_filename}
 ```
 
-- The `course-materials` bucket is private. The app should issue signed upload/download URLs only after checking DB permissions.
+- The `course-materials` bucket is private. Application uploads and replacements use server actions with `FormData` and the server-only admin storage client after service-layer permission checks. Downloads use short-lived signed URLs after permission or public-visibility checks. `/api/materials/upload-url` is deprecated and returns 410.

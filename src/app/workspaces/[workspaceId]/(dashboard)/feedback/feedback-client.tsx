@@ -18,6 +18,7 @@ import type {
   CourseFeedbackStatus,
   UUID,
 } from "@/lib/api/types";
+import { formatFeedbackDateTime } from "@/lib/utils/format-feedback-date-time";
 import { cn } from "@/lib/utils/cn";
 import {
   deleteCourseFeedback,
@@ -168,7 +169,7 @@ export function FeedbackClient({ workspaceId, initial }: Props) {
                     {item.courseName}
                   </p>
                   <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">
-                    {formatDateTime(item.createdAt)}
+                    {formatFeedbackDateTime(item.createdAt, initial.timezone)}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -246,14 +247,4 @@ function Stat({
       <p className="mt-1 text-2xl font-semibold">{value}건</p>
     </div>
   );
-}
-
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString("ko-KR", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }

@@ -232,7 +232,7 @@ export async function upsertParticipantAction(
   }
 
   // 생성
-  let groupIdsForInsert = input.groupIds ?? [];
+  const groupIdsForInsert = input.groupIds ?? [];
 
   if (isGroupAdmin) {
     if (groupIdsForInsert.length === 0) {

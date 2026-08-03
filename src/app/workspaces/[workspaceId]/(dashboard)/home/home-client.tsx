@@ -5,12 +5,14 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
+import { AdminCopilotBriefing } from '@/components/admin-copilot/admin-copilot-briefing';
 import { CourseCard } from '@/components/courses/course-card';
 import { useNavigationProgress } from '@/components/layout/navigation-progress';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { CourseStatus, DashboardCourseItem } from '@/types/course';
 import { COURSE_STATUS_LABEL } from '@/types/course';
+import type { AdminCopilotBriefing as AdminCopilotBriefingData } from '@/services/admin-copilot-logic';
 
 type StatusFilter = 'all' | CourseStatus;
 
@@ -27,6 +29,8 @@ type DashboardHomeClientProps = {
   /** 'manager' 운영자 카드 → /courses/[id]/home, 'instructor' 강사 카드 → /teach/courses/[id]/home */
   viewType: 'manager' | 'instructor';
   canCreateCourse: boolean;
+  copilotBriefing: AdminCopilotBriefingData | null;
+  copilotError?: string;
 };
 
 export function DashboardHomeClient({
@@ -34,6 +38,8 @@ export function DashboardHomeClient({
   courses,
   viewType,
   canCreateCourse,
+  copilotBriefing,
+  copilotError,
 }: DashboardHomeClientProps) {
   const router = useRouter();
   const { start: startNavigation } = useNavigationProgress();
@@ -71,6 +77,10 @@ export function DashboardHomeClient({
           </Button>
         )}
       </header>
+
+      {viewType === 'manager' && (copilotBriefing || copilotError) && (
+        <AdminCopilotBriefing briefing={copilotBriefing} errorMessage={copilotError} />
+      )}
 
       <Tabs
         value={statusFilter}

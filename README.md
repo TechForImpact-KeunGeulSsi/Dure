@@ -14,6 +14,7 @@ DURE는 여러 운영 단위의 수업, 참여자, 강사, 일정, 자료, 출�
 - [운영 ontology](docs/ontology.md)
 - [Human-approved action 구현 계획](docs/ontology-action-implementation-plan.md)
 - [Developer QA fixture](docs/developer-qa.md)
+- [팀 업무 흐름과 역할별 매뉴얼](docs/team-workflow.md)
 - [로컬 셋업](docs/setup.md)
 - [Supabase 기준](supabase/README.md)
 

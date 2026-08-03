@@ -1,0 +1,71 @@
+name: Bug report
+description: 재현 가능한 제품 결함을 보고합니다.
+title: "[버그] "
+labels:
+  - type:bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        공개 저장소의 Issue입니다. 계정 정보, 토큰, 기관명, 담당자명, 참여자 개인정보, 민감한 화면 캡처를 올리지 마세요.
+        필요한 데이터는 익명화된 fixture 또는 재현 단계로 대체합니다.
+  - type: textarea
+    id: summary
+    attributes:
+      label: 현상
+      description: 실제로 발생한 문제를 한두 문장으로 적습니다.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 단계
+      description: 누구나 같은 결과를 얻을 수 있도록 번호로 적습니다.
+      placeholder: |
+        1. QA fixture의 owner 계정으로 로그인한다.
+        2. 자료 확인 화면을 연다.
+        3. 확인 처리를 저장한다.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대 결과
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 실제 결과
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 환경
+      description: 브라우저·OS·브랜치 또는 배포 환경을 적습니다. 비밀값은 금지합니다.
+      placeholder: macOS 15 / Chrome 최신 / local QA fixture / commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 영향도
+      options:
+        - P1 - 핵심 흐름 중단 또는 데이터 손상 위험
+        - P2 - 우회 가능하지만 운영에 영향
+        - P3 - 경미한 오류 또는 시각적 문제
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 로그·스크린샷·추가 정보
+      description: 민감정보를 제거한 최소 정보만 첨부합니다. 토큰·쿠키·개인정보는 절대 포함하지 마세요.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 공개 저장소 확인
+      options:
+        - label: 재현 정보에서 비밀값과 개인정보를 제거했습니다.
+          required: true

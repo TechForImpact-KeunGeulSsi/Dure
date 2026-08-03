@@ -1,0 +1,75 @@
+name: Product request
+description: 검증된 문제를 제품 변경 요청으로 정리합니다.
+title: "[제품] "
+labels:
+  - type:feature
+body:
+  - type: markdown
+    attributes:
+      value: |
+        공개 저장소의 Issue입니다. 기관명·담당자명·연락처·미팅 원문·참여자 개인정보를 쓰지 마세요.
+        현장 사실은 비공개 Field Ops에 보관하고, 이 양식에는 익명화된 제품 인사이트만 옮깁니다.
+  - type: input
+    id: problem
+    attributes:
+      label: 문제 한 줄
+      description: 어떤 사용자가 어떤 운영 문제를 겪는지 관찰 가능한 행동으로 적습니다.
+      placeholder: 운영자는 확인하지 않은 자료를 찾기 위해 여러 화면을 반복해서 연다.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 근거와 검증 상태
+      description: 기관은 익명 코드로만 쓰고, 관찰 횟수·빈도·데이터 근거를 적습니다. 원문·연락처는 금지합니다.
+      placeholder: 기관 A·B에서 각각 2회 관찰. 기관 C에서는 기존 기능으로 해결됨.
+    validations:
+      required: true
+  - type: input
+    id: target_user
+    attributes:
+      label: 대상 사용자
+      placeholder: 대표 운영자
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: 목표 행동과 기대 결과
+      description: 사용자가 무엇을 할 수 있게 되는지, 제품이 어떻게 달라져야 하는지 적습니다.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 완료 조건
+      description: 테스트 가능한 체크리스트로 적습니다.
+      placeholder: |
+        - [ ] 권한 범위가 역할별로 검증된다.
+        - [ ] 정상 흐름에서 원하는 화면으로 이동한다.
+        - [ ] 실패 시 사용자에게 이해 가능한 오류를 표시한다.
+    validations:
+      required: true
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: 제외 범위와 미해결 질문
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 우선순위 제안
+      options:
+        - P1 - 이번 주 판단 필요
+        - P2 - 다음 계획에 포함
+        - P3 - 보류 또는 탐색
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 공개 저장소 확인
+      options:
+        - label: 기관·사람을 식별할 수 있는 이름, 연락처, 이메일, 원문, 첨부파일을 포함하지 않았습니다.
+          required: true
+        - label: 상세 원문은 비공개 Field Ops에 보관했고, 이 Issue에는 익명화된 인사이트만 남겼습니다.
+          required: true

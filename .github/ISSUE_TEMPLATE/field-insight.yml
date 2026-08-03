@@ -1,0 +1,67 @@
+name: Anonymized field insight
+description: 기관 현장에서 확인한 사실을 익명화된 제품 인사이트로 남깁니다.
+title: "[현장 인사이트] "
+labels:
+  - type:research
+body:
+  - type: markdown
+    attributes:
+      value: |
+        이 Issue는 공개 저장소에 남습니다. 기관명·담당자명·연락처·이메일·녹취·원문·참여자 개인정보를 입력하지 마세요.
+        상세 기록은 접근 제한된 Field Ops에 보관하고 아래에는 검증에 필요한 요약만 적습니다.
+  - type: input
+    id: source
+    attributes:
+      label: 출처 기록 ID
+      description: 비공개 Field Ops의 기록 ID 또는 내부 식별자만 적습니다. URL, 이메일, 이름은 적지 마세요.
+      placeholder: FO-2026-08-03-014
+    validations:
+      required: true
+  - type: input
+    id: anonymous_context
+    attributes:
+      label: 익명화된 맥락
+      description: 기관은 기관 A처럼, 역할은 운영자·강사처럼 표현합니다.
+      placeholder: 기관 A의 대표 운영자 1명, 최근 4주 관찰
+    validations:
+      required: true
+  - type: textarea
+    id: observation
+    attributes:
+      label: 관찰된 사실
+      description: 해석이나 해결책보다 사용자의 실제 행동·빈도·소요 시간을 적습니다.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: 운영 영향
+      description: 누락, 지연, 중복 입력 등 측정 가능하거나 확인 가능한 영향을 적습니다.
+    validations:
+      required: true
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: 제품 가설과 다음 검증
+      description: 아직 확정하지 않은 가설과 다음에 확인할 질문을 분리해 적습니다.
+    validations:
+      required: true
+  - type: dropdown
+    id: confidence
+    attributes:
+      label: 검증 상태
+      options:
+        - 확인됨 - 서로 다른 관찰 또는 데이터로 반복 확인
+        - 부분 확인 - 한 번 이상 관찰했지만 추가 검증 필요
+        - 가설 - 아직 현장 검증 전
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 공개 저장소 확인
+      options:
+        - label: 식별 가능한 기관·개인 정보와 원문을 제거했습니다.
+          required: true
+        - label: 상세 원문과 일정·연락처는 비공개 Field Ops에만 보관합니다.
+          required: true

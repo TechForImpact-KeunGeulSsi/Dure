@@ -88,9 +88,21 @@ npm run build
 - `npm run build`: passed with the same existing warnings 3건
 - `git diff --check`: passed
 
+2026-08-05 ReviewMaterial Task 2 검증:
+
+- `src/services/ontology-action-contract.ts`에 `ReviewMaterial` action 상수·버전, canonical target version, tenant/action/target/version 기반 SHA-256 fingerprint, proposal evidence builder, proposal·transition validation을 구현
+- 동일한 object version의 fingerprint 재현, equivalent timezone 표기 정규화, `updated_at` 변경 fingerprint 변경, uploaded/pending 외 상태 거부, stale transition 거부를 전용 테스트로 검증
+- `npm run test:ontology-action-contract`: 5 passed
+- `npm run test:admin-copilot`: 12 passed
+- `npm run test:ontology-contract`: 3 passed
+- `npm run typecheck`: passed
+- `npm run lint`: passed with existing warnings 3건
+- `npm run build`: passed with the same existing warnings 3건
+- `git diff --check`: passed
+
 ## 지금 시작할 곳
 
-Developer QA와 ReviewMaterial Task 1 DB foundation은 완료되었습니다. 다음 작업은 `docs/ontology-action-implementation-plan.md`의 Task 2에 따라 pure action contract helper를 구현하는 것입니다.
+Developer QA와 ReviewMaterial Task 1 DB foundation, Task 2 pure action contract helper는 완료되었습니다. 다음 작업은 `docs/ontology-action-implementation-plan.md`의 Task 3에 따라 proposal service를 구현하는 것입니다.
 
 ## Blocker / 미검증
 
@@ -101,7 +113,7 @@ Developer QA와 ReviewMaterial Task 1 DB foundation은 완료되었습니다. �
 - 자동 테스트는 순수 규칙 로직과 group-derived projection, 중복 제거, 명시 제외, 삭제 상태, 1,000행 초과 pagination, query 오류 전파를 검증합니다. 실제 Supabase query, 멤버십 권한, home 통합을 포함하는 service/integration test는 아직 없습니다.
 - LLM phrasing을 추가하려면 provider, 비용, permission-filtered input contract를 먼저 결정해야 합니다.
 - 기존 local Supabase DB에는 현재 branch에 없는 `20260803090000` migration 이력이 남아 있어 해당 DB의 migration history를 수정하거나 reset하지 않았습니다. 대신 격리 DB에 현재 branch migration 전체를 적용하고 RPC/RLS contract를 검증했습니다. 원격 staging/production 적용은 미검증입니다.
-- `ReviewMaterial` Task 1 DB foundation은 검증됐지만 Proposal service, application-level optimistic stale-state mapping, 승인 UI, signal-resolution integration test는 아직 없습니다.
+- `ReviewMaterial` Task 1 DB foundation과 Task 2 pure helper는 검증됐지만 Proposal service, application-level optimistic stale-state mapping, 승인 UI, signal-resolution integration test는 아직 없습니다.
 - Ontology contract와 migration 정적 테스트는 문서·SQL drift를 검증하고, 격리 DB contract는 DB/RPC/RLS 경계를 검증합니다. 역할별 실제 브라우저 승인 흐름은 이후 service/UI 구현 전까지 검증 대상이 아닙니다.
 
 ## 기준 문서

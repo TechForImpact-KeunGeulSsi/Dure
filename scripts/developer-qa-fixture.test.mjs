@@ -51,6 +51,10 @@ test("smoke fixture covers the agreed steady-state product surface", () => {
   assert.deepEqual(new Set(fixture.feedbacks.map((row) => row.status)), new Set(["new", "reviewed"]));
   assert.deepEqual(new Set(fixture.settlements.map((row) => row.status)), new Set(["pending", "paid"]));
   assert.equal(fixture.storageFiles.length, 3);
+  assert.deepEqual(fixture.expected.reviewMaterialScenario, {
+    materialKey: "pending",
+    courseKey: "operations",
+  });
 });
 
 test("smoke fixture produces exactly one task for each Admin Copilot signal", () => {

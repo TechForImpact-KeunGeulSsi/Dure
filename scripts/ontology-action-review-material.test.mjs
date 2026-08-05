@@ -70,6 +70,7 @@ test("only the service-role RPCs can approve or reject", async () => {
       "set review_status = 'reviewed'",
       "set status = 'expired'",
       "set status = 'rejected'",
+      "date_trunc('milliseconds', v_material.updated_at)",
       "before_state",
       "after_state",
       "revoke all on function public.approve_review_material_proposal",

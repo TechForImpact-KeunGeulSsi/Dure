@@ -211,9 +211,14 @@ begin
       'proposal_status', 'expired');
   end if;
 
+  -- The application contract canonicalizes timestamptz versions through the
+  -- JavaScript Date millisecond boundary. Compare at that same precision so
+  -- PostgreSQL's additional microseconds do not make every valid proposal
+  -- appear stale.
   if v_material.upload_status <> 'uploaded'
      or v_material.review_status <> 'pending'
-     or v_material.updated_at <> v_proposal.target_version then
+     or date_trunc('milliseconds', v_material.updated_at)
+        <> date_trunc('milliseconds', v_proposal.target_version) then
     update public.ontology_action_proposals
     set status = 'expired' where id = v_proposal.id;
     return jsonb_build_object('result', 'stale_proposal', 'proposal_id', v_proposal.id,

@@ -16,6 +16,7 @@
     "test:developer-qa": "node --no-warnings --test scripts/developer-qa-fixture.test.mjs",
     "test:feedback-date-format": "node --no-warnings --test scripts/feedback-date-format.test.mjs",
     "test:ontology-contract": "node --no-warnings --test scripts/ontology-contract.test.mjs",
+    "test:ontology-action-migration": "node --no-warnings --test scripts/ontology-action-review-material.test.mjs",
     "test:admin-copilot": "node --no-warnings --test scripts/admin-copilot-*.test.mjs",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"

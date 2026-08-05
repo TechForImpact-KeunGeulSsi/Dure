@@ -5,11 +5,13 @@ import type { AdminCopilotBriefing as AdminCopilotBriefingData } from "@/service
 import { AdminCopilotTaskCard } from "./admin-copilot-task-card";
 
 type AdminCopilotBriefingProps = {
+  workspaceId: string;
   briefing: AdminCopilotBriefingData | null;
   errorMessage?: string;
 };
 
 export function AdminCopilotBriefing({
+  workspaceId,
   briefing,
   errorMessage,
 }: AdminCopilotBriefingProps) {
@@ -54,7 +56,7 @@ export function AdminCopilotBriefing({
               </h2>
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
                 <ShieldCheck className="h-3 w-3" />
-                읽기 전용
+                사람 승인 필요
               </span>
             </div>
             <p className="mt-1 text-sm text-gray-500">
@@ -102,7 +104,7 @@ export function AdminCopilotBriefing({
       {briefing.tasks.length > 0 ? (
         <div className="px-0 pb-2">
           {briefing.tasks.map((task) => (
-            <AdminCopilotTaskCard key={task.id} task={task} />
+            <AdminCopilotTaskCard key={task.id} workspaceId={workspaceId} task={task} />
           ))}
         </div>
       ) : (
@@ -115,7 +117,7 @@ export function AdminCopilotBriefing({
       )}
 
       <div className="border-t border-gray-100 bg-gray-50/70 px-5 py-3 text-xs leading-5 text-gray-500 sm:px-6">
-        읽기 전용 추천입니다. 처리는 각 관리 화면에서 직접 진행해 주세요.
+        추천을 읽는 것만으로는 변경되지 않습니다. 자료 검토는 대표 운영자의 명시적 승인 후 처리됩니다.
       </div>
     </section>
   );

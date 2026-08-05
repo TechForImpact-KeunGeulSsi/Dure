@@ -5,6 +5,7 @@ import type {
   SessionProgressStatus,
   SessionRollupStatus,
   SessionVisibilityStatus,
+  MaterialVisibilityScope,
   UUID,
   WorkspaceRole,
 } from "@/lib/api/types";
@@ -16,6 +17,27 @@ export type AdminCopilotTaskType =
   | "course_completion_candidate";
 
 export type AdminCopilotTaskPriority = "high" | "medium" | "low";
+
+export type AdminCopilotProposalStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "expired";
+
+export type AdminCopilotTaskAction = {
+  actionType: "review_material";
+  approvalMode: "always_required";
+  targetId: UUID;
+  targetUpdatedAt: string;
+  visibilityScope: MaterialVisibilityScope;
+  proposalId?: UUID;
+  proposalStatus?: AdminCopilotProposalStatus;
+};
+
+export type AdminCopilotReviewMaterialProposal = {
+  proposalId: UUID;
+  status: AdminCopilotProposalStatus;
+};
 
 export type AdminCopilotEvidenceEntityType =
   | "course"
@@ -42,6 +64,7 @@ export type AdminCopilotTask = {
   evidence: AdminCopilotEvidence[];
   relatedHref: string;
   recommendedManualAction: string;
+  action?: AdminCopilotTaskAction;
   createdAt?: string;
 };
 
@@ -87,6 +110,7 @@ export type AdminCopilotMaterialRow = {
   title: string;
   created_at: string;
   updated_at: string;
+  visibility_scope: MaterialVisibilityScope;
 };
 
 export type AdminCopilotFeedbackRow = {
@@ -122,6 +146,7 @@ type BuildAdminCopilotBriefingInput = {
   feedbacks: AdminCopilotFeedbackRow[];
   attendanceRecords: AdminCopilotAttendanceRow[];
   activeParticipantCourses: AdminCopilotParticipantCourseRow[];
+  reviewMaterialProposals?: ReadonlyMap<UUID, AdminCopilotReviewMaterialProposal>;
 };
 
 type BriefingWindowWithReference = AdminCopilotBriefing["window"] & {
@@ -165,6 +190,7 @@ export function buildAdminCopilotBriefing(
       workspaceId: input.workspaceId,
       materials: input.materials,
       courseById,
+      reviewMaterialProposals: input.reviewMaterialProposals,
     }),
     ...buildCompletionCandidateTasks({
       workspaceId: input.workspaceId,
@@ -248,10 +274,12 @@ function buildPendingMaterialTasks(input: {
   workspaceId: UUID;
   materials: AdminCopilotMaterialRow[];
   courseById: Map<UUID, AdminCopilotCourseRow>;
+  reviewMaterialProposals?: ReadonlyMap<UUID, AdminCopilotReviewMaterialProposal>;
 }): AdminCopilotTask[] {
   return input.materials.map((material) => {
     const course = input.courseById.get(material.course_id);
     const courseName = course?.name ?? "삭제된 수업";
+    const proposal = input.reviewMaterialProposals?.get(material.id);
     return {
       id: `pending-material-review:${material.id}`,
       type: "pending_material_review",
@@ -275,6 +303,19 @@ function buildPendingMaterialTasks(input: {
       ],
       relatedHref: `/workspaces/${input.workspaceId}/courses/${material.course_id}/materials`,
       recommendedManualAction: "수업 자료 화면에서 내용을 확인하고 검토 상태를 변경하세요.",
+      action: {
+        actionType: "review_material",
+        approvalMode: "always_required",
+        targetId: material.id,
+        targetUpdatedAt: material.updated_at,
+        visibilityScope: material.visibility_scope,
+        ...(proposal
+          ? {
+              proposalId: proposal.proposalId,
+              proposalStatus: proposal.status,
+            }
+          : {}),
+      },
       createdAt: material.created_at,
     };
   });

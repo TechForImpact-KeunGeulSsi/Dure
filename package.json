@@ -18,6 +18,7 @@
     "test:ontology-contract": "node --no-warnings --test scripts/ontology-contract.test.mjs",
     "test:ontology-action-migration": "node --no-warnings --test scripts/ontology-action-review-material.test.mjs",
     "test:ontology-action-contract": "node --no-warnings --test scripts/ontology-action-contract.test.mjs",
+    "test:ontology-action-validator": "node --no-warnings --test scripts/ontology-action-validator.test.mjs",
     "test:admin-copilot": "node --no-warnings --test scripts/admin-copilot-*.test.mjs",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"

@@ -79,7 +79,11 @@ export function DashboardHomeClient({
       </header>
 
       {viewType === 'manager' && (copilotBriefing || copilotError) && (
-        <AdminCopilotBriefing briefing={copilotBriefing} errorMessage={copilotError} />
+        <AdminCopilotBriefing
+          workspaceId={workspaceId}
+          briefing={copilotBriefing}
+          errorMessage={copilotError}
+        />
       )}
 
       <Tabs

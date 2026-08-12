@@ -18,19 +18,25 @@ import {
 import {
   buildAdminCopilotBriefing,
   getAdminCopilotRoleError,
+  type AdminCopilotProposalStatus,
   type AdminCopilotAttendanceRow,
   type AdminCopilotBriefing,
   type AdminCopilotCourseRow,
   type AdminCopilotFeedbackRow,
   type AdminCopilotMaterialRow,
   type AdminCopilotParticipantCourseRow,
+  type AdminCopilotReviewMaterialProposal,
   type AdminCopilotSessionRow,
 } from "./admin-copilot-logic";
+import { buildReviewMaterialSourceFingerprint } from "./ontology-action-contract";
 
 export type {
   AdminCopilotBriefing,
   AdminCopilotEvidence,
   AdminCopilotEvidenceEntityType,
+  AdminCopilotProposalStatus,
+  AdminCopilotReviewMaterialProposal,
+  AdminCopilotTaskAction,
   AdminCopilotTask,
   AdminCopilotTaskPriority,
   AdminCopilotTaskType,
@@ -98,7 +104,7 @@ export async function getAdminCopilotBriefing(
     loadAllAdminCopilotRows<AdminCopilotMaterialRow>((from, to) =>
       admin
         .from("materials")
-        .select("id, course_id, title, created_at, updated_at")
+        .select("id, course_id, title, created_at, updated_at, visibility_scope")
         .eq("workspace_id", input.workspaceId)
         .eq("upload_status", "uploaded")
         .eq("review_status", "pending")
@@ -136,6 +142,12 @@ export async function getAdminCopilotBriefing(
   }
   if (!participantProjectionResult.ok) return participantProjectionResult;
 
+  const reviewMaterialProposalsResult = await loadReviewMaterialProposals(
+    input.workspaceId,
+    materialsResult.data,
+  );
+  if (!reviewMaterialProposalsResult.ok) return reviewMaterialProposalsResult;
+
   const sessions = sessionsResult.data;
   const attendanceSessionIds = sessions
     .filter(
@@ -162,6 +174,7 @@ export async function getAdminCopilotBriefing(
         feedbacks: feedbacksResult.data,
         attendanceRecords: attendanceResult.data,
         activeParticipantCourses: participantProjectionResult.data,
+        reviewMaterialProposals: reviewMaterialProposalsResult.data,
       }),
     );
   } catch (error) {
@@ -278,6 +291,90 @@ async function loadAttendanceRecords(
   }
 
   return apiOk(records);
+}
+
+type AdminCopilotActionProposalRow = {
+  id: UUID;
+  target_id: UUID;
+  source_fingerprint: string;
+  status: string;
+};
+
+const REVIEW_MATERIAL_PROPOSAL_QUERY_CHUNK_SIZE = 150;
+
+async function loadReviewMaterialProposals(
+  workspaceId: UUID,
+  materials: AdminCopilotMaterialRow[],
+): Promise<ApiResult<ReadonlyMap<UUID, AdminCopilotReviewMaterialProposal>>> {
+  if (materials.length === 0) return apiOk(new Map());
+
+  const currentFingerprintByMaterialId = new Map<string, UUID>();
+  for (const material of materials) {
+    const fingerprint = buildReviewMaterialSourceFingerprint({
+      workspaceId,
+      materialId: material.id,
+      targetUpdatedAt: material.updated_at,
+    });
+    if (fingerprint.ok) {
+      currentFingerprintByMaterialId.set(fingerprint.data, material.id);
+    }
+  }
+
+  const proposalByMaterialId = new Map<
+    UUID,
+    AdminCopilotReviewMaterialProposal
+  >();
+  const admin = createSupabaseAdminClient();
+  for (const materialIds of chunk(
+    materials.map((material) => material.id),
+    REVIEW_MATERIAL_PROPOSAL_QUERY_CHUNK_SIZE,
+  )) {
+    const result = await loadAllAdminCopilotRows<AdminCopilotActionProposalRow>(
+      (from, to) =>
+        admin
+          .from("ontology_action_proposals")
+          .select("id, target_id, source_fingerprint, status")
+          .eq("workspace_id", workspaceId)
+          .eq("source_signal_type", "pending_material_review")
+          .eq("action_type", "review_material")
+          .eq("target_type", "material")
+          .in("target_id", materialIds)
+          .order("target_id", { ascending: true })
+          .order("updated_at", { ascending: false })
+          .range(from, to),
+    );
+    if (result.error) return apiError("INTERNAL_ERROR", result.error.message);
+
+    for (const proposal of result.data) {
+      const materialId = currentFingerprintByMaterialId.get(
+        proposal.source_fingerprint,
+      );
+      if (!materialId || materialId !== proposal.target_id) continue;
+      if (!isAdminCopilotProposalStatus(proposal.status)) {
+        return apiError(
+          "INTERNAL_ERROR",
+          "ReviewMaterial proposal 상태가 유효하지 않습니다.",
+        );
+      }
+      proposalByMaterialId.set(materialId, {
+        proposalId: proposal.id,
+        status: proposal.status,
+      });
+    }
+  }
+
+  return apiOk(proposalByMaterialId);
+}
+
+function isAdminCopilotProposalStatus(
+  value: string,
+): value is AdminCopilotProposalStatus {
+  return (
+    value === "pending" ||
+    value === "approved" ||
+    value === "rejected" ||
+    value === "expired"
+  );
 }
 
 function chunk<T>(items: T[], size: number): T[][] {

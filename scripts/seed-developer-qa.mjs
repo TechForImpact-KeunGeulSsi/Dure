@@ -40,6 +40,8 @@ const REQUIRED_TABLE_PROJECTIONS = {
   settlement_request_items: "id, settlement_request_id, subtotal",
   settlement_request_receipts: "id, settlement_request_id, storage_path",
   course_feedbacks: "id, workspace_id, course_id, status",
+  ontology_action_proposals: "id, workspace_id, target_id, status",
+  ontology_action_executions: "id, workspace_id, proposal_id, status",
 };
 
 const LOCAL_QA_WORKSPACE_ID = "d0000000-0000-4000-8000-000000000001";
@@ -397,6 +399,8 @@ async function verifyCounts(client, workspaceId, fixture) {
     course_feedbacks: fixture.feedbacks.length,
     settlement_requests: fixture.settlements.length,
     activity_logs: fixture.activityLogs.length,
+    ontology_action_proposals: 0,
+    ontology_action_executions: 0,
   };
   for (const [table, expected] of Object.entries(expectedCounts)) {
     const { count, error } = await client
@@ -501,6 +505,16 @@ async function verifyCopilotInputs(client, config, fixture) {
   assert.deepEqual(taskCounts, fixture.expected.taskCounts, "Admin Copilot task counts mismatch");
   assert.equal(briefing.summary.upcomingSessionCount, fixture.expected.upcomingSessionCount);
   assert.equal(briefing.summary.recentSessionCount, fixture.expected.recentSessionCount);
+
+  const pendingMaterialTask = briefing.tasks.find(
+    (task) => task.type === "pending_material_review",
+  );
+  const pendingMaterial = fixture.materials.find(
+    (material) => material.key === fixture.expected.reviewMaterialScenario.materialKey,
+  );
+  assert.equal(pendingMaterialTask?.action?.actionType, "review_material");
+  assert.equal(pendingMaterialTask?.action?.targetId, pendingMaterial?.id);
+  assert.equal(pendingMaterialTask?.action?.proposalId, undefined);
 }
 
 async function selectWorkspaceRows(client, table, projection, workspaceId, refine = (query) => query) {
@@ -572,6 +586,8 @@ async function resetWorkspaceData(client, workspaceId) {
     "settlement_requests",
     "instructor_payout_accounts",
     "course_feedbacks",
+    "ontology_action_executions",
+    "ontology_action_proposals",
     "materials",
     "class_memos",
     "course_participant_groups",

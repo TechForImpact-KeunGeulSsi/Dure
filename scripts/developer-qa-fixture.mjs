@@ -258,6 +258,10 @@ export function buildDeveloperQaFixture({
     ],
     storageFiles,
     expected: {
+      reviewMaterialScenario: {
+        materialKey: "pending",
+        courseKey: "operations",
+      },
       taskCounts: {
         pending_material_review: 1,
         attendance_risk_participant: 1,

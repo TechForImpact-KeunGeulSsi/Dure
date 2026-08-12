@@ -52,6 +52,7 @@ test("네 가지 업무 신호를 만들고 결정론적 우선순위로 정렬�
         title: "1회차 자료",
         created_at: "2026-07-10T00:00:00Z",
         updated_at: "2026-07-10T00:00:00Z",
+        visibility_scope: "admin_only",
       },
     ],
     feedbacks: [
@@ -95,6 +96,57 @@ test("네 가지 업무 신호를 만들고 결정론적 우선순위로 정렬�
     briefing.tasks.find((task) => task.type === "attendance_risk_participant")?.relatedHref,
     `/workspaces/${WORKSPACE_ID}/courses/course-attendance/participants`,
   );
+  assert.deepEqual(
+    briefing.tasks.find((task) => task.type === "pending_material_review")?.action,
+    {
+      actionType: "review_material",
+      approvalMode: "always_required",
+      targetId: "material-1",
+      targetUpdatedAt: "2026-07-10T00:00:00Z",
+      visibilityScope: "admin_only",
+    },
+  );
+  assert.ok(
+    briefing.tasks
+      .filter((task) => task.type !== "pending_material_review")
+      .every((task) => task.action === undefined),
+  );
+});
+
+test("현재 자료 버전에 해당하는 proposal 상태만 bounded action metadata로 노출한다", () => {
+  const briefing = buildAdminCopilotBriefing({
+    workspaceId: WORKSPACE_ID,
+    timezone: "Asia/Seoul",
+    referenceDate: "2026-07-17",
+    courses: [{ id: "course-1", name: "운영 수업", status: "in_progress" }],
+    sessions: [],
+    materials: [
+      {
+        id: "material-1",
+        course_id: "course-1",
+        title: "자료",
+        created_at: "2026-07-10T00:00:00Z",
+        updated_at: "2026-07-11T00:00:00Z",
+        visibility_scope: "public",
+      },
+    ],
+    feedbacks: [],
+    attendanceRecords: [],
+    activeParticipantCourses: [],
+    reviewMaterialProposals: new Map([
+      ["material-1", { proposalId: "proposal-1", status: "pending" }],
+    ]),
+  });
+
+  assert.deepEqual(briefing.tasks[0]?.action, {
+    actionType: "review_material",
+    approvalMode: "always_required",
+    targetId: "material-1",
+    targetUpdatedAt: "2026-07-11T00:00:00Z",
+    visibilityScope: "public",
+    proposalId: "proposal-1",
+    proposalStatus: "pending",
+  });
 });
 
 test("출석 기록이 3개 미만이거나 휴강 회차이면 위험 신호를 만들지 않는다", () => {

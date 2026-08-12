@@ -12,6 +12,8 @@ import type {
   AdminCopilotTaskPriority,
 } from "@/services/admin-copilot-logic";
 
+import { ReviewMaterialActionDialog } from "./review-material-action-dialog";
+
 const PRIORITY: Record<
   AdminCopilotTaskPriority,
   { label: string; className: string; icon: typeof AlertTriangle }
@@ -33,7 +35,13 @@ const PRIORITY: Record<
   },
 };
 
-export function AdminCopilotTaskCard({ task }: { task: AdminCopilotTask }) {
+export function AdminCopilotTaskCard({
+  task,
+  workspaceId,
+}: {
+  task: AdminCopilotTask;
+  workspaceId: string;
+}) {
   const priority = PRIORITY[task.priority];
   const PriorityIcon = priority.icon;
 
@@ -62,13 +70,22 @@ export function AdminCopilotTaskCard({ task }: { task: AdminCopilotTask }) {
           </p>
         </div>
 
-        <Link
-          href={task.relatedHref}
-          className="inline-flex h-9 flex-shrink-0 items-center justify-center gap-1.5 self-start rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-        >
-          관련 화면
-          <ArrowUpRight className="h-4 w-4" />
-        </Link>
+        <div className="flex flex-wrap items-center gap-2 self-start">
+          {task.action?.actionType === "review_material" ? (
+            <ReviewMaterialActionDialog
+              workspaceId={workspaceId}
+              task={task}
+              action={task.action}
+            />
+          ) : null}
+          <Link
+            href={task.relatedHref}
+            className="inline-flex h-9 flex-shrink-0 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          >
+            관련 화면
+            <ArrowUpRight className="h-4 w-4" />
+          </Link>
+        </div>
       </div>
 
       <details className="group mt-4">

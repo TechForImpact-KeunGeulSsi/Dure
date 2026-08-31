@@ -1,6 +1,6 @@
 'use client';
 
-import { Mail, MessageSquare, Search } from 'lucide-react';
+import { Mail, MessageSquare, Search, UserPlus } from 'lucide-react';
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -74,7 +74,7 @@ export function MembersClient({ workspaceId, initial, groups, pendingRequests }:
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   const [search, setSearch] = useState('');
   const router = useRouter();
-  const canEdit = initial.canInviteMembers;
+  const canEdit = initial.canEditMembers;
 
   const instructorCount = initial.members.filter((m) => m.role === 'instructor').length;
   const activeCount = initial.members.filter((m) => m.status === 'active').length;
@@ -112,7 +112,10 @@ export function MembersClient({ workspaceId, initial, groups, pendingRequests }:
 
   return (
     <section className="space-y-6">
-      <Banner />
+      <Banner
+        canInvite={initial.canInviteMembers}
+        onInvite={() => setInviteOpen(true)}
+      />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <StatCard label="전체 멤버" value={`${initial.members.length}명`} tone="blue" />
@@ -279,6 +282,7 @@ export function MembersClient({ workspaceId, initial, groups, pendingRequests }:
         onOpenChange={setInviteOpen}
         workspaceId={workspaceId}
         groups={groups}
+        canInviteOwner={initial.canInviteOwner}
       />
 
       <ApproveRequestDialog
@@ -304,13 +308,32 @@ export function MembersClient({ workspaceId, initial, groups, pendingRequests }:
   );
 }
 
-function Banner() {
+function Banner({
+  canInvite,
+  onInvite,
+}: {
+  canInvite: boolean;
+  onInvite: () => void;
+}) {
   return (
-    <section className="rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 p-8 shadow-sm">
-      <h2 className="text-2xl font-bold text-white">강사·운영자 관리</h2>
-      <p className="mt-1 text-sm text-blue-100">
-        강사와 그룹 운영자를 초대하거나, 사용자가 보낸 참여 요청을 수락해 워크스페이스 멤버를 관리하세요.
-      </p>
+    <section className="flex flex-col gap-6 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 p-8 shadow-sm sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <h2 className="text-2xl font-bold text-white">강사·운영자 관리</h2>
+        <p className="mt-1 text-sm text-blue-100">
+          강사와 그룹 운영자를 초대하거나, 사용자가 보낸 참여 요청을 수락해 워크스페이스 멤버를 관리하세요.
+        </p>
+      </div>
+      {canInvite && (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onInvite}
+          className="shrink-0 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+        >
+          <UserPlus className="size-4" />
+          멤버 초대
+        </Button>
+      )}
     </section>
   );
 }

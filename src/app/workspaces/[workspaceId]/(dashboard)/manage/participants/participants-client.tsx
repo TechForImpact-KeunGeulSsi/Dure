@@ -184,6 +184,7 @@ export function ParticipantsClient({
         />
       ) : (
         <>
+          <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-white shadow-sm">
           <Table className="table-fixed">
             <THead>
               <Tr>
@@ -260,6 +261,7 @@ export function ParticipantsClient({
               ))}
             </TBody>
           </Table>
+          </div>
           <Pagination
             page={data.pageInfo.page}
             totalPages={totalPages}

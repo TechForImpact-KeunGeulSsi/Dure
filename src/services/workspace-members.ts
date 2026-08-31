@@ -27,6 +27,8 @@ export type { WorkspaceMemberListItem } from "./workspace-members.list";
 export type GetWorkspaceMembersOutput = {
   members: WorkspaceMemberListItemType[];
   canInviteMembers: boolean;
+  canInviteOwner: boolean;
+  canEditMembers: boolean;
 };
 
 export async function getWorkspaceMembers(
@@ -70,7 +72,9 @@ export async function getWorkspaceMembers(
 
   return apiOk({
     members,
-    canInviteMembers: me.role === "owner_admin",
+    canInviteMembers: me.role === "owner_admin" || me.role === "group_admin",
+    canInviteOwner: me.role === "owner_admin",
+    canEditMembers: me.role === "owner_admin",
   });
 }
 

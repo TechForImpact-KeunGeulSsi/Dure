@@ -112,10 +112,10 @@ export async function acceptInvite(
 }
 
 /**
- * Owner-admin creates an invite (api-spec.md §6.2).
+ * Owner-admin or group-admin creates an invite (api-spec.md §6.2).
  *
  * Flow:
- *  1. Validate input (Zod) and confirm caller is an active owner_admin.
+ *  1. Validate input (Zod) and confirm caller is an active owner_admin or group_admin.
  *  2. Validate role-scoped IDs (group_admin → groupIds belong to workspace,
  *     instructor → courseIds belong to workspace).
  *  3. Insert a placeholder `workspace_members` row (status='invited', user_id=null).
@@ -166,8 +166,11 @@ export async function createInvite(
       "워크스페이스 접근 권한이 없습니다.",
     );
   }
-  if (me.role !== "owner_admin") {
-    return apiError("ROLE_FORBIDDEN", "초대는 대표 운영자만 가능합니다.");
+  if (me.role !== "owner_admin" && me.role !== "group_admin") {
+    return apiError("ROLE_FORBIDDEN", "초대는 대표 운영자와 그룹 운영자만 가능합니다.");
+  }
+  if (me.role === "group_admin" && input.role === "owner_admin") {
+    return apiError("ROLE_FORBIDDEN", "대표 운영자는 대표 운영자만 초대할 수 있습니다.");
   }
 
   const normalizedGroupIds =
@@ -188,6 +191,61 @@ export async function createInvite(
         "VALIDATION_FAILED",
         "선택한 그룹 중 일부를 찾을 수 없습니다.",
       );
+    }
+  }
+
+  if (me.role === "group_admin") {
+    const { data: accessibleGroupRows, error: accessibleGroupError } = await supabase
+      .from("workspace_member_groups")
+      .select("group_id")
+      .eq("workspace_id", workspaceId)
+      .eq("member_id", me.id);
+    if (accessibleGroupError) {
+      return apiError("INTERNAL_ERROR", accessibleGroupError.message);
+    }
+    const accessibleGroupIds = new Set(
+      (accessibleGroupRows ?? []).map((row) => row.group_id as UUID),
+    );
+
+    if (
+      input.role === "group_admin" &&
+      normalizedGroupIds.some((groupId) => !accessibleGroupIds.has(groupId))
+    ) {
+      return apiError(
+        "SCOPE_FORBIDDEN",
+        "접근 권한이 없는 그룹은 초대 범위에 포함할 수 없습니다.",
+      );
+    }
+
+    if (input.role === "instructor" && normalizedCourseIds.length > 0) {
+      const { data: courseGroupRows, error: courseGroupError } = await supabase
+        .from("course_groups")
+        .select("course_id, group_id")
+        .eq("workspace_id", workspaceId)
+        .in("course_id", normalizedCourseIds);
+      if (courseGroupError) {
+        return apiError("INTERNAL_ERROR", courseGroupError.message);
+      }
+      const groupIdsByCourse = new Map<UUID, UUID[]>();
+      for (const row of courseGroupRows ?? []) {
+        const courseId = row.course_id as UUID;
+        const groupIds = groupIdsByCourse.get(courseId) ?? [];
+        groupIds.push(row.group_id as UUID);
+        groupIdsByCourse.set(courseId, groupIds);
+      }
+      const hasOutOfScopeCourse = normalizedCourseIds.some((courseId) => {
+        const courseGroupIds = groupIdsByCourse.get(courseId) ?? [];
+        return (
+          courseGroupIds.length === 0 ||
+          courseGroupIds.some((groupId) => !accessibleGroupIds.has(groupId))
+        );
+      });
+      if (hasOutOfScopeCourse) {
+        return apiError(
+          "SCOPE_FORBIDDEN",
+          "접근 권한이 없는 수업은 초대 범위에 포함할 수 없습니다.",
+        );
+      }
     }
   }
   if (normalizedCourseIds.length > 0) {

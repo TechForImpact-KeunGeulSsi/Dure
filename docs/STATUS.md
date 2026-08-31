@@ -1,6 +1,6 @@
 # Project Status
 
-최종 갱신: 2026-08-05
+최종 갱신: 2026-08-31
 
 ## 현재 상태
 
@@ -13,6 +13,13 @@
 Operational Ontology v1 공통 계약은 `docs/ontology-contract.md`에 구현했습니다. 현재 ontology의 11개 객체와 네 Admin Copilot task에 대해 source table·column, 양방향 cardinality, 관계 예외, 역할별 read/action scope, `권한 gate -> source query -> deterministic rule -> evidence -> 관련 화면` 경로를 고정했습니다. 이 변경은 문서와 drift 검증을 추가한 것이며 DB schema, runtime service, RLS, UI 동작은 변경하지 않았습니다.
 
 ## 최근 검증
+
+2026-08-31 Vercel Production 배포:
+
+- 기존 `dure` Production은 `4855b56`으로 배포되어 있었고, 현재 에이전트 구현이 포함된 `4d129ca`와 달라 clean snapshot 배포를 진행함
+- `4d129ca` clean snapshot을 Vercel `dure` 프로젝트에 배포: `dpl_7DqRKpT6GmQzMvCN7HfptDTduXxh`, `READY`, alias `https://dure-phi.vercel.app`
+- Production `/`와 `/login` 응답은 각각 HTTP 200
+- Vercel 배포는 Supabase migration을 실행하지 않으므로 원격 `20260805090000_ontology_action_review_material.sql` 적용 여부와 인증된 Admin Copilot/ReviewMaterial runtime은 별도 미검증
 
 2026-07-25에 다음을 실행했습니다.
 
@@ -74,6 +81,12 @@ npm run build
 - `npm run lint`: passed with existing warnings 3건
 - `npm run build`: passed with the same existing warnings 3건
 - `git diff --check`: passed
+
+2026-08-12 UI 조정:
+
+- 참여자·수업 관리의 그룹·참여자·수업 목록을 다른 운영 화면과 같은 흰색 표면으로 정리하고, 로컬 대표 운영자 브라우저에서 세 탭의 목록 렌더링과 콘솔 오류 없음을 확인
+- 강사·운영자 관리 화면에 대표 운영자·그룹 운영자용 멤버 초대 버튼을 연결하고, 그룹 운영자는 자기 접근 범위에서만 그룹 운영자·강사를 초대하도록 권한 계약과 화면을 정리
+- 공개 랜딩의 실사 교육 운영 이미지를 제거하고, 기존 지구본과 어울리는 네이비·블루·라임 계열의 3D 학습 허브 오브젝트로 교체
 
 2026-08-05 ReviewMaterial Task 1 검증:
 

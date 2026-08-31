@@ -154,6 +154,7 @@ export function CoursesClient({
         />
       ) : (
         <>
+          <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-white shadow-sm">
           <Table>
             <THead>
               <Tr>
@@ -228,6 +229,7 @@ export function CoursesClient({
               ))}
             </TBody>
           </Table>
+          </div>
           <Pagination
             page={data.pageInfo.page}
             totalPages={totalPages}

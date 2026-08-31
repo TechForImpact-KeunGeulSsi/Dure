@@ -116,7 +116,7 @@ UI에서 버튼을 숨기는 것은 보조 수단이다. 실제 경계는 `인�
 | Actor | Object read scope | Action scope | Service 재검증 경계 | Admin Copilot v1 |
 | --- | --- | --- | --- | --- |
 | `owner_admin` | 해당 Workspace의 모든 v1 운영 객체 | 멤버·그룹·수업·참여자·자료·출석·메모·피드백을 각 action 계약에 따라 관리 | `loadCurrentMembership`, role 확인, target `workspace_id`, action validator/current state | 허용; 네 task 전체를 workspace scope로 계산 |
-| `group_admin` | `workspace_member_groups`에 배정된 그룹 및 그 그룹과 하나 이상 연결된 수업/참여자/기록 | 접근 그룹 범위의 운영 action. 수업 전체 변경처럼 full-course scope가 필요한 action은 모든 연결 그룹 조건을 별도 확인 | active membership + `accessible_group_ids` + target/course group 교집합 또는 full-course check | 금지 (`ROLE_FORBIDDEN`) |
+| `group_admin` | `workspace_member_groups`에 배정된 그룹 및 그 그룹과 하나 이상 연결된 수업/참여자/기록 | 접근 그룹 범위의 운영 action, 그룹 운영자·강사 초대. 수업 전체 변경처럼 full-course scope가 필요한 action은 모든 연결 그룹 조건을 별도 확인 | active membership + `accessible_group_ids` + target/course group 교집합 또는 full-course check | 금지 (`ROLE_FORBIDDEN`) |
 | `instructor` | `courses.instructor_member_id = current member id`인 직접 배정 수업과 그 자료·회차·출석·메모 | 담당 수업의 자료/출석/메모 action; 자료 review 상태 변경과 일반 일정 관리 불가 | active membership + instructor assignment + target의 course 연결; admin client 전에 `canAccessCourse` | 금지 (`ROLE_FORBIDDEN`) |
 | Participant data subject | 시스템 actor가 아니며 로그인/운영 화면 read scope 없음 | action 권한 없음 | API actor로 해석하지 않음; 공개 피드백 작성자는 별도 public input contract | 해당 없음 |
 

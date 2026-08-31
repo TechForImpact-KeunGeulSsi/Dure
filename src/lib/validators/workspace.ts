@@ -9,7 +9,7 @@ export const SignupPreferredRoleSchema = z.enum(
 );
 
 // architecture.md §6 — workspace name is required, timezone defaults to Asia/Seoul.
-// AGENTS.md §2: legacy 디자인의 "기관/마을"은 워크스페이스/그룹으로 통일.
+// Use workspace/group terminology consistently across the product.
 export const CreateWorkspaceInputSchema = z.object({
   name: z
     .string()

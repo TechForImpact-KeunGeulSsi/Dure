@@ -4,21 +4,6 @@ DURE는 교육·돌봄·문화예술 프로그램을 운영하는 조직이 수�
 
 현장 운영에서는 모집·반 배정·일정·출석·기록·보고가 종이, 스프레드시트와 메신저로 나뉘기 쉽습니다. DURE는 운영자의 판단을 대신하기보다, 한 번 입력한 정보를 역할별 화면과 후속 업무에서 안전하게 재사용하도록 만드는 것을 목표로 합니다.
 
-## 핵심 문서
-
-- [작업 지침](AGENTS.md)
-- [현재 작업 상태와 다음 시작점](docs/STATUS.md)
-- [용어 기준](docs/context.md)
-- [시스템 구조](docs/architecture.md)
-- [페이지별 query/action 계약](docs/api-spec.md)
-- [운영 ontology](docs/ontology.md)
-- [Human-approved action 구현 계획](docs/ontology-action-implementation-plan.md)
-- [Developer QA fixture](docs/developer-qa.md)
-- [로컬 셋업](docs/setup.md)
-- [Supabase 기준](supabase/README.md)
-- [제출용 저장소 공개 범위](docs/submission/repository-audit.md)
-- [방학 활동 정리 및 구글 폼 원고](docs/submission/winter-break-summary.md)
-
 ## 기술 스택
 
 - Next.js 15 App Router, React 19, TypeScript
@@ -38,15 +23,6 @@ src/
 supabase/
   migrations/         # DB schema and policy history
   config.toml         # Local Supabase config
-docs/
-  STATUS.md
-  ontology.md
-  ontology-action-implementation-plan.md
-  context.md
-  architecture.md
-  api-spec.md
-  developer-qa.md
-  setup.md
 ```
 
 ## 로컬 실행
@@ -59,7 +35,7 @@ supabase db reset
 npm run dev
 ```
 
-환경 변수 매핑과 Supabase 로컬 URL은 [docs/setup.md](docs/setup.md)를 따릅니다.
+환경 변수는 `.env.example`을 기준으로 설정합니다. 실제 비밀값은 커밋하지 않습니다.
 
 ## 개발 명령
 
@@ -97,8 +73,8 @@ npm run build
 
 ## 공개 범위와 현재 한계
 
-외부 제출용 `main`에는 실행 가능한 제품 코드, DB 기준, 현재 개발 문서와 재현 가능한 테스트만 둡니다. 기관 연락처, 개인 식별 정보, 녹음·녹취 원본, 실제 출석부·스프레드시트와 미팅 링크는 포함하지 않습니다. 상세 기준은 [제출용 저장소 공개 범위](docs/submission/repository-audit.md)에 적었습니다.
+이 저장소는 외부 검토를 위해 실행 가능한 제품 코드, DB migration/config, 테스트와 이 README만 공개합니다. 기관 연락처, 개인 식별 정보, 녹음·녹취 원본, 실제 출석부·스프레드시트, 미팅 링크와 내부 진행 기록은 포함하지 않습니다.
 
-최근 검증 명령과 결과는 [docs/STATUS.md](docs/STATUS.md)에 기록합니다. 아직 LLM 기반 자연어 후속 질문과 자율 실행은 구현하지 않았고, 실제 기관의 비식별 출석표·월별 보고 양식과 집계 결과를 대조하는 작업, ReviewMaterial 브라우저 승인·거절 전체 시나리오와 원격 migration/runtime 검증은 추가 확인이 필요합니다.
+현재 DURE에는 LLM이나 외부 AI provider가 연결되어 있지 않습니다. Admin Copilot은 결정론적 규칙으로 운영 신호와 근거를 생성하며, 자료 검토는 `제안 → 사람의 승인/거절 → 실행 기록` 경계를 따릅니다. 향후 AI 기능을 연결하더라도 권한 확인, 원본 재조회, 근거 생성, 사람 승인 범위를 유지하는 것이 현재 구현의 기준입니다.
 
-새 기능을 추가할 때는 `docs/context.md`, `docs/architecture.md`, `docs/api-spec.md`를 먼저 확인하고, 페이지에서는 `services/` 계층을 통해 데이터에 접근합니다.
+아직 LLM 기반 자연어 후속 질문과 자율 실행은 구현하지 않았습니다. 실제 기관 데이터와의 대조, 원격 migration/runtime, 인증된 브라우저 전체 시나리오는 배포 환경에서 별도 검증이 필요합니다.

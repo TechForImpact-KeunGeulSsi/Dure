@@ -14,6 +14,11 @@ agent-workbench/
 # Private field research and outreach notes; use the separate PM branch/workspace.
 /docs/pm/
 
+# Internal documentation; keep the public repository focused on code and README.md.
+/AGENTS.md
+/docs/**/*.md
+/supabase/README.md
+
 # Environment files (never commit secrets)
 .env*
 !.env.example

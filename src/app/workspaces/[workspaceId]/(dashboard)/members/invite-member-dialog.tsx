@@ -21,6 +21,7 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   workspaceId: string;
   groups: GroupSummary[];
+  canInviteOwner: boolean;
 };
 
 type SuccessState = {
@@ -29,7 +30,13 @@ type SuccessState = {
   email: string;
 };
 
-export function InviteMemberDialog({ open, onOpenChange, workspaceId, groups }: Props) {
+export function InviteMemberDialog({
+  open,
+  onOpenChange,
+  workspaceId,
+  groups,
+  canInviteOwner,
+}: Props) {
   const router = useRouter();
   const [role, setRole] = useState<InvitableRole>('instructor');
   const [email, setEmail] = useState('');
@@ -158,7 +165,7 @@ export function InviteMemberDialog({ open, onOpenChange, workspaceId, groups }: 
             >
               <option value="instructor">강사</option>
               <option value="group_admin">그룹 운영자</option>
-              <option value="owner_admin">대표 운영자</option>
+              {canInviteOwner && <option value="owner_admin">대표 운영자</option>}
             </Select>
           </div>
 

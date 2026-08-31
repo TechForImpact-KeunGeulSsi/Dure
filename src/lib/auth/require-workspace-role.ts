@@ -31,7 +31,7 @@ export type WorkspaceMembership = {
  *   the allowed list is sent to /workspaces/{id}/home (the safe landing).
  *
  * Permission is verified server-side regardless of client-side hints
- * (AGENTS.md §6).
+ * The service layer is the authoritative permission boundary.
  */
 export async function requireWorkspaceMembership(
   options: RequireWorkspaceMembershipOptions,

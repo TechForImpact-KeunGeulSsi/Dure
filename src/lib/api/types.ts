@@ -1,4 +1,4 @@
-// Mirrors docs/api-spec.md §1.6 (enums), §1.7 (IDs/time), and §2 (common DTOs).
+// Shared API types for the product's public terminology and DTO boundaries.
 // Keep this file aligned with that spec — pages and services share these types.
 
 export type UUID = string;

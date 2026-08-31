@@ -1,4 +1,4 @@
-// Mirrors docs/api-spec.md §1.3 and §1.4.
+// Stable API error codes and user-facing error boundaries.
 
 export type ApiErrorCode =
   | "AUTH_REQUIRED"

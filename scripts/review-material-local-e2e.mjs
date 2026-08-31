@@ -126,7 +126,7 @@ async function main() {
     executionId: approval.execution_id,
     ownerRole: sessions.owner.role,
     nonOwnerRoles: [sessions.groupAdmin.role, sessions.instructor.role],
-    browserRequired: "Run the owner/group-admin/instructor checklist in docs/developer-qa.md against the same local fixture.",
+    browserRequired: "Run the owner/group-admin/instructor browser checklist against the same local fixture.",
   }, null, 2));
 }
 

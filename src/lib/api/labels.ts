@@ -1,4 +1,4 @@
-// Mirrors docs/api-spec.md §1.6 label mapping table.
+// Keep API labels aligned with the product's public terminology.
 // Pages convert API enum values to Korean labels through these helpers
 // rather than baking strings into UI code.
 

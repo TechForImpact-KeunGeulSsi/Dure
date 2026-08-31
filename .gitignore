@@ -11,6 +11,9 @@ agent-workbench/
 .superpowers/
 .mcp.json
 
+# Private field research and outreach notes; use the separate PM branch/workspace.
+/docs/pm/
+
 # Environment files (never commit secrets)
 .env*
 !.env.example

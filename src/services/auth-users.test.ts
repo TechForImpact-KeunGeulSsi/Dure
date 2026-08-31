@@ -3,11 +3,14 @@ import * as assert from "node:assert/strict";
 import { authUsersIncludeEmail } from "./auth-users";
 
 assert.equal(
-  authUsersIncludeEmail([{ email: "Owner@Dure.edu" }], " owner@dure.edu "),
+  authUsersIncludeEmail([{ email: "Owner@example.test" }], " owner@example.test "),
   true,
 );
 
 assert.equal(
-  authUsersIncludeEmail([{ email: "other@dure.edu" }, { email: null }], "new@dure.edu"),
+  authUsersIncludeEmail(
+    [{ email: "other@example.test" }, { email: null }],
+    "new@example.test",
+  ),
   false,
 );

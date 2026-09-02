@@ -32,7 +32,7 @@ npm install
 cp .env.example .env.local
 supabase start
 supabase db reset
-npm run dev
+npm run dev:local
 ```
 
 환경 변수는 `.env.example`을 기준으로 설정합니다. 실제 비밀값은 커밋하지 않습니다.
@@ -40,6 +40,7 @@ npm run dev
 ## 개발 명령
 
 ```bash
+npm run dev:local
 npm run dev
 npm run test:admin-copilot
 npm run lint
@@ -62,18 +63,18 @@ npm run build
 - 워크스페이스 참여 요청
 - 헤더 최근 활동
 - 공개 수업 카탈로그와 공개 preview
-- 대표 운영자용 읽기 전용 Admin Copilot 운영 브리핑(네 가지 결정론적 신호, 근거, 관련 화면 링크)
-- 자료 검토를 위한 `proposal → 사람의 승인/거절 → 실행 기록` 흐름
+- 대표 운영자용 Admin Copilot 운영 브리핑(네 가지 결정론적 신호, 근거, 관련 화면 링크)
+- `PendingMaterialReview` 자료를 위한 `proposal → 사람의 승인/거절 → 실행 기록` 흐름
 
 ## AI 에이전트를 위한 사전 작업
 
 현재 DURE에는 LLM이나 외부 AI provider를 연결하지 않았습니다. 먼저 운영 ontology를 정리하고, 운영 객체·관계·source table/column·역할별 조회 범위·action 권한·evidence를 문서와 코드에 연결했습니다. 또한 `권한 확인 → source 재조회 → 결정론적 규칙 → 근거 생성 → 관련 화면` 경로와 제안·사람 승인·실행·idempotency·stale expiry·audit 경계를 고정했습니다.
 
-따라서 이 저장소의 AI 준비는 자율 에이전트 완성본이 아니라, 향후 AI 기능을 연결해도 권한과 근거를 잃지 않게 하는 운영 데이터·action 기반을 뜻합니다. Admin Copilot의 네 신호도 현재는 결정론적 규칙으로 계산하며, AI가 원본 통계나 민감정보를 임의로 계산·공개·전송하지 않도록 설계했습니다.
+따라서 이 저장소의 AI 준비는 자율 에이전트 완성본이 아니라, 향후 AI 기능을 연결해도 권한과 근거를 잃지 않게 하는 운영 데이터·action 기반을 뜻합니다. Admin Copilot의 네 신호는 결정론적 규칙으로 계산하며, 일반 브리핑 조회는 읽기 전용입니다. 자료 검토만 별도의 `ReviewMaterial` action 경계를 통해 명시적 owner 승인 후 실행됩니다.
 
 ## 공개 범위와 현재 한계
 
-이 저장소는 외부 검토를 위해 실행 가능한 제품 코드, DB migration/config, 테스트와 이 README만 공개합니다. 기관 연락처, 개인 식별 정보, 녹음·녹취 원본, 실제 출석부·스프레드시트, 미팅 링크와 내부 진행 기록은 포함하지 않습니다.
+이 저장소는 외부 검토를 위해 실행 가능한 제품 코드, DB migration/config, 현재 시스템 문서, 테스트와 이 README를 공개합니다. 기관 연락처, 개인 식별 정보, 녹음·녹취 원본, 실제 출석부·스프레드시트, 미팅 링크와 내부 진행 기록은 포함하지 않습니다.
 
 현재 DURE에는 LLM이나 외부 AI provider가 연결되어 있지 않습니다. Admin Copilot은 결정론적 규칙으로 운영 신호와 근거를 생성하며, 자료 검토는 `제안 → 사람의 승인/거절 → 실행 기록` 경계를 따릅니다. 향후 AI 기능을 연결하더라도 권한 확인, 원본 재조회, 근거 생성, 사람 승인 범위를 유지하는 것이 현재 구현의 기준입니다.
 

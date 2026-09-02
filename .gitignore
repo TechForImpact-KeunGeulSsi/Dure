@@ -2,6 +2,7 @@
 .vercel
 
 # Local agent/tool state
+.agents/
 .claude/
 .codex/
 .understand-anything/
@@ -14,10 +15,15 @@ agent-workbench/
 # Private field research and outreach notes; use the separate PM branch/workspace.
 /docs/pm/
 
-# Internal documentation; keep the public repository focused on code and README.md.
-/AGENTS.md
+# Current system documentation is tracked; private field research remains local.
 /docs/**/*.md
-/supabase/README.md
+!/docs/STATUS.md
+!/docs/context.md
+!/docs/architecture.md
+!/docs/api-spec.md
+!/docs/developer-qa.md
+!/docs/ontology.md
+!/docs/ontology-contract.md
 /.github/**/*.md
 
 # Environment files (never commit secrets)

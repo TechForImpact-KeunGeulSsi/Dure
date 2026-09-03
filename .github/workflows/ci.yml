@@ -41,10 +41,10 @@ jobs:
 
       - name: Run pure tests
         run: |
-          npm run test:admin-copilot
+          npm run test:attendance-dashboard
           npm run test:developer-qa
           npm run test:darori-seed
-          npm run test:feedback-date-format
+          npm run test:operational-scope
           npm run test:ontology-contract
 
       - name: Typecheck

@@ -4,18 +4,12 @@ import Link from 'next/link';
 import { Pencil } from 'lucide-react';
 
 import { SessionList } from '@/components/courses/session-list';
-import { CoursePublicPreviewSection } from '@/components/public-catalog/course-public-preview-section';
 import type { CourseHomePageData } from '@/types/course';
 import { COURSE_STATUS_LABEL } from '@/types/course';
-import type { PublicCourseDetail } from '@/services/public-catalog';
 
 type CourseHomeClientProps = {
   workspaceId: string;
   data: CourseHomePageData;
-  publicPreview: {
-    course: PublicCourseDetail | null;
-    errorMessage: string | null;
-  };
 };
 
 function formatPeriod(startsOn: string | null, endsOn: string | null) {
@@ -38,7 +32,6 @@ function darkenHex(hex: string, amount = 0.15) {
 export function CourseHomeClient({
   workspaceId,
   data,
-  publicPreview,
 }: CourseHomeClientProps) {
   const { course, sessions, sessionCount } = data;
   const accent = course.cardColor ?? '#2563EB';
@@ -98,12 +91,6 @@ export function CourseHomeClient({
       </section>
 
       <SessionList workspaceId={workspaceId} initialSessions={sessions} />
-
-      <CoursePublicPreviewSection
-        workspaceId={workspaceId}
-        course={publicPreview.course}
-        errorMessage={publicPreview.errorMessage}
-      />
     </section>
   );
 }

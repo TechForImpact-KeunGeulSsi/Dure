@@ -94,6 +94,8 @@ export type CourseParticipantStatusItem = {
   presentCount: number;
   partialCount: number;
   absentCount: number;
+  attendedSessionCount: number;
+  validSessionCount: number;
   attendanceRate: number | null;
   latestNote: string | null;
   canEditAssignment: boolean;
@@ -108,6 +110,8 @@ export type GetCourseParticipantsStatusOutput = {
   course: CourseSummary;
   summary: {
     attendanceRate: number | null;
+    attendedSessionCount: number;
+    validSessionCount: number;
     partialCount: number;
     absentCount: number;
     countedSessionCount: number;

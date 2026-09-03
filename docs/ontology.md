@@ -1,8 +1,8 @@
-# DURE Operational Ontology
+# DURE Operational Ontology (legacy reference)
 
 ## Purpose
 
-This document defines the lightweight ontology used by DURE Admin Copilot v1. It is not a full RDF/OWL ontology and it is not a second source of truth. It is a semantic contract that explains how DURE's relational data should be interpreted as operational entities, relationships, evidence, signals, and manual action recommendations.
+This document preserves the earlier lightweight ontology design as a historical reference. It is not the current product contract and does not describe an active AI or Copilot feature. The current runtime contract is the attendance dashboard specification in [`api-spec.md`](./api-spec.md) and [`ontology-contract.md`](./ontology-contract.md).
 
 Supabase remains the source of truth. Service-layer permission checks remain mandatory.
 
@@ -15,7 +15,7 @@ The canonical source-column mapping, bidirectional cardinality, relationship exc
 - Never expose unauthorized data to an LLM.
 - Treat the graph as a permission-scoped read model derived from relational data.
 - Keep administrative signals deterministic and testable.
-- Separate read-only briefing signals from mutations. The `ReviewMaterial` action is the first exception and always requires an explicit human decision.
+- Keep the current product focused on permission-scoped attendance operations; any future automation requires a separate approved contract.
 - Keep domain object states minimal. Proposal, decision, and execution lifecycle states belong to their own records rather than expanding a domain object's enum.
 - Introduce execution authority per action type and policy, never as a blanket permission granted to an agent.
 
@@ -102,7 +102,7 @@ Participants are not authenticated users and must not be treated as API actors.
 
 Source table: `courses`
 
-Meaning: Educational course/class with status, instructor assignment, groups, sessions, participants, materials, and feedback.
+Meaning: Educational course/class with status, instructor assignment, groups, sessions, participants, and materials.
 
 Primary relationships:
 
@@ -111,7 +111,6 @@ Primary relationships:
 - `TAUGHT_BY` -> `WorkspaceMember`
 - `HAS_SESSION` -> `CourseSession`
 - `HAS_MATERIAL` -> `Material`
-- `HAS_FEEDBACK` -> `CourseFeedback`
 - `HAS_PARTICIPANT` -> `Participant` through group-derived participation and exclusions
 
 ### CourseSession
@@ -178,21 +177,11 @@ Primary relationships:
 - `MEMO_OF_SESSION` -> `CourseSession`
 - `WRITTEN_BY` -> `WorkspaceMember`
 
-### CourseFeedback
+### CourseFeedback (legacy)
 
 Source table: `course_feedbacks`
 
-Meaning: Public course feedback submitted for operator review.
-
-Primary relationships:
-
-- `FEEDBACK_FOR` -> `Course`
-- `BELONGS_TO_WORKSPACE` -> `Workspace`
-
-Relevant status values:
-
-- `new`
-- `reviewed`
+Meaning: Retained records from the retired public course feedback surface. It is not an active ontology object or Admin Copilot signal.
 
 ### ActivityLog
 
@@ -219,7 +208,6 @@ Primary relationships:
 | `TAUGHT_BY` | Course | WorkspaceMember | Assigned instructor |
 | `HAS_SESSION` | Course | CourseSession | Course occurrence |
 | `HAS_MATERIAL` | Course | Material | Course material |
-| `HAS_FEEDBACK` | Course | CourseFeedback | Public feedback |
 | `HAS_ATTENDANCE_RECORD` | CourseSession / Participant | AttendanceRecord | Attendance evidence |
 | `HAS_CLASS_MEMO` | CourseSession | ClassMemo | Session memo |
 | `ACCESSIBLE_BY` | Group / Course | WorkspaceMember | Permission-derived access |
@@ -233,7 +221,7 @@ Role: `owner_admin`
 Semantic access:
 
 - Can inspect all workspace operational data.
-- Can manage workspace members, groups, courses, participants, materials, settlements, and feedback according to service actions.
+- Can manage workspace members, groups, courses, participants, materials, attendance, and class memos according to service actions.
 - Admin Copilot v1 is restricted to this role.
 
 ### Group Admin
@@ -294,7 +282,7 @@ The three independent material state dimensions must not be conflated:
 
 - Upload lifecycle: `uploading | uploaded | failed`.
 - Review state: `pending | reviewed`.
-- Visibility scope: `public | admin_only`.
+- Visibility scope: `admin_only`; historical `public` rows are normalized during the retirement migration.
 
 ### AttendanceRiskParticipant
 
@@ -319,23 +307,6 @@ Evidence nodes:
 Recommended manual action:
 
 - Open the course participant/attendance context and follow up manually with the relevant instructor or participant management flow.
-
-### NewCourseFeedback
-
-Target entity: `CourseFeedback`
-
-Condition:
-
-- Feedback status is `new`.
-
-Evidence nodes:
-
-- `CourseFeedback`
-- Related `Course`
-
-Recommended manual action:
-
-- Open the feedback page and review the submitted feedback.
 
 ### CourseCompletionCandidate
 
@@ -388,7 +359,6 @@ type GraphNode = {
     | 'material'
     | 'attendance_record'
     | 'class_memo'
-    | 'course_feedback'
     | 'activity_log';
   label: string;
   href?: string;
@@ -405,7 +375,6 @@ type AdministrativeSignal = {
   type:
     | 'PendingMaterialReview'
     | 'AttendanceRiskParticipant'
-    | 'NewCourseFeedback'
     | 'CourseCompletionCandidate';
   targetNodeId: string;
   severity: 'high' | 'medium' | 'low';
@@ -428,7 +397,6 @@ Included:
 - Owner-admin operational briefing.
 - Pending material review detection.
 - Attendance-risk participant detection.
-- New feedback detection.
 - Course completion candidate detection.
 - Current `AdminCopilotTask` / `AdminCopilotEvidence` projection derived from relational data.
 - Human-approved `ReviewMaterial` proposal, decision, and execution audit for pending materials.

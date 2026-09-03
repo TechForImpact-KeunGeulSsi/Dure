@@ -4,8 +4,6 @@
 
 import type {
   AttendanceStatus,
-  CourseFeedbackCategory,
-  CourseFeedbackStatus,
   CourseStatus,
   GroupStatus,
   MaterialReviewStatus,
@@ -16,7 +14,6 @@ import type {
   SessionRollupStatus,
   SessionType,
   SessionVisibilityStatus,
-  SettlementRequestStatus,
   WorkspaceRole,
 } from "./types";
 
@@ -70,34 +67,10 @@ export function courseStatusLabel(status: CourseStatus): string {
   }
 }
 
-export function courseFeedbackCategoryLabel(
-  category: CourseFeedbackCategory,
-): string {
-  switch (category) {
-    case "suggestion":
-      return "제안";
-    case "praise":
-      return "좋았던 점";
-    case "other":
-      return "기타";
-  }
-}
-
-export function courseFeedbackStatusLabel(status: CourseFeedbackStatus): string {
-  switch (status) {
-    case "new":
-      return "미확인";
-    case "reviewed":
-      return "확인됨";
-  }
-}
-
 export function materialVisibilityLabel(scope: MaterialVisibilityScope): string {
   switch (scope) {
-    case "public":
-      return "전체 공개";
     case "admin_only":
-      return "관리자에게만 공개";
+      return "워크스페이스 내부 전용";
   }
 }
 
@@ -144,13 +117,4 @@ export function sessionRollupLabel(status: SessionRollupStatus): string {
 
 export function sessionProgressLabel(status: SessionProgressStatus): string {
   return status === "scheduled" ? "예정" : "취소";
-}
-
-export function settlementStatusLabel(status: SettlementRequestStatus): string {
-  switch (status) {
-    case "pending":
-      return "대기";
-    case "paid":
-      return "지급 완료";
-  }
 }

@@ -94,4 +94,4 @@ vercel env add CRON_SECRET
 workspaces/{workspace_id}/courses/{course_id}/materials/{material_id}/{file_id}-{safe_filename}
 ```
 
-- The `course-materials` bucket is private. Application uploads and replacements use server actions with `FormData` and the server-only admin storage client after service-layer permission checks. Downloads use short-lived signed URLs after permission or public-visibility checks. `/api/materials/upload-url` is deprecated and returns 410.
+- The `course-materials` bucket is private. Application uploads and replacements use server actions with `FormData` and the server-only admin storage client after service-layer workspace/course permission checks. Downloads use short-lived signed URLs after the same internal access check. `/api/materials/upload-url` is deprecated and returns 410.

@@ -10,10 +10,7 @@ import { Dialog, DialogBody, DialogFooter, DialogHeader } from '@/components/ui/
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import type { MaterialVisibilityScope } from '@/lib/api/types';
 import { uploadMaterial } from '@/services/materials';
-
-import { VisibilityFields } from './visibility-fields';
 
 type Props = {
   open: boolean;
@@ -40,7 +37,6 @@ export function UploadDialog({
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [scope, setScope] = useState<MaterialVisibilityScope>('admin_only');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,7 +45,6 @@ export function UploadDialog({
     setFile(null);
     setTitle('');
     setDescription('');
-    setScope('admin_only');
     setSubmitting(false);
     setError(null);
   };
@@ -82,7 +77,6 @@ export function UploadDialog({
     formData.append('file', file);
     formData.append('title', title.trim());
     if (description.trim()) formData.append('description', description.trim());
-    formData.append('visibilityScope', scope);
 
     const result = await uploadMaterial(workspaceId, courseId, formData);
     setSubmitting(false);
@@ -153,8 +147,6 @@ export function UploadDialog({
             maxLength={1000}
           />
         </div>
-
-        <VisibilityFields scope={scope} onScopeChange={setScope} />
 
         {error && <p className="text-sm text-rose-600">{error}</p>}
       </DialogBody>

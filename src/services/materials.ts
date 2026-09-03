@@ -35,6 +35,7 @@ import {
 } from "@/lib/validators/material";
 
 import { logActivity } from "./activity";
+import { canAccessCourse } from "./access";
 
 const BUCKET = "course-materials";
 const SIGNED_DOWNLOAD_EXPIRES_SECONDS = 60 * 60;
@@ -51,6 +52,7 @@ const SIGNED_DOWNLOAD_EXPIRES_SECONDS = 60 * 60;
 // 권한 검증은 service 레이어에서 모두 수행:
 //   - 워크스페이스 멤버십 (loadCurrentMembership, user_id 일치)
 //   - 역할별 업로드 허용 (canUploadForRole)
+//   - 업로드 대상 수업 범위 (canAccessCourse)
 //   - 수정/삭제 시 본인/owner/접근 그룹 검사 (canEditMaterial)
 //   - 확인 상태 변경 시 owner/접근 그룹 검사 (canChangeReviewStatus)
 // ─────────────────────────────────────────────────────────────
@@ -123,7 +125,7 @@ export async function getCourseMaterials(
  *  - `file`: File 객체 (필수)
  *  - `title`: string (필수)
  *  - `description`: string | undefined
- *  - `visibilityScope`: 'public' | 'admin_only'
+ *  - 공개 범위: 현재 모든 신규 자료는 워크스페이스 멤버 전용
  */
 export async function uploadMaterial(
   workspaceId: UUID,
@@ -144,7 +146,6 @@ export async function uploadMaterial(
     originalFilename: file.name,
     mimeType: file.type || "application/octet-stream",
     sizeBytes: file.size,
-    visibilityScope: meta.visibilityScope,
   });
   if (!parsed.success) {
     return apiError("VALIDATION_FAILED", "입력값을 확인해 주세요.", {
@@ -168,6 +169,20 @@ export async function uploadMaterial(
     return apiError("ROLE_FORBIDDEN", "자료 업로드 권한이 없습니다.");
   }
 
+  const course = await loadCourseForMaterials(workspaceId, courseId);
+  if (!course) return apiError("NOT_FOUND", "수업을 찾을 수 없습니다.");
+  const canAccess = await canAccessCourse({
+    workspaceId,
+    membership,
+    course: {
+      id: course.id,
+      instructor_member_id: course.instructor?.id ?? null,
+    },
+  });
+  if (!canAccess) {
+    return apiError("SCOPE_FORBIDDEN", "해당 수업에 자료를 업로드할 권한이 없습니다.");
+  }
+
   const admin = createSupabaseAdminClient();
 
   // 1) materials INSERT
@@ -184,7 +199,7 @@ export async function uploadMaterial(
       uploaded_by: membership.memberId,
       upload_status: "uploading",
       review_status: "pending",
-      visibility_scope: parsed.data.visibilityScope,
+      visibility_scope: "admin_only",
     })
     .select("id")
     .single();
@@ -507,7 +522,6 @@ type ParsedUploadMeta =
       ok: true;
       title: string;
       description: string | null;
-      visibilityScope: MaterialVisibilityScope;
     }
   | { ok: false; error: ApiResult<never> };
 
@@ -515,11 +529,7 @@ function parseUploadMeta(formData: FormData): ParsedUploadMeta {
   const title = String(formData.get("title") ?? "").trim();
   const descriptionRaw = formData.get("description");
   const description = descriptionRaw ? String(descriptionRaw).trim() || null : null;
-  const visibilityScope = String(
-    formData.get("visibilityScope") ?? "admin_only",
-  ) as MaterialVisibilityScope;
-
-  return { ok: true, title, description, visibilityScope };
+  return { ok: true, title, description };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -892,7 +902,6 @@ async function writeMaterialUpdates(
   const updatePayload: Record<string, unknown> = {};
   if (input.title !== undefined) updatePayload.title = input.title;
   if (input.description !== undefined) updatePayload.description = input.description ?? null;
-  if (input.visibilityScope !== undefined) updatePayload.visibility_scope = input.visibilityScope;
   if (Object.keys(updatePayload).length === 0) return null;
 
   const { error } = await admin

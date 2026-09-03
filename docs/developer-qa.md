@@ -2,9 +2,9 @@
 
 ## Purpose
 
-The developer QA fixture provides one resettable local workspace for steady-state product smoke testing and Admin Copilot validation before deployment. It is separate from `seed:darori`, which remains the Darori Google Form user-test seed. Remote staging remains an optional later step, not the default development loop.
+The developer QA fixture provides one resettable local workspace for steady-state product smoke testing before deployment. It is separate from `seed:darori`, which remains the Darori Google Form user-test seed. Remote staging remains an optional later step, not the default development loop.
 
-This fixture does not prove that every server action or browser flow works. Direct service-role inserts prepare a known state; the manual smoke checklist exercises the running application. ReviewMaterial Task 7 adds a local DB/Auth state verifier, while the browser steps below remain required for the authenticated server-action path.
+This fixture does not prove that every server action or browser flow works. Direct service-role inserts prepare a known state; the manual smoke checklist exercises the running application. Browser steps remain required for authenticated server-action paths.
 
 ## Scope
 
@@ -13,10 +13,10 @@ The `smoke` profile creates:
 - One fixed workspace in `Asia/Seoul`.
 - Three active login roles: `owner_admin`, `group_admin`, and `instructor`.
 - Active and inactive groups, scoped group-admin access, active/inactive/multi-group participants, and one explicit course exclusion.
-- Planned, in-progress, completed, public, hidden, single-group, and multi-group courses.
+- Planned, in-progress, completed, and legacy public/hidden course visibility examples, plus single-group and multi-group courses.
 - Past and upcoming sessions plus cancelled, hidden, excluded-rollup, and special-session examples.
-- General schedules, downloadable material and receipt fixtures, attendance, class memos, feedback, settlements, and activity logs.
-- Exactly one input scenario for each Admin Copilot v1 task: pending material review, attendance risk, new feedback, and completion candidate.
+- General schedules, downloadable material, attendance, class memos, activity logs, and legacy feedback/settlement rows and receipt objects retained for migration checks.
+- Attendance, participant, role-scope, and legacy-data-retention scenarios for the current operational dashboard.
 
 Invite delivery/acceptance, signup callbacks, join requests, empty-state profiles, and upload-policy failures are intentionally outside this profile.
 
@@ -68,7 +68,38 @@ For a reproducible investigation, override the Seoul reference date:
 npm run seed:developer-qa:local -- --reset --reference-date 2026-07-26
 ```
 
-Normally omit `--reference-date` so the fixture remains aligned with the current Admin Copilot window.
+Normally omit `--reference-date` so the fixture remains aligned with the current dashboard date.
+
+## Mapo center dashboard demo
+
+The `mapo-dashboard` profile is a separate local-only workspace for explaining the attendance dashboard with synthetic Mapo Disability Family Support Center data. It does not modify the existing `DURE Developer QA` workspace.
+
+It creates three in-progress classes (`생활체육교실`, `미술활동`, `음악교실`), 18 sessions, 12 fictional participants, and attendance patterns for present, partial attendance, absent, and missing records. The data includes low attendance at `2/6`, exact `50%` cases that remain normal, and a participant history with `출석/유효회차`.
+
+Build and verify the local demo workspace:
+
+```bash
+npm run seed:mapo-dashboard:local -- --reset
+```
+
+Verify without resetting:
+
+```bash
+npm run verify:mapo-dashboard:local
+```
+
+The demo uses the same local password as the developer QA fixture. Its accounts are:
+
+```text
+owner: mapo.demo.owner@test.local
+operator: mapo.demo.operator@test.local
+fitness instructor: mapo.demo.fitness@test.local
+art instructor: mapo.demo.art@test.local
+music instructor: mapo.demo.music@test.local
+password: dure-local-qa-password
+```
+
+The demo seed is intentionally local-only, uses a fixed workspace ID, and resets only that workspace. No real participant identity or production data is included.
 
 ## Optional remote workflow
 
@@ -126,27 +157,24 @@ Run fixture contract tests without contacting Supabase:
 npm run test:developer-qa
 ```
 
-## ReviewMaterial Task 7 local verification
+## Attendance dashboard local verification
 
 Apply the current migration set to the local database before the first run. `supabase db reset` is local-only and resets the local database.
 
 ```bash
 supabase start
 supabase db reset
-npm run verify:ontology-action:local
+npm run verify:developer-qa:local
 ```
 
-The verifier resets the fixed QA workspace and checks the following state transitions with all three local Auth accounts:
+The verifier resets the fixed QA workspace and checks the following current operational state with all three local Auth accounts:
 
-- owner baseline has one pending-material signal and no persisted proposal;
-- one proposal per material version, rejection with `pending` preserved;
-- material version change followed by stale approval produces `expired` with no execution;
-- a fresh proposal approval produces one `succeeded` execution with `pending -> reviewed` before/after state;
-- replayed approval returns `replayed` without a second execution;
-- the pending-material signal disappears after approval;
-- group-admin and instructor cannot read the owner-only action ledger.
+- owner, group-admin, and instructor membership roles are valid;
+- each role sees only its permitted courses and participant scope;
+- the dashboard fixture includes past, current, upcoming, cancelled, and excluded sessions;
+- attendance records and legacy data-retention rows are present in the expected workspace.
 
-The command intentionally leaves the completed scenario in the local fixture. Restore the baseline after browser checks with:
+The command intentionally leaves the completed fixture in the local workspace. Restore the baseline after browser checks with:
 
 ```bash
 npm run seed:developer-qa:local -- --reset
@@ -162,11 +190,11 @@ npm run dev:local
 
 Use the local accounts and password in the Local-first workflow. With a fresh fixture, verify:
 
-1. Owner opens the workspace home and sees the pending-material task. Opening `자료 검토` does not create a proposal; `검토 시작` creates at most one `pending` proposal.
-2. Owner enters a note and selects `제안 거절`. The dialog reports that the material remains pending and the task remains visible.
-3. Owner starts a new proposal, changes the material title in a separate materials tab while the proposal is open, then selects `확인됨으로 변경`. The dialog must show the stale-version message and no material transition.
-4. After refresh, owner starts a proposal for the changed version and approves it. The task disappears after refresh. Confirm the materials screen shows `확인됨`.
-5. Group admin and instructor can still use their normal scoped materials screens, but have no Admin Copilot briefing or ReviewMaterial action control. In a fresh reset, confirm group admin can perform the existing manual review operation outside the Copilot path.
+1. Owner opens the workspace home and sees the horizontal class filter, date control, summary metrics, and daily attendance graph.
+2. Selecting one or more classes updates the graph without opening a filter drawer.
+3. Selecting a graph row opens participant attendance rates with `출석/유효회차`; a participant opens session history and the attendance book link.
+4. Group admin and instructor see only their permitted course scope and do not see any Copilot surface.
+5. Confirm the dashboard contains no attendance-trend graph and no SMS action.
 
 After the browser checklist, run `npm run verify:developer-qa:local` for the restored baseline, or reset first if the browser session intentionally changed data.
 
@@ -183,7 +211,7 @@ The verifier checks:
 - Group-admin and instructor course scopes match the fixture contract.
 - Core table counts match.
 - Expected Storage paths exist.
-- Live DB projections produce exactly one task in each Admin Copilot category through the deterministic briefing logic.
+  - Live DB counts, role scopes, attendance records, and retained legacy rows match the fixture contract.
 
 The verifier does not create a Next.js cookie session, render pages, click evidence links, or exercise mutation server actions.
 
@@ -197,10 +225,10 @@ Reset immediately before the session. For local work, record the reference date 
 - Confirm home course cards and recent activity are populated.
 - Confirm calendar shows course sessions and general schedules.
 - Confirm member, group, participant, and course management pages load expected data.
-- Confirm public/hidden, active/inactive, and multi-group examples are distinguishable.
-- Open materials and download both the internal fixture and the public fixture where allowed.
-- Open feedback and settlements; confirm new/reviewed and pending/paid examples.
-- Confirm Admin Copilot shows exactly one task for each v1 category.
+- Confirm legacy public/hidden course visibility values remain only as retained data; active operations use workspace-scoped access.
+- Open materials and download the internal fixture where allowed.
+- Confirm legacy feedback/settlement rows and receipt objects remain retained but have no active screen or action.
+  - Confirm the dashboard shows horizontal class filters, summary counts, and the selected-date attendance graph.
 - Open every task evidence control and confirm it targets the correct existing management page.
 - Perform one reversible create/edit operation through the UI to exercise a real owner server action.
 
@@ -210,22 +238,21 @@ Reset immediately before the session. For local work, record the reference date 
 - Confirm Beta-only and Gamma-only courses and participants are not exposed.
 - Confirm the multi-group course is visible under the current at-least-one-accessible-group read policy.
 - Perform one allowed scoped edit.
-- Confirm Admin Copilot is unavailable to this role.
+  - Confirm the dashboard shows only the group-scoped classes for this role.
 
 ### Instructor
 
 - Sign in and confirm only the three assigned courses are visible.
 - Save attendance for an assigned session.
 - Save or edit a class memo.
-- Exercise one material operation and one settlement operation through the UI.
+- Exercise one material operation through the UI.
 - Confirm unassigned courses are inaccessible.
-- Confirm Admin Copilot is unavailable to this role.
+  - Confirm the dashboard shows only the instructor's assigned classes for this role.
 
-### Public surface
+### Retired public surface
 
-- Sign out and confirm public courses appear while the hidden course does not.
-- Open a public course and download its public material.
-- Submit a feedback item and confirm it appears for the owner.
+- Sign out and confirm `/` shows the operations-focused landing without a course catalog.
+- Confirm the retired public course route returns 404 and no public material download or feedback submission is available.
 
 ### Restore
 

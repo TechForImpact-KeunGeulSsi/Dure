@@ -6,7 +6,6 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 
-import { buildAdminCopilotBriefing } from "../src/services/admin-copilot-logic.ts";
 import {
   DEFAULT_DEVELOPER_QA_ACCOUNTS,
   DEVELOPER_QA_BUCKET,
@@ -379,7 +378,6 @@ async function verifySeed(client, config, fixture) {
   await verifyCounts(client, config.workspaceId, fixture);
   await verifyStorage(client, fixture.storageFiles);
   await verifyRoleScopes(users, config, fixture);
-  await verifyCopilotInputs(client, config, fixture);
 }
 
 async function verifyCounts(client, workspaceId, fixture) {
@@ -452,69 +450,6 @@ async function verifyRoleScopes(users, config, fixture) {
   if (groupError) throw new Error(`Group scope RPC verification failed: ${groupError.message}`);
   const normalized = (groupIds ?? []).map((row) => typeof row === "string" ? row : row.accessible_group_ids);
   assert.deepEqual(normalized, [fixture.groups.find((row) => row.key === "alpha").id]);
-}
-
-async function verifyCopilotInputs(client, config, fixture) {
-  const [courses, sessions, materials, feedbacks, attendance, participantGroups, courseGroups, participants, exclusions] = await Promise.all([
-    selectWorkspaceRows(client, "courses", "id, name, status", config.workspaceId),
-    selectWorkspaceRows(client, "course_sessions", "id, course_id, session_no, date, starts_at, ends_at, visibility_status, rollup_status, progress_status", config.workspaceId),
-    selectWorkspaceRows(client, "materials", "id, course_id, title, created_at, updated_at", config.workspaceId, (query) => query.eq("upload_status", "uploaded").eq("review_status", "pending")),
-    selectWorkspaceRows(client, "course_feedbacks", "id, course_id, course_name_snapshot, category, message, created_at", config.workspaceId, (query) => query.eq("status", "new")),
-    selectWorkspaceRows(client, "attendance_records", "id, session_id, participant_id, participant_name_snapshot, status, updated_at", config.workspaceId),
-    selectWorkspaceRows(client, "participant_groups", "participant_id, group_id, status", config.workspaceId, (query) => query.eq("status", "active")),
-    selectWorkspaceRows(client, "course_groups", "course_id, group_id", config.workspaceId),
-    selectWorkspaceRows(client, "participants", "id, status, deleted_at", config.workspaceId),
-    selectWorkspaceRows(client, "course_participants", "course_id, participant_id, status", config.workspaceId, (query) => query.eq("status", "excluded")),
-  ]);
-
-  const activeParticipantIds = new Set(participants.filter((row) => row.status !== "deleted" && !row.deleted_at).map((row) => row.id));
-  const excludedKeys = new Set(exclusions.map((row) => `${row.course_id}:${row.participant_id}`));
-  const coursesByGroup = new Map();
-  for (const row of courseGroups) {
-    if (!coursesByGroup.has(row.group_id)) coursesByGroup.set(row.group_id, []);
-    coursesByGroup.get(row.group_id).push(row.course_id);
-  }
-  const pairKeys = new Set();
-  for (const row of participantGroups) {
-    if (!activeParticipantIds.has(row.participant_id)) continue;
-    for (const courseId of coursesByGroup.get(row.group_id) ?? []) {
-      const key = `${courseId}:${row.participant_id}`;
-      if (!excludedKeys.has(key)) pairKeys.add(key);
-    }
-  }
-  const activeParticipantCourses = [...pairKeys].map((key) => {
-    const [course_id, participant_id] = key.split(":");
-    return { course_id, participant_id };
-  });
-
-  const briefing = buildAdminCopilotBriefing({
-    workspaceId: config.workspaceId,
-    timezone: fixture.workspace.timezone,
-    referenceDate: `${fixture.referenceDate}T12:00:00+09:00`,
-    courses,
-    sessions,
-    materials,
-    feedbacks,
-    attendanceRecords: attendance,
-    activeParticipantCourses,
-  });
-  const taskCounts = Object.fromEntries(Object.keys(fixture.expected.taskCounts).map((type) => [
-    type,
-    briefing.tasks.filter((task) => task.type === type).length,
-  ]));
-  assert.deepEqual(taskCounts, fixture.expected.taskCounts, "Admin Copilot task counts mismatch");
-  assert.equal(briefing.summary.upcomingSessionCount, fixture.expected.upcomingSessionCount);
-  assert.equal(briefing.summary.recentSessionCount, fixture.expected.recentSessionCount);
-
-  const pendingMaterialTask = briefing.tasks.find(
-    (task) => task.type === "pending_material_review",
-  );
-  const pendingMaterial = fixture.materials.find(
-    (material) => material.key === fixture.expected.reviewMaterialScenario.materialKey,
-  );
-  assert.equal(pendingMaterialTask?.action?.actionType, "review_material");
-  assert.equal(pendingMaterialTask?.action?.targetId, pendingMaterial?.id);
-  assert.equal(pendingMaterialTask?.action?.proposalId, undefined);
 }
 
 async function selectWorkspaceRows(client, table, projection, workspaceId, refine = (query) => query) {

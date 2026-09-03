@@ -15,7 +15,6 @@ export type ParticipantStatus = "active" | "inactive" | "deleted";
 export type ParticipantGroupStatus = "active" | "removed";
 export type CourseParticipantStatus = "active" | "excluded";
 export type CourseStatus = "planned" | "in_progress" | "completed";
-export type CoursePublicVisibility = "public" | "hidden";
 export type SessionType = "regular" | "makeup" | "special" | "practice";
 export type SessionVisibilityStatus = "visible" | "hidden";
 export type SessionRollupStatus = "included" | "excluded";
@@ -23,10 +22,7 @@ export type SessionProgressStatus = "scheduled" | "cancelled";
 export type MaterialUploadStatus = "uploading" | "uploaded" | "failed";
 export type MaterialReviewStatus = "pending" | "reviewed";
 export type AttendanceStatus = "present" | "partial" | "absent";
-export type MaterialVisibilityScope = "public" | "admin_only";
-export type SettlementRequestStatus = "pending" | "paid";
-export type CourseFeedbackCategory = "suggestion" | "praise" | "other";
-export type CourseFeedbackStatus = "new" | "reviewed";
+export type MaterialVisibilityScope = "admin_only";
 
 // --- Pagination (api-spec.md §1.5) ---
 
@@ -108,7 +104,6 @@ export type CourseSummary = {
   id: UUID;
   name: string;
   status: CourseStatus;
-  publicVisibility?: CoursePublicVisibility;
   startsOn: ISODate | null;
   endsOn: ISODate | null;
   cardColor: string | null;
@@ -183,6 +178,13 @@ export type AttendanceRecordDto = {
   updatedAt: ISODateTime;
 };
 
+// 출석률은 수업별 참여자 기준으로 현재까지 종료된 유효회차의
+// 출석(present + partial) / 기록이 입력된 유효회차로 계산한다.
+export type AttendanceDashboardSummary = {
+  missingAttendanceCount: number;
+  lowAttendanceParticipantCount: number;
+};
+
 // --- Workspace context (api-spec.md §3.1) ---
 
 export type WorkspaceCapabilities = {
@@ -204,12 +206,10 @@ export type GetWorkspaceContextOutput = {
 
 export type ActivityTarget =
   | { type: "course"; courseId: UUID; href: string }
-  | { type: "course_feedback"; feedbackId: UUID; courseId: UUID; href: string }
   | { type: "course_material"; courseId: UUID; materialId: UUID; href: string }
   | { type: "attendance"; courseId: UUID; sessionId: UUID; href: string }
   | { type: "class_memo"; courseId: UUID; sessionId: UUID; href: string }
-  | { type: "member"; memberId: UUID; href: string }
-  | { type: "settlement_request"; requestId: UUID; href: string };
+  | { type: "member"; memberId: UUID; href: string };
 
 export type ActivityItem = {
   id: UUID;
@@ -222,88 +222,8 @@ export type ActivityItem = {
 };
 
 export type LoggableTargetType =
-  | "course_feedback"
   | "material"
   | "attendance"
   | "class_memo"
   | "member"
-  | "course"
-  | "settlement_request";
-
-// --- Course feedback ---
-
-export type CourseFeedbackListItem = {
-  id: UUID;
-  workspaceId: UUID;
-  courseId: UUID;
-  courseName: string;
-  category: CourseFeedbackCategory;
-  status: CourseFeedbackStatus;
-  message: string;
-  authorName: string | null;
-  authorPhone: string | null;
-  createdAt: ISODateTime;
-  updatedAt: ISODateTime;
-  canUpdateStatus: boolean;
-  canDelete: boolean;
-};
-
-// --- Settlement requests (정산 요청) ---
-
-export type PayoutAccount = {
-  id: UUID;
-  bankName: string;
-  accountNumber: string;
-  accountHolder: string;
-  createdAt: ISODateTime;
-  updatedAt: ISODateTime;
-};
-
-export type SettlementRequestItem = {
-  id: UUID;
-  itemName: string;
-  quantity: number;
-  unitPrice: number;
-  subtotal: number;
-  sortOrder: number;
-};
-
-export type SettlementRequestReceipt = {
-  id: UUID;
-  originalFilename: string;
-  mimeType: string;
-  sizeBytes: number;
-  storagePath: string;
-  uploadedAt: ISODateTime;
-};
-
-export type SettlementRequestListItem = {
-  id: UUID;
-  courseId: UUID;
-  courseName: string;
-  instructor: MemberSummary | null;
-  totalAmount: number;
-  itemCount: number;
-  status: SettlementRequestStatus;
-  createdAt: ISODateTime;
-  paidAt: ISODateTime | null;
-};
-
-export type SettlementRequestDetail = {
-  id: UUID;
-  workspaceId: UUID;
-  courseId: UUID;
-  courseName: string;
-  instructor: MemberSummary | null;
-  bankNameSnapshot: string;
-  accountNumberSnapshot: string;
-  accountHolderSnapshot: string;
-  memo: string;
-  totalAmount: number;
-  status: SettlementRequestStatus;
-  items: SettlementRequestItem[];
-  receipts: SettlementRequestReceipt[];
-  createdAt: ISODateTime;
-  paidAt: ISODateTime | null;
-  paidBy: MemberSummary | null;
-};
+  | "course";

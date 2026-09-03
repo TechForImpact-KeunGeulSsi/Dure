@@ -57,54 +57,41 @@ test("contract source tables and columns exist in migrations", async () => {
   );
 });
 
-test("current access and Admin Copilot code retain the contracted paths", async () => {
-  const [access, service, logic, projection] = await Promise.all([
-    read("src/services/access.ts"),
-    read("src/services/admin-copilot.ts"),
-    read("src/services/admin-copilot-logic.ts"),
-    read("src/services/admin-copilot-participant-projection.ts"),
-  ]);
+test("attendance dashboard code retains the contracted access and calculation paths", async () => {
+  const [access, service, logic] = await Promise.all([
+   read("src/services/access.ts"),
+    read("src/services/attendance-dashboard.ts"),
+    read("src/services/attendance-dashboard-logic.ts"),
+ ]);
 
   assertIncludesAll(
     access,
     ['.from("workspace_members")', '.eq("user_id", user.id)', '.eq("status", "active")'],
     "active membership gate",
   );
-  assertIncludesAll(
-    service,
-    [
-      '.from("course_groups")',
-      '.from("participant_groups")',
-      '.from("participants")',
-      '.from("course_participants")',
-      '.from("course_sessions")',
-      '.from("materials")',
-      '.eq("upload_status", "uploaded")',
-      '.eq("review_status", "pending")',
-      '.from("course_feedbacks")',
-      '.eq("status", "new")',
-      '.from("attendance_records")',
-    ],
-    "Admin Copilot source path",
-  );
-  assertIncludesAll(
-    projection,
-    ['row.status === "excluded"', 'row.status !== "active"', 'participant.status !== "deleted"'],
-    "participant projection exceptions",
-  );
-  assertIncludesAll(
-    logic,
-    [
-      'role === "owner_admin"',
-      '"pending_material_review"',
-      '"attendance_risk_participant"',
-      '"new_course_feedback"',
-      '"course_completion_candidate"',
-      'session.rollup_status === "included"',
-      'session.visibility_status === "visible"',
-      'session.progress_status === "scheduled"',
-      'record.status === "absent"',
-    ],
-    "Admin Copilot deterministic rules",
-  );
+ assertIncludesAll(
+   service,
+   [
+      'getAttendanceDashboard',
+      '.from("courses")',
+     '.from("course_groups")',
+     '.from("participant_groups")',
+     '.from("participants")',
+     '.from("course_participants")',
+     '.from("course_sessions")',
+     '.from("attendance_records")',
+   ],
+    "attendance dashboard source path",
+ );
+ assertIncludesAll(
+   logic,
+   [
+      'session.rollupStatus === "included"',
+      'record.status === "partial"',
+      'validSessionCount',
+      'rate < 50',
+      'state === "ended"',
+   ],
+    "attendance dashboard deterministic rules",
+ );
 });

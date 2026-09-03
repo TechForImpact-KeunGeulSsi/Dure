@@ -31,6 +31,21 @@ export async function logActivity(input: {
 }): Promise<void> {
   try {
     const admin = createSupabaseAdminClient();
+    if (input.actorMemberId) {
+      const { data: actor } = await admin
+        .from("workspace_members")
+        .select("id")
+        .eq("workspace_id", input.workspaceId)
+        .eq("id", input.actorMemberId)
+        .eq("status", "active")
+        .maybeSingle();
+      if (!actor) {
+        console.warn(
+          `[activity_logs] skipped out-of-scope actor (${input.eventType}): ${input.actorMemberId}`,
+        );
+        return;
+      }
+    }
     const { error } = await admin.from("activity_logs").insert({
       workspace_id: input.workspaceId,
       actor_member_id: input.actorMemberId,
@@ -56,6 +71,16 @@ export async function logActivity(input: {
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
+const ACTIVE_ACTIVITY_TARGET_TYPES = [
+  "material",
+  "attendance",
+  "class_memo",
+  "member",
+  "course",
+] as const satisfies readonly LoggableTargetType[];
+const ACTIVE_ACTIVITY_TARGET_TYPE_SET = new Set<LoggableTargetType>(
+  ACTIVE_ACTIVITY_TARGET_TYPES,
+);
 
 export async function getRecentActivity(input: {
   workspaceId: UUID;
@@ -75,31 +100,42 @@ export async function getRecentActivity(input: {
     .from("activity_logs")
     .select("id, event_type, target_type, target_id, metadata, actor_member_id, created_at")
     .eq("workspace_id", input.workspaceId)
+    .in("target_type", [...ACTIVE_ACTIVITY_TARGET_TYPES])
     .order("created_at", { ascending: false })
     .limit(fetchLimit);
   if (error) return apiError("INTERNAL_ERROR", error.message);
 
   const events = (rows ?? []) as ActivityRow[];
-  if (events.length === 0) {
+  const activeEvents = events.filter((event) =>
+    ACTIVE_ACTIVITY_TARGET_TYPE_SET.has(event.target_type as LoggableTargetType),
+  );
+  if (activeEvents.length === 0) {
     return apiOk({ activities: [] });
   }
 
   // 보조 데이터 lookups (배치)
-  const actorIds = uniqueNonNull(events.map((e) => e.actor_member_id));
+  const actorIds = uniqueNonNull(activeEvents.map((e) => e.actor_member_id));
   const courseIds = uniqueNonNull(
-    events.map((e) => readMetadataString(e.metadata, "courseId")),
+    activeEvents.map((e) =>
+      e.target_type === "course"
+        ? e.target_id
+        : readMetadataString(e.metadata, "courseId"),
+    ),
   );
 
   const [actorMap, courseMap] = await Promise.all([
-    loadActors(actorIds),
+    loadActors(input.workspaceId, actorIds),
     loadCourses(input.workspaceId, courseIds),
   ]);
 
   const filtered: ActivityItem[] = [];
-  for (const e of events) {
+  for (const e of activeEvents) {
     if (filtered.length >= limit) break;
 
-    const courseId = readMetadataString(e.metadata, "courseId");
+    const courseId =
+      e.target_type === "course"
+        ? e.target_id
+        : readMetadataString(e.metadata, "courseId");
     const course = courseId ? courseMap.get(courseId) : null;
 
     // 권한 필터링
@@ -107,10 +143,10 @@ export async function getRecentActivity(input: {
       // 멤버 관리 이벤트는 owner_admin만
       if (membership.role !== "owner_admin") continue;
     } else if (
-      e.target_type === "course_feedback" ||
       e.target_type === "material" ||
       e.target_type === "attendance" ||
-      e.target_type === "class_memo"
+      e.target_type === "class_memo" ||
+      e.target_type === "course"
     ) {
       if (!course) continue;
       const allowed = await canAccessCourse({
@@ -119,24 +155,6 @@ export async function getRecentActivity(input: {
         course,
       });
       if (!allowed) continue;
-      if (
-        membership.role === "instructor" &&
-        e.target_type === "course_feedback" &&
-        readMetadataString(e.metadata, "instructorMemberId") !== membership.memberId
-      ) {
-        continue;
-      }
-    } else if (e.target_type === "settlement_request") {
-      // settlement_requested: 운영자만 봄
-      // settlement_paid: 운영자 + 해당 강사 본인
-      if (e.event_type === "settlement_requested") {
-        if (membership.role !== "owner_admin") continue;
-      } else if (e.event_type === "settlement_paid") {
-        const instructorId = readMetadataString(e.metadata, "instructorMemberId");
-        const isOwner = membership.role === "owner_admin";
-        const isMineAsInstructor = instructorId === membership.memberId;
-        if (!isOwner && !isMineAsInstructor) continue;
-      }
     }
 
     const actor = e.actor_member_id ? actorMap.get(e.actor_member_id) ?? null : null;
@@ -168,7 +186,7 @@ export async function getRecentActivity(input: {
 type ActivityRow = {
   id: UUID;
   event_type: string;
-  target_type: LoggableTargetType;
+  target_type: string;
   target_id: UUID | null;
   metadata: Record<string, unknown> | null;
   actor_member_id: UUID | null;
@@ -181,13 +199,17 @@ type CourseLookup = {
   instructor_member_id: UUID | null;
 };
 
-async function loadActors(memberIds: UUID[]): Promise<Map<UUID, MemberSummary>> {
+async function loadActors(
+  workspaceId: UUID,
+  memberIds: UUID[],
+): Promise<Map<UUID, MemberSummary>> {
   const result = new Map<UUID, MemberSummary>();
   if (memberIds.length === 0) return result;
   const admin = createSupabaseAdminClient();
   const { data } = await admin
     .from("workspace_members")
     .select("id, email, display_name, role, status")
+    .eq("workspace_id", workspaceId)
     .in("id", memberIds);
   for (const row of data ?? []) {
     result.set(row.id, {
@@ -257,31 +279,30 @@ function buildTarget(
         href: `/workspaces/${workspaceId}/${base}/${courseId}/materials`,
       };
     }
-    case "course_feedback": {
-      if (!event.target_id || !courseId) return null;
-      return {
-        type: "course_feedback",
-        feedbackId: event.target_id,
-        courseId,
-        href: `/workspaces/${workspaceId}/feedback`,
-      };
-    }
     case "attendance": {
       if (!event.target_id || !courseId) return null;
+      const href =
+        viewerRole === "instructor"
+          ? `/workspaces/${workspaceId}/teach/courses/${courseId}/attendance`
+          : `/workspaces/${workspaceId}/courses/${courseId}/participants`;
       return {
         type: "attendance",
         courseId,
         sessionId: event.target_id,
-        href: `/workspaces/${workspaceId}/teach/courses/${courseId}/attendance`,
+        href,
       };
     }
     case "class_memo": {
       if (!event.target_id || !courseId) return null;
+      const href =
+        viewerRole === "instructor"
+          ? `/workspaces/${workspaceId}/teach/courses/${courseId}/notes`
+          : `/workspaces/${workspaceId}/courses/${courseId}/participants`;
       return {
         type: "class_memo",
         courseId,
         sessionId: event.target_id,
-        href: `/workspaces/${workspaceId}/teach/courses/${courseId}/notes`,
+        href,
       };
     }
     case "member": {
@@ -298,20 +319,6 @@ function buildTarget(
         type: "course",
         courseId: event.target_id,
         href: `/workspaces/${workspaceId}/courses/${event.target_id}/home`,
-      };
-    }
-    case "settlement_request": {
-      if (!event.target_id) return null;
-      // 운영자는 /settlements/[id]로, 강사는 본인 수업 정산 탭으로 이동
-      const courseId = readMetadataString(event.metadata, "courseId");
-      const href =
-        viewerRole === "instructor" && courseId
-          ? `/workspaces/${workspaceId}/teach/courses/${courseId}/settlements`
-          : `/workspaces/${workspaceId}/settlements/${event.target_id}`;
-      return {
-        type: "settlement_request",
-        requestId: event.target_id,
-        href,
       };
     }
     default:
@@ -359,12 +366,6 @@ function buildTitle(event: ActivityRow, actor: MemberSummary | null): string {
       return `${name}님이 멤버를 제거했어요`;
     case "course_completed":
       return "수업이 자동으로 완료 처리되었어요";
-    case "settlement_requested":
-      return `${name}님이 정산을 요청했어요`;
-    case "settlement_paid":
-      return `${name}님이 지급 완료를 표시했어요`;
-    case "course_feedback_created":
-      return "공개 수업 의견이 도착했어요";
     default:
       return `${name}님의 활동`;
   }
@@ -411,24 +412,6 @@ function buildDescription(
       const message = readMetadataString(event.metadata, "message");
       if (roleLabel && message) return `${roleLabel} 희망 · ${message}`;
       return roleLabel ?? message;
-    }
-    case "settlement_requested":
-    case "settlement_paid": {
-      const totalAmount = event.metadata?.totalAmount;
-      const courseName = readMetadataString(event.metadata, "courseName");
-      if (typeof totalAmount === "number") {
-        const formatted = new Intl.NumberFormat("ko-KR").format(totalAmount);
-        return courseName
-          ? `${courseName} · ${formatted}원`
-          : `${formatted}원`;
-      }
-      return courseName ?? null;
-    }
-    case "course_feedback_created": {
-      const category = readMetadataString(event.metadata, "category");
-      const preview = readMetadataString(event.metadata, "preview");
-      if (courseName && preview) return `${courseName} · ${preview}`;
-      return preview ?? courseName ?? category;
     }
     default:
       return null;

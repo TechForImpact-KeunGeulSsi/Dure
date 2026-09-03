@@ -1,18 +1,59 @@
 # Project Status
 
-최종 갱신: 2026-09-02
+최종 갱신: 2026-09-03
 
 ## 현재 상태
 
-현재 checkout은 `main`을 가리키는 `b437709`에서 detached HEAD 상태입니다. 대표 운영자용 Admin Copilot deterministic MVP와 owner-only ReviewMaterial 승인 UI, Task 7 local DB/Auth verifier가 이 이력에 포함되어 있습니다. Supabase 운영 데이터를 permission-scoped service에서 집계하고 네 가지 명시적 규칙으로 evidence-backed task를 생성해 workspace home에 표시합니다. AI provider와 자연어 후속 질문은 아직 구현하지 않았습니다.
+현재 checkout에는 운영 범위 정리와 출석 대시보드 변경이 있다. workspace home은 운영 중 수업을 가로 복수 필터로 선택하고, 선택 날짜의 회차별 출석 그래프와 참여자 누적 출석률을 제공한다. 코파일럿 홈 UI·서비스·action은 제거했으며, 과거 migration과 자료·운영 데이터는 보존한다.
 
-기존 Darori 사용자 테스트 seed와 분리된 local-first developer QA smoke fixture가 추가되었습니다. 고정 로컬 workspace, 3개 역할 계정, 주요 steady-state 운영 데이터, Admin Copilot 네 신호를 Seoul 기준 날짜로 복원하며, schema/Storage/workspace identity preflight와 DB/Auth/Storage/RLS/결정론적 briefing verifier를 제공합니다. Owner, group admin, instructor, public surface의 로컬 브라우저 smoke와 mutation 검증을 완료했고 fixture를 baseline으로 복원했습니다. 원격 staging은 배포 단계의 선택 사항입니다.
+기존 Darori 사용자 테스트 seed와 분리된 local-first developer QA smoke fixture는 계속 유지한다. 레거시 피드백·정산 행과 영수증 객체는 보존하되 활성 화면에서 사용하지 않는다. 원격 staging과 인증된 브라우저 역할 검증은 별도 release 단계다.
 
-현재 DURE는 Supabase를 source of truth로 유지하면서 semantic object/link/function과 kinetic action/policy/audit를 결합한 operational ontology layer를 사용합니다. 첫 vertical slice는 `PendingMaterialReview -> ReviewMaterial proposal -> owner_admin human approval -> reviewed`입니다. Task 1 DB foundation migration이 추가되어 proposal/execution enum과 tenant-scoped ledger, owner-only read RLS, service-role 전용 승인/거절 RPC, stale expiry, atomic `pending -> reviewed`, idempotency, before/after audit 계약을 고정했습니다. Task 3 proposal service는 owner 권한을 재검증하고, 현재 자료·수업·Admin Copilot evidence를 서버에서 다시 읽은 뒤 fingerprint 기반으로 제안을 idempotent하게 생성·반환합니다. Task 4 decision/execution service는 owner의 승인·거절을 검증하고, proposal별 고정 idempotency key로 transaction RPC를 호출하며, stale/replay 결과와 승인 후 proposal·execution·material postcondition을 확인하고 관련 경로를 재검증합니다. Task 5는 pending material task에 대상 `updated_at`, `review_material`·`always_required` action metadata를 연결하고, 현재 자료 버전과 fingerprint가 일치하는 proposal 상태만 owner briefing에 bounded read model로 노출합니다. Task 6은 자료 열기, 근거·공개 범위 확인, 명시적 proposal 생성, owner 승인·거절, stale/replay/failure/success 상태, briefing refresh를 제공하는 owner-only UI를 추가했습니다. Task 7은 deterministic QA scenario, local Auth/DB/RPC/RLS verifier, migration reset 절차, owner/group-admin/instructor browser checklist를 추가했습니다. 일반 briefing read는 proposal을 생성하거나 변경하지 않습니다. `Material.review_status`는 `pending | reviewed` 두 상태를 유지하고, 제안 거절과 실행 결과는 별도 proposal/execution lifecycle에 기록합니다.
+마포 장애인 가족 지원 센터 대시보드 설명을 위한 별도 local-only 데모 fixture도 유지한다. 데모는 고정된 별도 workspace에 가상 수업·참여자·출석 데이터를 넣으며 기존 `DURE Developer QA` workspace를 변경하지 않는다.
 
-Operational Ontology v1 공통 계약은 `docs/ontology-contract.md`에 구현했습니다. 현재 ontology의 11개 객체와 네 Admin Copilot task에 대해 source table·column, 양방향 cardinality, 관계 예외, 역할별 read/action scope, `권한 gate -> source query -> deterministic rule -> evidence -> 관련 화면` 경로를 고정했습니다. 이 공통 계약 자체는 문서와 drift 검증에 해당하며, ReviewMaterial action의 DB schema·runtime service·RLS·UI 계약은 별도의 구현으로 현재 반영되어 있습니다.
+현재 DURE는 Supabase를 source of truth로 유지한다. 대시보드 계산은 서버의 permission-scoped query와 `attendance-dashboard-logic.ts` 순수 함수로 분리했다. 누적 출석률은 참여자 배정일 이후 종료된 유효 회차 중 기록이 있는 회차를 분모로 하며, `present`와 `partial`은 출석 1회로 세고 `absent`는 유효회차에 포함한다. 미입력은 분모에서 제외하고 정확히 50%는 저출석이 아니다.
+
+운영 데이터 계약은 `docs/api-spec.md`와 `docs/ontology-contract.md`에 반영했다. 현재 활성 홈 계약은 `getAttendanceDashboard`이며, `수업·참여자`와 `운영자·강사` 관리 화면 및 기존 자료 관리는 유지한다. 종료된 피드백·정산 객체와 코파일럿 관련 migration·행은 보존 데이터로만 취급한다.
+
+2026-09-02 운영 범위 정리:
+
+- 마을별 둘러보기 공개 카탈로그와 공개 수업 상세/피드백 입력 route·component·service를 제거
+- owner/instructor 정산 요청 route·component·service와 관련 navigation/tab을 제거
+- Admin Copilot의 신규 피드백 signal, briefing metric, evidence link를 제거하고 활성 task를 3개로 정리
+- activity query에서 활성 target type만 먼저 조회하고 레거시 피드백·정산 event를 projection에서도 제외해 dead link와 민감한 정산 금액 노출을 차단
+- 기존 피드백·정산 DB 행과 영수증 Storage 객체는 유지하고, 정산 RLS/Storage policy와 공개 자료 anonymous-read policy는 forward migration에서 종료
+- 기존 공개 자료는 `admin_only`로 정리하고 DB check constraint·신규 업로드를 통해 워크스페이스 내부 전용으로 고정
+- 자료 업로드는 역할뿐 아니라 대상 수업의 workspace/course scope를 service layer에서 재검증하고, activity actor·course target도 workspace와 역할 범위로 제한
 
 ## 최근 검증
+
+2026-09-03 출석 대시보드 개편:
+
+- workspace home을 `getAttendanceDashboard` 기반의 실제 DURE 대시보드 UI로 교체했다.
+- 수업 필터를 가로 다중 선택으로 배치하고, 선택 날짜의 회차 그래프·상태 범례·주의 수업·참여자 출석률 상세를 연결했다.
+- 누적 판정은 참여자 배정일 이후 종료된 유효 회차 기준이며 `present/partial`은 출석 1회, 미입력은 분모 제외, 정확히 50%는 정상이다.
+- 코파일럿 UI·서비스·action·관련 순수 테스트를 제거하고 자료 원본·레거시 migration·보존 데이터는 유지했다.
+- `npm run test:attendance-dashboard`: 4 passed
+- `npm run test:developer-qa`: 2 passed
+- `npm run test:operational-scope`: 3 passed
+- `npm run test:ontology-contract`: 2 passed
+- `npm run typecheck`: passed
+- `npm run lint`: passed with the existing `src/components/calendar/month-grid.tsx:8` unused `isSameDay` warning and `next lint` deprecation warning
+- `npm run build`: passed with the same existing lint warning
+- `git diff --check`: passed
+
+2026-09-03 마포 센터 대시보드 데모 데이터셋:
+
+- 별도 local-only workspace `마포 장애인 가족 지원 센터 데모` seed와 verifier를 추가했다.
+- `생활체육교실`, `미술활동`, `음악교실` 3개 수업, 18회차, 가상 참여자 12명, 출석 기록 112건을 구성했다.
+- `2/6` 저출석, 정확히 `3/6 (50%)` 정상, 부분 출석, 미입력 사례를 포함했다.
+- `npm run test:mapo-dashboard`: 2 passed
+- `npm run seed:mapo-dashboard:local -- --reset`: passed
+- `npm run verify:mapo-dashboard:local`: passed
+- local owner browser에서 수업 3개 가로 필터, 일별 그래프, 저출석 2명, `김하늘 2/6`, `박지후 3/6 정상`을 확인했다.
+- `npm run typecheck`: passed
+- `npm run lint`: passed with the existing `src/components/calendar/month-grid.tsx:8` unused `isSameDay` warning and `next lint` deprecation warning
+- `npm run build`: passed
+- `git diff --check`: passed
 
 2026-09-02 DURE AI engineering orchestration bootstrap:
 
@@ -24,6 +65,14 @@ Operational Ontology v1 공통 계약은 `docs/ontology-contract.md`에 구현�
 - 현재 실행 중인 세션의 custom agent runtime discovery는 관찰하지 못했으며, 새 Codex task/restart에서 확인 필요. 그 전에는 내장 `explorer`/`worker` fallback을 사용
 - 감사에서 CI가 일부 기존 ontology-action test와 local Supabase/browser 검증을 포함하지 않는 점을 기존 verification gap으로 확인. 이번 bootstrap에서는 CI/product 설정을 변경하지 않음
 - model routing 추가: project/main agent와 기본 subagent는 `gpt-5.6-luna` + `xhigh`, custom boundary/code-review/verifier도 Luna xhigh로 고정. `dure_planner`만 실제 제품 기획·큰 범위 합성에 한해 `gpt-5.6-sol` + `high` 사용
+
+2026-09-02 운영 범위 정리 검증:
+
+- `npm run test:operational-scope`: 3 passed
+- `npm run test:admin-copilot`, `npm run test:developer-qa`, `npm run test:ontology-contract`, `npm run test:ontology-action-migration`, `npm run test:ontology-action-contract`, `npm run test:ontology-action-validator`, `npm run test:darori-seed`: 모두 passed
+- `npm run typecheck`: passed; `git diff --check`: passed
+- `npm run lint`: passed; 기존 `src/components/calendar/month-grid.tsx:8`의 미사용 `isSameDay` warning과 `next lint` deprecation warning이 남음
+- `npm run build`: passed; 생성 route에 retired public catalog·feedback·settlement route가 없음을 확인
 
 2026-08-31 Vercel Production 배포:
 
@@ -201,19 +250,19 @@ npm run build
 - Computer Use browser: owner login, workspace home, 4개 briefing task, dialog-only 상태 proposal 0건, `검토 시작` 후 pending proposal 저장, refresh 후 `검토 이어가기` 표시까지 확인
 - browser UI의 rejection/stale/approval click sequence와 group-admin/instructor 화면 전환은 Computer Use AX click 불안정으로 미완료
 
-## 지금 시작할 곳
+## 다음 검증 단계
 
-Developer QA와 ReviewMaterial Task 1 DB foundation, Task 2 pure action contract helper, Task 3 proposal service, Task 4 human decision·execution service, Task 5 Admin Copilot task context 연결, Task 6 owner-only 승인 UI, Task 7 local DB/Auth verification harness 구현은 완료되었습니다. 남은 검증은 안정적인 브라우저 자동화 환경에서 rejection/stale/approval UI sequence와 group-admin/instructor 실제 화면 전환을 재실행하는 것입니다.
+현재 코드·순수 규칙·정적 계약·production build는 확인되었다. 다음 release 단계에서는 Docker Desktop과 로컬 Supabase를 기동한 뒤 owner/group-admin/instructor 계정으로 실제 workspace home, 수평 수업 필터, 출석부 이동, 역할별 course scope를 브라우저와 DB에서 검증한다. 그 후 승인된 migration을 별도 QA 환경에 적용하고 RLS·persistence를 확인한다. SMS 발송과 출석 추이 그래프는 현재 범위에 포함하지 않는다.
 
 ## Blocker / 미검증
 
 - local-first 명령은 `supabase status`에서 연결 정보를 읽고 고정된 로컬 전용 workspace ID와 비밀번호를 사용하므로 별도 QA 환경변수가 필요하지 않습니다. 원격 reset에는 기존 allowlist와 환경변수 안전장치가 유지됩니다.
 - post-seed verifier는 DB/Auth/Storage/RLS와 순수 briefing logic을 확인합니다. Task 7 browser 확인에서는 owner login/home/dialog/proposal 생성·재진입까지 확인했지만, rejection/stale/approval mutation 전체와 non-owner 화면 전환은 안정적인 browser automation이 없어 미검증입니다.
 - 2026-08-31에 기록된 production 배포 이후의 현재 live 상태는 이번 2026-09-02 bootstrap에서 다시 확인하지 않았습니다.
-- Copilot evidence link는 올바른 관리 화면으로 이동하지만 query로 특정 feedback/material row를 강조하지는 않습니다. 현재 fixture에서는 대상이 명확하며 기능 blocker는 아닙니다.
+- 이번 운영 범위 정리 후 retired public/feedback/settlement route의 실제 브라우저 404와 레거시 event 비노출은 focused source test로 확인했으며, 실행 중인 앱의 브라우저 smoke는 아직 미검증입니다.
 - 자동 테스트는 순수 규칙 로직과 group-derived projection, 중복 제거, 명시 제외, 삭제 상태, 1,000행 초과 pagination, query 오류 전파를 검증합니다. 실제 Supabase query, 멤버십 권한, home 통합을 포함하는 service/integration test는 아직 없습니다.
 - LLM phrasing을 추가하려면 provider, 비용, permission-filtered input contract를 먼저 결정해야 합니다.
-- local DB는 현재 branch migration 전체를 reset 적용했고 QA baseline으로 복원했습니다. 원격 staging/production 적용은 미검증입니다.
+- `20260902090000_retire_non_operational_surfaces.sql`은 추가했지만, 현재 local DB reset 적용과 원격 staging/production 적용은 아직 미검증입니다. 적용 시 기존 피드백·정산 행과 영수증 객체를 보존하는지, 정산/영수증/public-material anonymous policy가 종료되는지 확인해야 합니다.
 - `ReviewMaterial` Task 1 DB foundation부터 Task 7 local verifier까지 compile/focused/local integration 검증은 통과했지만, browser UI의 rejection/stale/approval mutation 전체와 group-admin/instructor 실제 화면 전환은 미검증입니다.
 - RPC는 application contract의 millisecond timestamp canonicalization과 일치하도록 비교합니다. 이 경계는 local E2E에서 회귀 검증했습니다.
 

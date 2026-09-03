@@ -1,7 +1,6 @@
 import { EmptyState } from '@/components/courses/empty-state';
 import { getCourseDetail } from '@/services/course-detail';
 import { getCourseSessions } from '@/services/course-sessions';
-import { getCoursePublicPreview } from '@/services/public-catalog';
 
 import { CourseHomeClient } from './course-home-client';
 
@@ -12,10 +11,9 @@ type Props = {
 export default async function CourseHomePage({ params }: Props) {
   const { workspaceId, courseId } = await params;
 
-  const [courseResult, sessionsResult, publicPreviewResult] = await Promise.all([
+  const [courseResult, sessionsResult] = await Promise.all([
     getCourseDetail(workspaceId, courseId),
     getCourseSessions(workspaceId, courseId),
-    getCoursePublicPreview({ workspaceId, courseId }),
   ]);
 
   if (!courseResult.ok) {
@@ -34,11 +32,6 @@ export default async function CourseHomePage({ params }: Props) {
         sessionCount: sessionsResult.data.filter((s) => s.progressStatus === "scheduled")
           .length,
       }}
-      publicPreview={
-        publicPreviewResult.ok
-          ? { course: publicPreviewResult.data, errorMessage: null }
-          : { course: null, errorMessage: publicPreviewResult.error.message }
-      }
     />
   );
 }

@@ -112,7 +112,6 @@ type ParticipantStatus = 'active' | 'inactive' | 'deleted';
 type ParticipantGroupStatus = 'active' | 'removed';
 type CourseParticipantStatus = 'active' | 'excluded';
 type CourseStatus = 'planned' | 'in_progress' | 'completed';
-type CoursePublicVisibility = 'public' | 'hidden';
 type SessionType = 'regular' | 'makeup' | 'special' | 'practice';
 type SessionVisibilityStatus = 'visible' | 'hidden';
 type SessionRollupStatus = 'included' | 'excluded';
@@ -120,7 +119,7 @@ type SessionProgressStatus = 'scheduled' | 'cancelled';
 type MaterialUploadStatus = 'uploading' | 'uploaded' | 'failed';
 type MaterialReviewStatus = 'pending' | 'reviewed';
 type AttendanceStatus = 'present' | 'partial' | 'absent';
-type MaterialVisibilityScope = 'public' | 'admin_only';
+type MaterialVisibilityScope = 'admin_only';
 ```
 
 화면 표시 라벨은 각 페이지에서 아래처럼 변환한다.
@@ -374,41 +373,90 @@ type GetWorkspaceOptionsOutput = {
 - 대표 운영자와 그룹 운영자는 접근 가능한 그룹과 강사 후보를 볼 수 있다.
 - 강사는 호출하지 않는다.
 
-## 4. 홈
+## 4. 출석 대시보드 홈
 
-운영자용 홈은 운영 중인 수업 카드 목록과 수업 상세 진입을 제공한다.
+홈은 운영 중인 수업의 날짜별 회차 출석 현황과 참여자 누적 출석률을 제공한다. 수업 필터는 가로 다중 선택이며 별도 코파일럿 브리핑은 사용하지 않는다.
 
-### 4.1 홈 데이터 조회
+### 4.1 대시보드 데이터 조회
 
 ```ts
-type GetDashboardHomeInput = {
+type GetAttendanceDashboardInput = {
   workspaceId: UUID;
-  filters?: {
-    status?: CourseStatus[];
-    groupId?: UUID;
-    search?: string;
+  selectedDate: ISODate;
+  courseIds?: UUID[];
+};
+
+type GetAttendanceDashboardOutput = {
+  selectedDate: ISODate;
+  courses: Array<{
+    id: UUID;
+    name: string;
+    dailySessions: AttendanceDashboardDailySession[];
+    participants: AttendanceDashboardParticipant[];
+    lowAttendanceParticipantIds: UUID[];
+    missingAttendanceCount: number;
+    warningReasons: string[];
+    warning: boolean;
+  }>;
+  summary: {
+    missingAttendanceCount: number;
+    lowAttendanceParticipantCount: number;
   };
 };
 
-type GetDashboardHomeOutput = {
-  courses: Array<CourseListItem & {
-    nextSession: CourseSessionSummary | null;
-    pendingMaterialCount: number;
+type AttendanceDashboardDailySession = {
+  sessionId: UUID;
+  sessionNo: number;
+  date: ISODate;
+  startsAt: ISOTime;
+  endsAt: ISOTime;
+  state: 'upcoming' | 'in_progress' | 'ended' | 'cancelled';
+  participantCount: number;
+  presentCount: number;
+  partialCount: number;
+  absentCount: number;
+  missingAttendanceCount: number;
+  attendanceRate: number | null;
+};
+
+type AttendanceDashboardParticipant = {
+  participantId: UUID;
+  participantName: string;
+  attendanceRate: number | null;
+  attendedSessionCount: number;
+  validSessionCount: number;
+  presentCount: number;
+  partialCount: number;
+  absentCount: number;
+  sessionHistory: Array<{
+    sessionId: UUID;
+    sessionNo: number;
+    date: ISODate;
+    status: AttendanceStatus | 'missing';
+    note: string | null;
   }>;
 };
 ```
 
-계약명: `getDashboardHome`
+계약명: `getAttendanceDashboard`
 
 권한:
 
-- 대표 운영자는 전체 수업을 본다.
+- 대표 운영자는 워크스페이스의 운영 중 수업을 본다.
 - 그룹 운영자는 접근 그룹과 연결된 수업만 본다.
-- 강사는 이 화면을 사용하지 않는다.
+- 강사는 본인이 담당하는 수업만 본다.
+- 모든 조회는 활성 멤버십과 `workspace_id`를 먼저 확인한다.
 
-빈 상태:
+판정 규칙은 아래와 같다.
 
-- 수업이 없으면 `courses: []`.
+- 선택한 날짜의 회차만 일일 그래프에 표시한다. 예정 회차는 미입력으로 세지 않는다.
+- 누적 출석률은 참여자 배정일 이후 종료된 유효 회차의 기록만 대상으로 한다.
+  - 유효 회차는 `rollup_status='included'`이고 `progress_status!='cancelled'`인 회차다.
+- `present`와 `partial`은 각각 출석 1회로 계산하고, `absent`는 유효회차에 포함하되 출석에는 포함하지 않는다.
+- 미입력은 분모에서 제외하고, 출석률 표기는 항상 `출석/유효회차`를 함께 제공한다.
+- 정확히 50%이면 정상이며 50% 미만일 때만 저출석으로 판정한다.
+- 주의 수업은 저출석 참여자가 있거나 선택한 날짜의 종료 회차에 미입력 기록이 있을 때다.
+- 출석 추이 그래프와 SMS 발송은 이 계약 범위에 포함하지 않는다.
 
 ## 5. 일정 관리
 
@@ -1066,7 +1114,7 @@ type UploadMaterial = (
 - `file`: 업로드할 `File`.
 - `title`: 자료 제목.
 - `description`: 선택 설명.
-- `visibilityScope`: `public | admin_only`.
+- 자료는 워크스페이스 멤버 전용으로 저장하며 공개 범위 입력은 받지 않는다.
 
 `POST /api/materials/upload-url`은 사용 중단된 410 route이며 새 업로드 흐름에서 사용하지 않는다.
 
@@ -1075,8 +1123,7 @@ type UploadMaterial = (
 - 파일당 최대 크기는 50MB다.
 - 허용 확장자는 `pdf`, `doc`, `docx`, `ppt`, `pptx`, `xls`, `xlsx`, `jpg`, `jpeg`, `png`, `txt`, `zip`이다.
 - 실행 파일과 스크립트 파일은 거부한다.
-- `visibilityScope = public`이면 비로그인 사용자도 공개 수업 상세에서 자료를 볼 수 있고 다운로드할 수 있다.
-- `visibilityScope = admin_only`이면 권한 있는 워크스페이스 멤버만 자료에 접근할 수 있다.
+- 자료는 권한 있는 워크스페이스 멤버만 접근할 수 있다. 기존 `public` 자료는 기능 종료 migration에서 `admin_only`로 정리한다.
 
 처리:
 
@@ -1094,7 +1141,6 @@ type UpdateMaterialInput = {
   materialId: UUID;
   title?: string;
   description?: string | null;
-  visibilityScope?: MaterialVisibilityScope;
 };
 
 type UpdateMaterialOutput = {
@@ -1106,8 +1152,7 @@ type UpdateMaterialOutput = {
 
 처리:
 
-- 제목, 설명, 파일, 공개 범위가 바뀌면 `review_status = pending`으로 되돌린다.
-- `visibilityScope` 변경은 공개 범위 변경으로 본다.
+- 제목, 설명, 파일이 바뀌면 `review_status = pending`으로 되돌린다.
 
 권한:
 
@@ -1226,10 +1271,10 @@ type GetCourseParticipantsStatusOutput = {
 
 집계 규칙:
 
-- 출석률은 출석 수를 기록 대상 회차 수로 나눈 값이다.
-- 미입력 회차는 계산에서 제외한다.
-- `rollup_status = excluded`인 회차와 `progress_status = cancelled`인 회차는 계산에서 제외한다.
-- `partial`은 부분 출석으로 별도 합산한다.
+- 출석률은 참여자 배정일 이후 종료된 유효 회차 중 기록이 있는 회차를 분모로 하며, `present`와 `partial`을 출석 1회로 계산한다.
+- `absent`는 유효회차에 포함하고 출석에는 포함하지 않는다.
+- 미입력 회차, `rollup_status = excluded` 회차, 취소된 회차, 종료 전 회차는 분모에서 제외한다.
+- 출석률 표기는 `출석/유효회차`를 함께 제공하고, 정확히 50%는 저출석이 아니다.
 
 ### 12.2 수업 참여자 제외
 
@@ -1495,173 +1540,21 @@ type CompleteCoursesCronOutput = {
 - 마지막 유효 회차의 종료 시간이 지난 수업을 `completed`로 전환한다.
 - 유효 회차는 `progress_status != cancelled`인 회차다.
 
-## 18. 공개 수업 카탈로그
+## 18. 공개 수업 카탈로그와 피드백·정산 기능 종료
 
-공개 카탈로그는 비로그인 방문자가 볼 수 있는 수업 예시 목록이다. 업무 테이블을 직접 노출하지 않고 `PublicCourse*` DTO만 반환한다.
+2026-09-02 운영 효율화 범위에서 공개 수업 카탈로그, 공개 수업 상세/피드백 입력, 정산 요청 화면과 action을 종료했다. 현재 API에는 해당 query/action과 DTO가 없다.
 
-### 18.1 공개 카탈로그 조회
+기존 `courses.public_visibility`, `course_feedbacks`, 정산 테이블·Storage 객체는 migration과 운영 기록 보존을 위해 남아 있을 수 있지만, 활성 화면·서비스·활동 projection·비로그인 자료 다운로드 경로로 사용하지 않는다. 기존 `materials.visibility_scope = 'public'` 자료는 기능 종료 migration에서 `admin_only`로 정리한다.
 
-Query: `getPublicCourseCatalog`
+## 19. 레거시 AI 보조 기능 종료
 
-```ts
-type PublicCourseSummary = {
-  workspace: { id: UUID; name: string };
-  id: UUID;
-  name: string;
-  status: CourseStatus;
-  publicVisibility: CoursePublicVisibility;
-  startsOn: ISODate | null;
-  endsOn: ISODate | null;
-  cardColor: string | null;
-  bannerUrl: string | null;
-  groupNames: string[];
-  sessionCount: number;
-  materialCount: number;
-};
+Admin Copilot과 ReviewMaterial은 현재 제품의 활성 화면·서비스·action 계약에서 제거했다. 관련 과거 migration과 운영 데이터는 보존하지만, 현재 운영자는 출석 대시보드와 기존 자료 관리 화면을 사용한다.
 
-type PublicCourseCatalog = {
-  workspaces: Array<{
-    id: UUID;
-    name: string;
-    courses: PublicCourseSummary[];
-  }>;
-};
-```
+현재 대시보드 계약은 4장 `getAttendanceDashboard`를 기준으로 한다.
 
-규칙:
 
-- 인증이 필요 없다.
-- `courses.public_visibility = 'public'`인 수업만 포함한다.
-- 마을 섹션은 `workspace.name asc`로 정렬한다.
-- 섹션 내 수업은 `in_progress`, `planned`, `completed`, `updated_at desc`, `created_at desc` 순으로 정렬한다.
-- 공개 회차 수는 `course_sessions.visibility_status = 'visible'`인 회차만 센다.
-- 공개 자료 수는 `materials.upload_status = 'uploaded'`인 자료만 센다.
 
-### 18.2 공개 수업 상세 조회
-
-Query: `getPublicCourseDetail(courseId: UUID)`
-
-```ts
-type PublicCourseSession = {
-  sessionNo: number;
-  date: ISODate;
-  startsAt: ISOTime;
-  endsAt: ISOTime;
-  type: SessionType;
-  progressStatus: SessionProgressStatus;
-};
-
-type PublicCourseMaterial = {
-  title: string;
-  description: string | null;
-};
-
-type PublicCourseDetail = PublicCourseSummary & {
-  sessions: PublicCourseSession[];
-  materials: PublicCourseMaterial[];
-};
-```
-
-규칙:
-
-- 인증이 필요 없다.
-- 숨김 수업, 누락 수업, 접근 불가 수업은 모두 `NOT_FOUND`로 반환해 숨김 수업 존재 여부를 노출하지 않는다.
-- 회차는 `date asc`, `starts_at asc`, `session_no asc`로 정렬한다.
-- 자료는 `created_at desc`로 정렬한다.
-- 자료 다운로드 URL, `storage_path`, `original_filename`, MIME type, 파일 크기, 업로더, 멤버 이메일, 참여자, 출석, 수업 메모는 반환하지 않는다.
-
-### 18.3 운영자 공개 preview 조회
-
-Query: `getCoursePublicPreview({ workspaceId, courseId })`
-
-반환 타입은 `PublicCourseDetail`과 같다.
-
-권한:
-
-- 로그인한 활성 워크스페이스 멤버만 호출할 수 있다.
-- owner_admin은 전체 수업 preview를 볼 수 있다.
-- group_admin은 접근 그룹과 연결된 수업 preview를 볼 수 있다.
-- instructor는 담당 수업 preview를 볼 수 있다.
-- 숨김 수업도 preview에는 표시한다.
-
-### 18.4 수업 공개 상태 변경
-
-Action: `updateCoursePublicVisibility`
-
-```ts
-type UpdateCoursePublicVisibilityInput = {
-  workspaceId: UUID;
-  courseId: UUID;
-  publicVisibility: CoursePublicVisibility;
-};
-
-type UpdateCoursePublicVisibilityOutput = {
-  publicVisibility: CoursePublicVisibility;
-};
-```
-
-권한:
-
-- owner_admin은 변경할 수 있다.
-- group_admin은 해당 수업의 모든 연결 그룹이 자기 접근 그룹 안에 있을 때만 변경할 수 있다.
-- instructor는 변경할 수 없다.
-
-## 19. Admin Copilot 운영 브리핑
-
-Query: `getAdminCopilotBriefing`
-
-```ts
-type GetAdminCopilotBriefingInput = {
-  workspaceId: UUID;
-  referenceDate?: string;
-};
-
-type AdminCopilotBriefing = {
-  window: {
-    timezone: string;
-    recentFrom: ISODate;
-    today: ISODate;
-    upcomingUntil: ISODate;
-  };
-  summary: {
-    upcomingSessionCount: number;
-    recentSessionCount: number;
-    pendingMaterialCount: number;
-    attendanceRiskParticipantCount: number;
-    newFeedbackCount: number;
-    completionCandidateCount: number;
-  };
-  tasks: AdminCopilotTask[];
-};
-```
-
-`pending_material_review` task에는 현재 자료 버전과 자료 검토 action 상태를 포함하는 bounded action context가 붙을 수 있다.
-
-```ts
-type AdminCopilotTaskAction = {
-  actionType: 'review_material';
-  approvalMode: 'always_required';
-  targetId: UUID;
-  targetUpdatedAt: ISODateTime;
-  visibilityScope: 'public' | 'admin_only';
-  proposalId?: UUID;
-  proposalStatus?: 'pending' | 'approved' | 'rejected' | 'expired';
-};
-```
-
-권한과 동작:
-
-- 현재 사용자가 활성 `owner_admin` 멤버일 때만 조회할 수 있다.
-- group_admin과 instructor는 `ROLE_FORBIDDEN`을 반환한다.
-- 최근 7일과 오늘부터 앞으로 7일을 워크스페이스 시간대로 계산한다.
-- 확인 미정 자료, 최근 3회 중 2회 이상 결석한 활성 참여자, 새 피드백, 종료 상태 확인이 필요한 수업을 반환한다.
-- 각 task는 판단 근거 entity와 사용자가 직접 처리할 관련 화면 경로를 포함한다.
-- 일반 briefing 조회는 proposal을 생성하거나 변경하지 않는다.
-- `pending_material_review` task에서 owner가 명시적으로 검토를 시작할 때만 `ensureReviewMaterialProposal`이 현재 자료와 evidence를 다시 확인하고 proposal을 저장한다.
-- `ReviewMaterial` 결정은 활성 `owner_admin`만 수행할 수 있다. 승인 시 `upload_status = 'uploaded'`, `review_status = 'pending'`이고 proposal의 `targetUpdatedAt`과 일치하는지 재검증한 뒤 `pending -> reviewed`를 원자적으로 실행한다.
-- 거절은 자료를 변경하지 않고 proposal을 `rejected`로 기록한다. stale proposal은 `expired` 처리되며, replay는 두 번째 실행을 만들지 않는다.
-- proposal과 execution ledger에는 결정자, evidence snapshot, before/after 상태, idempotency key가 남는다.
-- 출석·피드백·수업 종료 task는 계속 읽기 전용이며, LLM 호출과 자율 실행은 구현하지 않는다.
+과거 구현의 상세 권한·proposal·execution 규칙은 현재 활성 API 계약이 아니다. 관련 DB migration과 데이터는 rollback 없이 보존한다.
 
 ## 20. 페이지별 담당자 체크리스트
 

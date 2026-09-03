@@ -16,7 +16,7 @@
 
 ```mermaid
 flowchart LR
-  User["대표 운영자 / 그룹 운영자 / 강사 / 공개 방문자"] --> Browser["Browser"]
+  User["대표 운영자 / 그룹 운영자 / 강사"] --> Browser["Browser"]
   Browser --> Next["Next.js App Router"]
   Next --> Auth["Supabase Auth"]
   Next --> DB["Supabase PostgreSQL + RLS"]
@@ -34,9 +34,9 @@ flowchart LR
 | --- | --- |
 | Next.js | App Router, 서버 컴포넌트, 서버 액션, Route Handler, UI 렌더링 |
 | Supabase Auth | 로그인, 회원가입, 매직 링크 초대, callback code exchange |
-| PostgreSQL | 워크스페이스, 그룹, 참여자, 수업, 회차, 자료, 출석, 메모, 정산, 피드백, 활동 로그 저장 |
+| PostgreSQL | 워크스페이스, 그룹, 참여자, 수업, 회차, 자료, 출석, 메모, 활동 로그 저장. 종료된 정산·피드백 행은 보존 |
 | Supabase RLS | 워크스페이스 격리와 역할별 접근 제한 |
-| Supabase Storage | 수업 자료와 정산 영수증 파일 저장 |
+| Supabase Storage | 수업 자료 저장. 종료된 정산 영수증 객체는 보존 |
 | Admin client | RLS 우회가 필요한 서버 전용 작업, Auth admin, storage upload/remove, signed URL 생성 |
 
 ## 3. 기술 스택
@@ -55,8 +55,7 @@ flowchart LR
 
 ```text
 src/app/
-  page.tsx                                      # 공개 수업 카탈로그
-  public/courses/[courseId]/page.tsx            # 공개 수업 상세
+  page.tsx                                      # 로그인 진입/운영 안내 랜딩
   (auth)/
     login/
     signup/
@@ -71,8 +70,6 @@ src/app/
       home/
       calendar/
       members/                                  # 멤버 초대, 수정, 참여 요청 승인/거절
-      feedback/                                 # 공개 수업 피드백 관리
-      settlements/                              # 운영자 정산 요청 목록/상세
       manage/
         groups/
         courses/
@@ -88,7 +85,6 @@ src/app/
         materials/
         attendance/
         notes/
-        settlements/
   api/
     invites/[token]/accept/route.ts
     materials/upload-url/route.ts               # 사용 중단, 410
@@ -97,8 +93,7 @@ src/app/
 
 ### 화면 책임
 
-- `/`: 비로그인 사용자도 접근 가능한 공개 수업 카탈로그.
-- `/public/courses/[courseId]`: 공개 수업 상세와 공개 피드백 제출.
+- `/`: 비로그인 사용자를 위한 운영 안내 랜딩. 로그인 사용자는 `/workspaces`로 이동한다.
 - `/workspaces`: 로그인 사용자의 워크스페이스 목록.
 - `/workspaces/new`: 새 워크스페이스 생성.
 - `/workspaces/discover`: 기존 워크스페이스 참여 요청.
@@ -107,9 +102,7 @@ src/app/
 - `/members`: owner_admin 전용 멤버 초대/수정/제거와 참여 요청 처리.
 - `/manage/groups`, `/manage/courses`, `/manage/participants`: 운영 데이터 관리 허브.
 - `/courses/[courseId]/*`: 운영자용 수업 상세, 자료, 참여자 현황.
-- `/teach/courses/[courseId]/*`: 강사용 수업 홈, 자료, 출석부, 메모, 정산 요청.
-- `/settlements`: owner_admin의 정산 요청 검토.
-- `/feedback`: 공개 수업 피드백 검토.
+- `/teach/courses/[courseId]/*`: 강사용 수업 홈, 자료, 출석부, 메모.
 
 ### 클라이언트/서버 경계
 
@@ -130,18 +123,14 @@ src/
     supabase/            # client, server, admin client
     validators/          # Zod schema
   services/
-    access.ts
-    activity.ts
-    admin-copilot-participant-projection.ts
-    admin-copilot.ts
-    admin-copilot-logic.ts
-    ontology-action-contract.ts
-    ontology-actions.ts
-    auth.ts
+   access.ts
+   activity.ts
+    attendance-dashboard-logic.ts
+    attendance-dashboard.ts
+   auth.ts
     calendar.ts
     class-memos.ts
     course-detail.ts
-    course-feedbacks.ts
     course-participants.ts
     course-sessions.ts
     courses.ts
@@ -151,9 +140,6 @@ src/
     join-requests.ts
     materials.ts
     participants.ts
-    payout-accounts.ts
-    public-catalog.ts
-    settlements.ts
     workspace-members.ts
     workspaces.ts
 ```
@@ -182,7 +168,7 @@ src/
 | `groups` | 권한 스코프이자 운영 단위 |
 | `participants` | 로그인하지 않는 참여자 마스터 |
 | `participant_groups` | 참여자와 그룹의 N:M 관계 |
-| `courses` | 수업 기본 정보, 상태, 공개 여부, 담당 강사, 카드 시각 정보 |
+| `courses` | 수업 기본 정보, 상태, 담당 강사, 카드 시각 정보 |
 | `course_recurrence_rules` | 반복 회차 생성 규칙 |
 | `course_groups` | 수업과 그룹의 N:M 관계 |
 | `course_participants` | 명시 제외와 출석 FK 보호용 수업-참여자 연결 |
@@ -197,11 +183,11 @@ src/
 | `invite_groups` | group_admin 초대 시 접근 그룹 |
 | `invite_courses` | instructor 초대 시 담당 수업 사전 배정 |
 | `activity_logs` | 헤더 최근 활동 원천 이벤트 |
-| `instructor_payout_accounts` | 강사별 워크스페이스 정산 계좌 |
-| `settlement_requests` | 강사 정산 요청 헤더 |
-| `settlement_request_items` | 정산 요청 품목 라인 |
-| `settlement_request_receipts` | 정산 요청 영수증 파일 |
-| `course_feedbacks` | 공개 수업 상세에서 들어온 사용자 피드백 |
+| `instructor_payout_accounts` | 레거시 정산 계좌 데이터 (앱 기능 종료, 행 보존) |
+| `settlement_requests` | 레거시 정산 요청 데이터 (앱 기능 종료, 행 보존) |
+| `settlement_request_items` | 레거시 정산 품목 데이터 (앱 기능 종료, 행 보존) |
+| `settlement_request_receipts` | 레거시 정산 영수증 데이터 (앱 기능 종료, 객체 보존) |
+| `course_feedbacks` | 레거시 공개 수업 피드백 데이터 (앱 기능 종료, 행 보존) |
 | `ontology_action_proposals` | 결정론적 운영 신호에서 생성된 human-approved action 제안 ledger |
 | `ontology_action_executions` | 승인된 action의 실행 결과와 before/after audit ledger |
 
@@ -214,18 +200,17 @@ src/
 - `participant_group_status`: `active`, `removed`
 - `course_participant_status`: `active`, `excluded`
 - `course_status`: `planned`, `in_progress`, `completed`
-- `course_public_visibility`: `public`, `hidden`
 - `session_type`: `regular`, `makeup`, `special`, `practice`
 - `session_visibility_status`: `visible`, `hidden`
 - `session_rollup_status`: `included`, `excluded`
 - `session_progress_status`: `scheduled`, `cancelled`
 - `material_upload_status`: `uploading`, `uploaded`, `failed`
 - `material_review_status`: `pending`, `reviewed`
-- `material_visibility_scope`: `public`, `admin_only`
+- `material_visibility_scope`: `admin_only` (기존 `public` 행은 기능 종료 migration에서 정리)
 - `attendance_status`: `present`, `partial`, `absent`
-- `settlement_request_status`: `pending`, `paid`
-- `course_feedback_category`: `suggestion`, `praise`, `other`
-- `course_feedback_status`: `new`, `reviewed`
+- `settlement_request_status`: `pending`, `paid` (보존 데이터 전용)
+- `course_feedback_category`: `suggestion`, `praise`, `other` (보존 데이터 전용)
+- `course_feedback_status`: `new`, `reviewed` (보존 데이터 전용)
 - `ontology_action_proposal_status`: `pending`, `approved`, `rejected`, `expired`
 - `ontology_action_execution_status`: `succeeded`, `failed`
 
@@ -239,12 +224,9 @@ src/
 - `course_participants.status='excluded'`는 특정 참여자를 수업에서 명시 제외하는 기록으로 사용한다.
 - `course_participant_groups`는 legacy/snapshot 성격으로 보존하며, 현재 목록/집계의 주 기준이 아니다.
 
-### 자료 공개 범위
+### 자료 접근 범위
 
-자료 공개 범위는 `materials.visibility_scope`로 표현한다.
-
-- `public`: 공개 수업 상세에서 비로그인 사용자도 볼 수 있고 다운로드할 수 있다.
-- `admin_only`: 권한 있는 워크스페이스 멤버만 접근한다.
+자료는 권한 있는 워크스페이스 멤버만 접근한다. 기존 `public` 행은 기능 종료 migration에서 `admin_only`로 정리하며, 공개 수업 상세·비로그인 다운로드 경로는 제공하지 않는다.
 - 과거 설계의 `material_groups`와 `selected_groups` 방식은 `20260517100000_material_visibility_v2.sql`에서 제거됐다.
 - 자료 파일은 `course-materials` private bucket에 저장하고, 다운로드는 권한 검증 후 signed URL로 발급한다.
 
@@ -254,11 +236,9 @@ src/
 - 초대 수락은 기존 placeholder의 `user_id`를 채우고 `status='active'`로 전환한다.
 - 사용자가 직접 워크스페이스 참여를 요청하면 `workspace_join_requests`에 pending row를 만들고, owner_admin 승인 시 멤버십을 생성한다.
 
-### 정산과 피드백
+### 종료된 정산과 피드백 데이터
 
-- 강사는 담당 수업에서 정산 요청을 만들고 영수증을 첨부할 수 있다.
-- owner_admin은 정산 요청을 조회하고 `paid`로 표시한다. 실제 송금 처리는 시스템 밖의 일이다.
-- 공개 수업 상세의 피드백은 `course_feedbacks`에 저장되고, 운영자 `feedback` 화면에서 검토한다.
+정산 요청과 공개 수업 피드백은 2026-09-02 앱 기능을 종료했다. 기존 테이블·행·Storage 객체는 보존하며, 새 앱 화면·서비스·활동 DTO·정산 RLS/Storage 정책은 제공하지 않는다. 보존 데이터의 장기 삭제·열람 정책은 별도 운영 결정으로 남긴다.
 
 ## 7. API와 Route Handler 구조
 
@@ -278,9 +258,9 @@ Next.js Server Actions를 기본으로 사용하고, HTTP 엔드포인트가 필
 
 | 역할 | 권한 범위 |
 | --- | --- |
-| 대표 운영자 | 워크스페이스 전체 데이터 접근, 그룹/수업/참여자/사용자/정산/피드백 관리 |
+| 대표 운영자 | 워크스페이스 전체 운영 데이터 접근, 그룹/수업/참여자/사용자 관리 |
 | 그룹 운영자 | 지정된 그룹 범위의 수업, 참여자, 자료, 일정, 기록 접근 |
-| 강사 | 직접 배정된 수업의 자료, 출석, 메모, 정산 요청 작성 |
+| 강사 | 직접 배정된 수업의 자료, 출석, 메모 관리 |
 | 참여자 | 로그인 사용자 아님. 시스템 권한 없음 |
 
 ### 권한 판정 규칙
@@ -303,11 +283,9 @@ Supabase RLS는 업무 테이블에 활성화되어 있다. 단, 현재 구현�
 - 초대, 초대-그룹, 초대-수업 row 생성/조회/수정
 - 워크스페이스 참여 요청 생성/승인/거절
 - 활동 로그 INSERT/SELECT와 권한 필터링 projection
-- 공개 카탈로그 projection과 공개 여부 변경
 - 일반 일정 생성/수정/삭제
-- 정산 요청/영수증 파일 처리 중 RLS 충돌이 있는 서버 작업
-- Admin Copilot의 owner_admin 전용 읽기 집계. 자료, 출석, 피드백처럼 SSR/RLS 충돌 가능성이 있는 여러 테이블을 한 번에 조회하므로, 활성 멤버십과 `owner_admin` 역할을 먼저 확인한 뒤 admin client를 사용한다.
-- `ReviewMaterial` proposal/execution 조회와 결정 처리. proposal/execution ledger는 tenant-scoped로 저장하고 owner_admin만 읽을 수 있으며, 승인·거절은 service 계층에서 owner 권한을 확인한 뒤 service-role 전용의 좁은 RPC를 호출한다.
+- `attendance-dashboard.ts`는 활성 멤버십과 역할별 수업 범위를 확인한 뒤 출석 대시보드에 필요한 회차·참여자·출석 기록만 permission-scoped projection으로 집계한다.
+- `attendance-dashboard-logic.ts`는 날짜/시간대, 유효 회차, `출석/유효회차`, 50% 미만 저출석 판정을 순수 함수로 계산한다.
 
 이 패턴의 전제는 항상 같다.
 
@@ -329,7 +307,7 @@ workspaces/{workspace_id}/courses/{course_id}/materials/{material_id}/{file_id}-
 현재 업로드 흐름:
 
 1. `uploadMaterial(workspaceId, courseId, formData)` 호출.
-2. 서버에서 파일 크기, 확장자, 권한, 공개 범위를 검증.
+2. 서버에서 파일 크기, 확장자와 권한을 검증하고 워크스페이스 멤버 전용으로 저장.
 3. admin client로 `materials` row 생성.
 4. admin storage client로 파일 업로드.
 5. `upload_status='uploaded'`로 갱신.
@@ -337,9 +315,9 @@ workspaces/{workspace_id}/courses/{course_id}/materials/{material_id}/{file_id}-
 
 `replaceMaterialFile`도 같은 server action + admin storage 흐름을 사용한다. 클라이언트 PUT signed upload URL 흐름은 사용하지 않는다.
 
-### 정산 영수증
+### 종료된 정산 영수증 객체
 
-정산 영수증은 `settlement_request_receipts.storage_path`에 저장 경로를 기록한다.
+기존 정산 영수증은 기록 보존을 위해 `settlement_request_receipts.storage_path`와 Storage 객체를 유지한다. 현재 앱은 해당 객체를 업로드·조회·다운로드하지 않는다.
 
 ```text
 workspaces/{workspace_id}/settlements/{request_id}/{file_id}-{safe_filename}
@@ -364,7 +342,7 @@ workspaces/{workspace_id}/settlements/{request_id}/{file_id}-{safe_filename}
 - admin client는 서버 전용 모듈에서만 import한다.
 - 초대 토큰은 원문을 저장하지 않고 hash만 저장한다.
 - 자료 다운로드는 private bucket과 짧은 만료 signed URL을 사용한다.
-- 공개 카탈로그 DTO에는 참여자, 출석, 수업 메모, storage path, 원본 파일명, 멤버 email/id를 포함하지 않는다.
+- 현재 공개 카탈로그 DTO는 제공하지 않는다. 운영 DTO에도 참여자, 출석, 수업 메모, storage path, 원본 파일명, 멤버 email/id를 불필요하게 포함하지 않는다.
 - 활동 로그는 조회 시 현재 멤버 권한으로 필터링한다.
 - 파일 업로드 전 확장자, MIME type, 크기를 서버에서 검증한다.
 - `.env.local`과 service role key는 저장소에 커밋하지 않는다.

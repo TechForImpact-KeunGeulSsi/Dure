@@ -46,6 +46,8 @@ type ParticipantStatusItem = {
   presentCount: number;
   partialCount: number;
   absentCount: number;
+  attendedSessionCount: number;
+  validSessionCount: number;
   attendanceRate: number | null;
   latestNote: string | null;
   canEditAssignment: boolean;
@@ -55,6 +57,8 @@ export type CourseSessionRef = {
   id: UUID;
   sessionNo: number;
   date: string;
+  startsAt: string;
+  endsAt: string;
 };
 
 export type SessionAttendanceRecord = {
@@ -76,6 +80,8 @@ export type GetCourseParticipantsStatusResult = {
   };
   summary: {
     attendanceRate: number | null;
+    attendedSessionCount: number;
+    validSessionCount: number;
     partialCount: number;
     absentCount: number;
     countedSessionCount: number;
@@ -157,9 +163,14 @@ export async function getCourseParticipantsStatus(
   );
 
   const countedSessionCount = countedSessionIds.length;
+  const assignedAtByParticipant = new Map(
+    rawParticipantRows.map((row) => [row.participant.id, row.assignedAt]),
+  );
   const aggregates = await loadAttendanceAggregates({
     workspaceId,
     countedSessionIds,
+    sessions: countedSessions,
+    assignedAtByParticipant,
   });
 
   const participants: ParticipantStatusItem[] = rawParticipantRows.map((row) => {
@@ -172,7 +183,9 @@ export async function getCourseParticipantsStatus(
       presentCount: agg.present,
       partialCount: agg.partial,
       absentCount: agg.absent,
-      attendanceRate: computeRate(agg, countedSessionCount),
+      attendedSessionCount: agg.present + agg.partial,
+      validSessionCount: agg.present + agg.partial + agg.absent,
+      attendanceRate: computeRate(agg),
       latestNote: aggregates.latestNoteByParticipant.get(row.participant.id) ?? null,
       canEditAssignment: true,
     };
@@ -190,11 +203,14 @@ export async function getCourseParticipantsStatus(
     { present: 0, partial: 0, absent: 0 },
   );
 
-  const totalDenom = countedSessionCount * activeParticipants.length;
+  const totalValidRecordCount = activeParticipants.reduce(
+    (total, participant) => total + participant.validSessionCount,
+    0,
+  );
   const summaryRate =
-    totalDenom > 0
+    totalValidRecordCount > 0
       ? Math.round(
-          ((totalAgg.present + totalAgg.partial * 0.5) / totalDenom) * 1000,
+          ((totalAgg.present + totalAgg.partial) / totalValidRecordCount) * 1000,
         ) / 10
       : null;
 
@@ -210,6 +226,8 @@ export async function getCourseParticipantsStatus(
     },
     summary: {
       attendanceRate: summaryRate,
+      attendedSessionCount: totalAgg.present + totalAgg.partial,
+      validSessionCount: totalValidRecordCount,
       partialCount: totalAgg.partial,
       absentCount: totalAgg.absent,
       countedSessionCount,
@@ -311,10 +329,10 @@ export async function reincludeCourseParticipant(
 type Aggregate = { present: number; partial: number; absent: number };
 const EMPTY_AGG: Aggregate = { present: 0, partial: 0, absent: 0 };
 
-function computeRate(agg: Aggregate, countedSessionCount: number): number | null {
-  if (countedSessionCount === 0) return null;
-  const score = agg.present + agg.partial * 0.5;
-  return Math.round((score / countedSessionCount) * 1000) / 10;
+function computeRate(agg: Aggregate): number | null {
+  const validSessionCount = agg.present + agg.partial + agg.absent;
+  if (validSessionCount === 0) return null;
+  return Math.round(((agg.present + agg.partial) / validSessionCount) * 1000) / 10;
 }
 
 type ParticipantRow = {
@@ -322,6 +340,7 @@ type ParticipantRow = {
   status: CourseParticipantStatus;
   participant: ParticipantRef;
   groupRefs: GroupRef[];
+  assignedAt: string | null;
 };
 
 async function loadCourseParticipantRows(
@@ -381,18 +400,19 @@ async function loadCourseParticipantRows(
   // 4) course_participants 행 — 명시 제외/명시 활성 상태와 id 매핑용
   const { data: cpRows } = await admin
     .from("course_participants")
-    .select("id, participant_id, status")
+    .select("id, participant_id, status, assigned_at")
     .eq("workspace_id", workspaceId)
     .eq("course_id", courseId)
     .in("participant_id", Array.from(participantById.keys()));
   const cpByParticipant = new Map<
     UUID,
-    { id: UUID; status: CourseParticipantStatus }
+    { id: UUID; status: CourseParticipantStatus; assignedAt: string }
   >();
   for (const row of cpRows ?? []) {
     cpByParticipant.set(row.participant_id as UUID, {
       id: row.id as UUID,
       status: row.status,
+      assignedAt: row.assigned_at as string,
     });
   }
 
@@ -412,6 +432,7 @@ async function loadCourseParticipantRows(
         status: cp?.status ?? "active",
         participant,
         groupRefs: [],
+        assignedAt: cp?.assignedAt ?? null,
       };
       rowByParticipant.set(pid, entry);
     }
@@ -430,19 +451,30 @@ async function loadCountedSessions(
   courseId: UUID,
 ): Promise<CourseSessionRef[]> {
   const supabase = await createSupabaseServerClient();
+  const timezone = await loadWorkspaceTimezone(workspaceId);
   const { data } = await supabase
     .from("course_sessions")
-    .select("id, session_no, date")
+    .select("id, session_no, date, starts_at, ends_at")
     .eq("workspace_id", workspaceId)
     .eq("course_id", courseId)
     .eq("rollup_status", "included")
     .eq("progress_status", "scheduled")
     .order("session_no", { ascending: true });
-  return (data ?? []).map((row) => ({
-    id: row.id as UUID,
-    sessionNo: row.session_no as number,
-    date: row.date as string,
-  }));
+  const localNow = getLocalNow(new Date(), timezone);
+  return (data ?? [])
+    .filter((row) => {
+      const date = row.date as string;
+      if (date < localNow.date) return true;
+      if (date > localNow.date) return false;
+      return timeToMinutes(row.ends_at as string) <= localNow.minutes;
+    })
+    .map((row) => ({
+      id: row.id as UUID,
+      sessionNo: row.session_no as number,
+      date: row.date as string,
+      startsAt: row.starts_at as string,
+      endsAt: row.ends_at as string,
+    }));
 }
 
 async function loadCourseGroupIds(
@@ -499,6 +531,8 @@ async function requireOperator(
 async function loadAttendanceAggregates(params: {
   workspaceId: UUID;
   countedSessionIds: UUID[];
+  sessions: CourseSessionRef[];
+  assignedAtByParticipant: Map<UUID, string | null>;
 }): Promise<{
   byParticipant: Map<UUID, Aggregate>;
   latestNoteByParticipant: Map<UUID, string>;
@@ -532,6 +566,11 @@ async function loadAttendanceAggregates(params: {
 
   for (const row of rows) {
     const pid = row.participant_id;
+    const session = params.sessions.find((item) => item.id === row.session_id);
+    const assignedAt = params.assignedAtByParticipant.get(pid);
+    if (session && assignedAt && assignedAt.slice(0, 10) > session.date) {
+      continue;
+    }
     const current = byParticipant.get(pid) ?? { present: 0, partial: 0, absent: 0 };
     if (row.status === "present") current.present += 1;
     else if (row.status === "partial") current.partial += 1;
@@ -555,4 +594,40 @@ async function loadAttendanceAggregates(params: {
   }
 
   return { byParticipant, latestNoteByParticipant, sessionRecords };
+}
+
+async function loadWorkspaceTimezone(workspaceId: UUID): Promise<string> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("workspaces")
+    .select("timezone")
+    .eq("id", workspaceId)
+    .maybeSingle();
+  return data?.timezone ?? "Asia/Seoul";
+}
+
+function getLocalNow(value: Date, timezone: string): { date: string; minutes: number } {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(value)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  return {
+    date: parts.year + "-" + parts.month + "-" + parts.day,
+    minutes: Number(parts.hour) * 60 + Number(parts.minute),
+  };
+}
+
+function timeToMinutes(value: string): number {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
 }

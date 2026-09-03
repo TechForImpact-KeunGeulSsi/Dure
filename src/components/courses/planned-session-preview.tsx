@@ -145,7 +145,7 @@ export function PlannedSessionPreview({
                   <Input
                     value={plan.cancellationReason ?? ""}
                     onChange={(event) => onChangeReason(session.sessionNo, event.target.value)}
-                    placeholder="휴강 사유 (예: 공휴일, 마을 행사)"
+                    placeholder="휴강 사유 (예: 공휴일, 센터 행사)"
                     maxLength={500}
                     className="h-8 text-xs"
                   />

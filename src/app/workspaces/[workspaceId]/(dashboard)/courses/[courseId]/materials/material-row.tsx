@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { materialReviewStatusLabel, materialVisibilityLabel } from '@/lib/api/labels';
+import { materialReviewStatusLabel } from '@/lib/api/labels';
 import type { MaterialListItem } from '@/lib/api/types';
 
 type Props = {
@@ -47,7 +47,6 @@ export function MaterialRow({
         <div className="min-w-0 flex-1">
           <Title material={material} />
           <Meta material={material} />
-          <Visibility material={material} />
         </div>
         <div className="flex items-center gap-1">
           {material.canDownload && material.uploadStatus === 'uploaded' && (
@@ -102,14 +101,6 @@ function Meta({ material }: { material: MaterialListItem }) {
   return (
     <p className="mt-1 truncate text-xs text-gray-500">
       {material.originalFilename ?? '—'} · {formatBytes(material.sizeBytes)} · 업로더 {uploader}
-    </p>
-  );
-}
-
-function Visibility({ material }: { material: MaterialListItem }) {
-  return (
-    <p className="mt-1 text-xs text-gray-400">
-      공개 범위: {materialVisibilityLabel(material.visibilityScope)}
     </p>
   );
 }

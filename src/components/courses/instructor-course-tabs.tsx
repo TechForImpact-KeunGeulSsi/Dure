@@ -16,7 +16,6 @@ const TAB_ITEMS = [
   { label: '수업 자료', segment: 'materials' },
   { label: '출석부', segment: 'attendance' },
   { label: '수업 메모', segment: 'notes' },
-  { label: '정산 요청', segment: 'settlements' },
 ] as const;
 
 type TabSegment = (typeof TAB_ITEMS)[number]['segment'];

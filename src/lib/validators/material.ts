@@ -26,7 +26,6 @@ export const MATERIAL_ALLOWED_MIME_TYPES = [
   "application/zip",
 ] as const;
 
-const VisibilityScopeEnum = z.enum(["public", "admin_only"]);
 const ReviewStatusEnum = z.enum(["pending", "reviewed"]);
 
 const TitleSchema = z
@@ -61,7 +60,6 @@ export const PrepareMaterialUploadSchema = z.object({
   originalFilename: FilenameSchema,
   mimeType: MimeSchema,
   sizeBytes: SizeSchema,
-  visibilityScope: VisibilityScopeEnum,
 });
 
 export type PrepareMaterialUploadInput = z.infer<typeof PrepareMaterialUploadSchema>;
@@ -70,7 +68,6 @@ export type PrepareMaterialUploadInput = z.infer<typeof PrepareMaterialUploadSch
 export const UpdateMaterialSchema = z.object({
   title: TitleSchema.optional(),
   description: DescriptionSchema,
-  visibilityScope: VisibilityScopeEnum.optional(),
 });
 
 export type UpdateMaterialInput = z.infer<typeof UpdateMaterialSchema>;

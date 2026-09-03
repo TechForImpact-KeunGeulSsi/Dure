@@ -10,13 +10,8 @@ import { Dialog, DialogBody, DialogFooter, DialogHeader } from '@/components/ui/
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import type {
-  MaterialListItem,
-  MaterialVisibilityScope,
-} from '@/lib/api/types';
+import type { MaterialListItem } from '@/lib/api/types';
 import { replaceMaterialFile, updateMaterial } from '@/services/materials';
-
-import { VisibilityFields } from './visibility-fields';
 
 type Props = {
   open: boolean;
@@ -42,7 +37,6 @@ export function EditDialog({
   const replaceFileInputId = useId();
   const [title, setTitle] = useState(material.title);
   const [description, setDescription] = useState(material.description ?? '');
-  const [scope, setScope] = useState<MaterialVisibilityScope>(material.visibilityScope);
   const [submitting, setSubmitting] = useState(false);
   const [replacing, setReplacing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +52,6 @@ export function EditDialog({
         description.trim() === (material.description ?? '')
           ? undefined
           : description.trim() || null,
-      visibilityScope: scope === material.visibilityScope ? undefined : scope,
     });
     setSubmitting(false);
     if (!result.ok) {
@@ -115,8 +108,6 @@ export function EditDialog({
             maxLength={1000}
           />
         </div>
-
-        <VisibilityFields scope={scope} onScopeChange={setScope} />
 
         {material.canReplaceFile && (
           <div className="space-y-1.5 border-t border-gray-100 pt-4">

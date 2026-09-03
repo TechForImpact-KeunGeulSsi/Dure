@@ -136,6 +136,8 @@ export function buildDeveloperQaFixture({
         participant_id: participantItem.id,
         status: courseItem.key === "operations" && participantItem.key === "excluded" ? "excluded" : "active",
         participant_name_snapshot: participantItem.name,
+        // 과거 회차 출석을 검증할 수 있도록 참여자 배정일을 fixture 기준일보다 앞에 둔다.
+        assigned_at: timestamp(-10, 3),
       });
       for (const groupKey of matchingGroups) {
         courseParticipantGroups.push({
@@ -173,7 +175,7 @@ export function buildDeveloperQaFixture({
 
   const materials = [
     material("pending", "operations", "확인 필요한 운영 자료.txt", "pending", "admin_only", -5),
-    material("public", "planned", "공개 수업 안내.txt", "reviewed", "public", -3),
+    material("internal", "planned", "운영 수업 안내.txt", "reviewed", "admin_only", -3),
   ];
 
   const feedbacks = [
@@ -188,7 +190,7 @@ export function buildDeveloperQaFixture({
 
   const storageFiles = [
     storageFile("material-pending", `workspaces/${workspaceId}/courses/${id("course", "operations")}/materials/${id("material", "pending")}/pending-review.txt`, "확인이 필요한 개발 QA 자료입니다.\n"),
-    storageFile("material-public", `workspaces/${workspaceId}/courses/${id("course", "planned")}/materials/${id("material", "public")}/public-guide.txt`, "공개 수업 안내용 개발 QA 자료입니다.\n"),
+    storageFile("material-internal", `workspaces/${workspaceId}/courses/${id("course", "planned")}/materials/${id("material", "internal")}/internal-guide.txt`, "운영 수업 안내용 개발 QA 자료입니다.\n"),
     storageFile("settlement-receipt", `workspaces/${workspaceId}/settlements/${id("settlement", "pending")}/${id("receipt", "pending")}-receipt.txt`, "개발 QA 정산 영수증입니다.\n"),
   ];
 
@@ -258,16 +260,6 @@ export function buildDeveloperQaFixture({
     ],
     storageFiles,
     expected: {
-      reviewMaterialScenario: {
-        materialKey: "pending",
-        courseKey: "operations",
-      },
-      taskCounts: {
-        pending_material_review: 1,
-        attendance_risk_participant: 1,
-        new_course_feedback: 1,
-        course_completion_candidate: 1,
-      },
       upcomingSessionCount: 3,
       recentSessionCount: 6,
       groupAdminCourseKeys: ["operations", "completed", "multi"],
@@ -338,7 +330,7 @@ export function buildDeveloperQaFixture({
   }
 
   function storageFilesPath(key, courseKey) {
-    const filename = key === "pending" ? "pending-review.txt" : "public-guide.txt";
+    const filename = key === "pending" ? "pending-review.txt" : "internal-guide.txt";
     return `workspaces/${workspaceId}/courses/${id("course", courseKey)}/materials/${id("material", key)}/${filename}`;
   }
 

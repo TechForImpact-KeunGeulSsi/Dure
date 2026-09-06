@@ -33,7 +33,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Pure tests import TypeScript sources directly (e.g.
+          # scripts/attendance-dashboard-logic.test.mjs imports
+          # ../src/services/attendance-dashboard-logic.ts), which requires Node's
+          # built-in type stripping. Node 20 does not have it and fails with
+          # ERR_UNKNOWN_FILE_EXTENSION.
+          node-version: 24
           cache: npm
 
       - name: Install dependencies

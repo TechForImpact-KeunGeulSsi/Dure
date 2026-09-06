@@ -1,11 +1,21 @@
 #!/usr/bin/env node
 
 import { execFileSync, spawn } from "node:child_process";
-import { resolve } from "node:path";
+import { createRequire } from "node:module";
+
+const isWindows = process.platform === "win32";
+const require = createRequire(import.meta.url);
+
+// Windows resolves `supabase` to a .cmd/.exe via PATHEXT, which execFile does not
+// apply on its own. Go through cmd.exe explicitly instead of `shell: true`, so the
+// arguments stay a real argv array rather than a concatenated string.
+const [supabaseFile, supabaseArgs] = isWindows
+  ? ["cmd.exe", ["/c", "supabase", "status", "-o", "json"]]
+  : ["supabase", ["status", "-o", "json"]];
 
 let output;
 try {
-  output = execFileSync("supabase", ["status", "-o", "json"], {
+  output = execFileSync(supabaseFile, supabaseArgs, {
     cwd: process.cwd(),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
@@ -30,7 +40,7 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-const child = spawn(resolve(process.cwd(), "node_modules/.bin/next"), ["dev"], {
+const child = spawn(process.execPath, [require.resolve("next/dist/bin/next"), "dev"], {
   cwd: process.cwd(),
   env: {
     ...process.env,

@@ -36,6 +36,21 @@ export const MAPO_DASHBOARD_ACCOUNTS = {
     displayName: "음악교실 담당 강사",
     role: "instructor",
   },
+  cookingInstructor: {
+    email: "mapo.demo.cooking@test.local",
+    displayName: "요리활동 담당 강사",
+    role: "instructor",
+  },
+  digitalInstructor: {
+    email: "mapo.demo.digital@test.local",
+    displayName: "디지털활동 담당 강사",
+    role: "instructor",
+  },
+  dailyInstructor: {
+    email: "mapo.demo.daily@test.local",
+    displayName: "일상생활훈련 담당 강사",
+    role: "instructor",
+  },
 };
 
 export function buildMapoDashboardFixture({
@@ -75,12 +90,21 @@ export function buildMapoDashboardFixture({
     participant("yerin", "배예린"),
     participant("seoyun", "박서윤"),
     participant("doyun", "이도윤"),
+    participant("eunchae", "김은채"),
+    participant("taeyang", "이태양"),
+    participant("yubin", "최유빈"),
+    participant("junseo", "정준서"),
+    participant("sebin", "오세빈"),
+    participant("jiwoo", "문지우"),
   ];
 
   const courses = [
     course("fitness", "생활체육교실", "fitnessInstructor", -35, "08:00:00", "09:00:00"),
     course("art", "미술활동", "artInstructor", -35, "13:00:00", "14:30:00"),
     course("music", "음악교실", "musicInstructor", -35, "16:00:00", "17:00:00"),
+    course("cooking", "요리활동", "cookingInstructor", -35, "10:00:00", "11:30:00"),
+    course("digital", "디지털활동", "digitalInstructor", -35, "14:30:00", "15:30:00"),
+    course("daily", "일상생활훈련", "dailyInstructor", -35, "15:00:00", "16:00:00"),
   ];
 
   const sessionOffsets = [-35, -28, -21, -14, -7, 0];
@@ -117,6 +141,9 @@ export function buildMapoDashboardFixture({
     fitness: ["haneul", "sumin", "jihu", "daon", "yejun", "seoa", "jiho", "junwoo"],
     art: ["minjun", "seoa", "jiho", "yerin", "junwoo", "haneul"],
     music: ["seoyun", "doyun", "jihu", "jiho", "yerin"],
+    cooking: ["haneul", "eunchae", "taeyang", "seoa", "minjun"],
+    digital: ["sumin", "jihu", "yubin", "jiho", "junseo"],
+    daily: ["daon", "yejun", "seoyun", "sebin", "jiwoo", "doyun"],
   };
   const courseParticipants = [];
   const courseParticipantGroups = [];
@@ -171,8 +198,36 @@ export function buildMapoDashboardFixture({
       jiho: ["present", "present", "partial", "present", "present", "present"],
       yerin: ["absent", "present", "absent", "present", "present", "absent"],
     },
+    cooking: {
+      haneul: ["present", "present", "absent", "present", "present", "absent"],
+      eunchae: ["present", "absent", "present", "absent", "present", "absent"],
+      taeyang: ["present", "present", "present", "present", "absent", "present"],
+      seoa: ["partial", "present", "present", "present", "present", "partial"],
+      minjun: ["absent", "absent", "present", "absent", "present", "absent"],
+    },
+    digital: {
+      sumin: ["present", "partial", "present", "present", "present", "present"],
+      jihu: ["present", "absent", "present", "absent", "present", "absent"],
+      yubin: ["present", "partial", "present", "present", "present", "present"],
+      jiho: ["present", "absent", "partial", "present", "present", "present"],
+      junseo: ["present", "present", "absent", "present", "absent", "present"],
+    },
+    daily: {
+      daon: ["present", "present", "partial", "present", "present", "present"],
+      yejun: ["present", "absent", "present", "present", "present", "present"],
+      seoyun: ["present", "partial", "present", "present", "present", "present"],
+      sebin: ["absent", "present", "absent", "present", "absent", "present"],
+      jiwoo: ["present", "absent", "absent", "absent", "present", "absent"],
+      doyun: ["present", "present", "present", "absent", "present", "partial"],
+    },
   };
-  const missingRecords = new Set(["art:haneul:6", "music:doyun:6"]);
+  const missingRecords = new Set([
+    "art:haneul:6",
+    "music:doyun:6",
+    "cooking:seoa:6",
+    "digital:yubin:6",
+    "daily:doyun:6",
+  ]);
   const attendanceRecords = [];
   for (const courseItem of courses) {
     for (const participantKey of courseParticipantKeys[courseItem.key]) {
@@ -230,18 +285,26 @@ export function buildMapoDashboardFixture({
         fitnessInstructor: ["fitness"],
         artInstructor: ["art"],
         musicInstructor: ["music"],
+        cookingInstructor: ["cooking"],
+        digitalInstructor: ["digital"],
+        dailyInstructor: ["daily"],
       },
       groupAdminGroupKeys: ["center"],
       lowAttendance: [
         { courseKey: "fitness", participantKey: "haneul", attended: 2, valid: 6 },
         { courseKey: "art", participantKey: "minjun", attended: 2, valid: 6 },
+        { courseKey: "cooking", participantKey: "minjun", attended: 2, valid: 6 },
+        { courseKey: "daily", participantKey: "jiwoo", attended: 2, valid: 6 },
       ],
       exactFifty: [
         { courseKey: "fitness", participantKey: "jihu", attended: 3, valid: 6 },
         { courseKey: "music", participantKey: "jihu", attended: 3, valid: 6 },
         { courseKey: "music", participantKey: "yerin", attended: 3, valid: 6 },
+        { courseKey: "cooking", participantKey: "eunchae", attended: 3, valid: 6 },
+        { courseKey: "digital", participantKey: "jihu", attended: 3, valid: 6 },
+        { courseKey: "daily", participantKey: "sebin", attended: 3, valid: 6 },
       ],
-      dailyMissingCount: 2,
+      dailyMissingCount: 5,
     },
   };
 
@@ -258,6 +321,14 @@ export function buildMapoDashboardFixture({
   }
 
   function course(key, name, instructorKey, startsOffset, startsAt, endsAt) {
+    const cardColors = {
+      fitness: "#0f766e",
+      art: "#7c3aed",
+      music: "#2563eb",
+      cooking: "#ea580c",
+      digital: "#0891b2",
+      daily: "#ca8a04",
+    };
     return {
       key,
       id: id("course", key),
@@ -266,7 +337,7 @@ export function buildMapoDashboardFixture({
       status: "in_progress",
       starts_on: addDays(referenceDate, startsOffset),
       ends_on: addDays(referenceDate, 0),
-      card_color: key === "fitness" ? "#0f766e" : key === "art" ? "#7c3aed" : "#2563eb",
+      card_color: cardColors[key] ?? "#2563eb",
       public_visibility: "hidden",
       groupKeys: ["center"],
       instructorKey,

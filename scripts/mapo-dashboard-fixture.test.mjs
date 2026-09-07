@@ -18,14 +18,14 @@ test("마포 센터 데모 fixture는 대시보드 설명용 운영 구조를 �
 
   assert.equal(fixture.workspace.name, MAPO_DASHBOARD_WORKSPACE_NAME);
   assert.equal(fixture.groups.length, 1);
-  assert.equal(fixture.participants.length, 12);
-  assert.equal(fixture.courses.length, 3);
-  assert.equal(fixture.sessions.length, 18);
-  assert.equal(fixture.attendanceRecords.length, 112);
-  assert.equal(fixture.classMemos.length, 3);
+  assert.equal(fixture.participants.length, 18);
+  assert.equal(fixture.courses.length, 6);
+  assert.equal(fixture.sessions.length, 36);
+  assert.equal(fixture.attendanceRecords.length, 205);
+  assert.equal(fixture.classMemos.length, 6);
   assert.deepEqual(
     fixture.courses.map((course) => course.name),
-    ["생활체육교실", "미술활동", "음악교실"],
+    ["생활체육교실", "미술활동", "음악교실", "요리활동", "디지털활동", "일상생활훈련"],
   );
   assert.ok(
     fixture.courses.every((course) => course.status === "in_progress"),
@@ -36,11 +36,15 @@ test("마포 센터 데모 fixture는 대시보드 설명용 운영 구조를 �
   );
   assert.equal(
     fixture.sessions.filter((session) => session.date === REFERENCE_DATE).length,
-    3,
+    6,
   );
   assert.equal(
     fixture.attendanceRecords.filter((record) => record.session_id === deterministicUuid(WORKSPACE_ID, "session:art-6")).length,
     5,
+  );
+  assert.deepEqual(
+    fixture.courses.slice(3).map((course) => course.instructorKey),
+    ["cookingInstructor", "digitalInstructor", "dailyInstructor"],
   );
   assert.ok(
     fixture.courseParticipants.some((row) => row.status === "excluded"),

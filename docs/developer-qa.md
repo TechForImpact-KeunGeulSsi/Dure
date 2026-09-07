@@ -74,7 +74,7 @@ Normally omit `--reference-date` so the fixture remains aligned with the current
 
 The `mapo-dashboard` profile is a separate local-only workspace for explaining the attendance dashboard with synthetic Mapo Disability Family Support Center data. It does not modify the existing `DURE Developer QA` workspace.
 
-It creates three in-progress classes (`생활체육교실`, `미술활동`, `음악교실`), 18 sessions, 12 fictional participants, and attendance patterns for present, partial attendance, absent, and missing records. The data includes low attendance at `2/6`, exact `50%` cases that remain normal, and a participant history with `출석/유효회차`.
+It creates six in-progress classes (`생활체육교실`, `미술활동`, `음악교실`, `요리활동`, `디지털활동`, `일상생활훈련`), 36 sessions, 18 fictional participants, and attendance patterns for present, partial attendance, absent, and missing records. The data includes multiple low-attendance `2/6` cases, exact `50%` cases that remain normal, and participant histories with `출석/유효회차`.
 
 Build and verify the local demo workspace:
 

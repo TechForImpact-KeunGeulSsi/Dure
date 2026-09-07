@@ -46,7 +46,7 @@ export function Th({
   return (
     <th
       className={cn(
-        'px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-gray-500',
+        'px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--color-muted-foreground)]',
         className,
       )}
       {...rest}
@@ -59,7 +59,13 @@ export function Td({
   ...rest
 }: React.TdHTMLAttributes<HTMLTableCellElement>) {
   return (
-    <td className={cn('px-4 py-3 align-middle text-sm text-gray-700', className)} {...rest} />
+    <td
+      className={cn(
+        'px-4 py-3 align-middle text-sm text-[var(--color-foreground)]',
+        className,
+      )}
+      {...rest}
+    />
   );
 }
 

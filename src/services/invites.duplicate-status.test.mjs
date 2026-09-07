@@ -1,6 +1,6 @@
 import * as assert from "node:assert/strict";
 
-import { isBlockingInviteDuplicateStatus } from "./invites.duplicates";
+import { isBlockingInviteDuplicateStatus } from "./invites.duplicates.ts";
 
 assert.equal(isBlockingInviteDuplicateStatus("active"), true);
 assert.equal(isBlockingInviteDuplicateStatus("invited"), true);

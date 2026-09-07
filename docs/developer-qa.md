@@ -159,20 +159,21 @@ npm run test:developer-qa
 
 ## Attendance dashboard local verification
 
-Apply the current migration set to the local database before the first run. `supabase db reset` is local-only and resets the local database.
+Apply the current migration set to the local database before the first run. The following uses incremental local migrations; it does not reset the whole database. The fixture seed resets its fixed QA workspace.
 
 ```bash
 supabase start
-supabase db reset
+supabase migration up --local
+npm run seed:developer-qa:local -- --reset
 npm run verify:developer-qa:local
 ```
 
-The verifier resets the fixed QA workspace and checks the following current operational state with all three local Auth accounts:
+For an explicitly authorized clean-database check, `supabase db reset` erases all local database data; seed the fixture again afterward.
 
-- owner, group-admin, and instructor membership roles are valid;
-- each role sees only its permitted courses and participant scope;
-- the dashboard fixture includes past, current, upcoming, cancelled, and excluded sessions;
-- attendance records and legacy data-retention rows are present in the expected workspace.
+The seed command resets and populates the fixed QA workspace. The fixture contains past, current, upcoming, cancelled, and excluded sessions. Verification checks are narrower:
+
+- The three local Auth accounts validate their membership roles and expected courses through direct Supabase queries; the group-admin account also checks the scope RPC.
+- Admin queries check workspace row counts, including sessions, attendance, and retained legacy rows, plus expected Storage paths. They do not validate each session's date/status or prove role-scoped access to those rows.
 
 The command intentionally leaves the completed fixture in the local workspace. Restore the baseline after browser checks with:
 
@@ -193,7 +194,7 @@ Use the local accounts and password in the Local-first workflow. With a fresh fi
 1. Owner opens the workspace home and sees the horizontal class filter, date control, summary metrics, and daily attendance graph.
 2. Selecting one or more classes updates the graph without opening a filter drawer.
 3. Selecting a graph row opens participant attendance rates with `출석/유효회차`; a participant opens session history and the attendance book link.
-4. Group admin and instructor see only their permitted course scope and do not see any Copilot surface.
+4. Group admin and instructor see only their permitted course scope and the current attendance operations surface.
 5. Confirm the dashboard contains no attendance-trend graph and no SMS action.
 
 After the browser checklist, run `npm run verify:developer-qa:local` for the restored baseline, or reset first if the browser session intentionally changed data.
@@ -211,9 +212,8 @@ The verifier checks:
 - Group-admin and instructor course scopes match the fixture contract.
 - Core table counts match.
 - Expected Storage paths exist.
-  - Live DB counts, role scopes, attendance records, and retained legacy rows match the fixture contract.
 
-The verifier does not create a Next.js cookie session, render pages, click evidence links, or exercise mutation server actions.
+The verifier does not create a Next.js cookie session, call application services, render pages, or exercise mutation server actions. It does not query participants as each role or prove cross-workspace denial; add those cases when the changed boundary requires them.
 
 ## Manual smoke checklist
 
@@ -228,8 +228,7 @@ Reset immediately before the session. For local work, record the reference date 
 - Confirm legacy public/hidden course visibility values remain only as retained data; active operations use workspace-scoped access.
 - Open materials and download the internal fixture where allowed.
 - Confirm legacy feedback/settlement rows and receipt objects remain retained but have no active screen or action.
-  - Confirm the dashboard shows horizontal class filters, summary counts, and the selected-date attendance graph.
-- Open every task evidence control and confirm it targets the correct existing management page.
+- Confirm the dashboard shows horizontal class filters, summary counts, and the selected-date attendance graph.
 - Perform one reversible create/edit operation through the UI to exercise a real owner server action.
 
 ### Group admin
@@ -238,7 +237,7 @@ Reset immediately before the session. For local work, record the reference date 
 - Confirm Beta-only and Gamma-only courses and participants are not exposed.
 - Confirm the multi-group course is visible under the current at-least-one-accessible-group read policy.
 - Perform one allowed scoped edit.
-  - Confirm the dashboard shows only the group-scoped classes for this role.
+- Confirm the dashboard shows only the group-scoped classes for this role.
 
 ### Instructor
 
@@ -247,7 +246,7 @@ Reset immediately before the session. For local work, record the reference date 
 - Save or edit a class memo.
 - Exercise one material operation through the UI.
 - Confirm unassigned courses are inaccessible.
-  - Confirm the dashboard shows only the instructor's assigned classes for this role.
+- Confirm the dashboard shows only the instructor's assigned classes for this role.
 
 ### Retired public surface
 

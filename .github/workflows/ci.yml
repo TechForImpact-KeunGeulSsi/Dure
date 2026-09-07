@@ -44,13 +44,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run pure tests
-        run: |
-          npm run test:attendance-dashboard
-          npm run test:developer-qa
-          npm run test:darori-seed
-          npm run test:operational-scope
-          npm run test:ontology-contract
+      - name: Run tests
+        run: npm test
 
       - name: Typecheck
         run: npm run typecheck

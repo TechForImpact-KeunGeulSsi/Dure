@@ -35,10 +35,10 @@ For developer environment variables and local Supabase usage, see `../docs/setup
 ## Local setup
 
 1. Start Docker Desktop.
-2. Reset the local database:
+2. Start the local services (applies migrations on first initialization):
 
 ```bash
-supabase db reset
+supabase start
 ```
 
 3. Copy `.env.example` to `.env.local` in the application project and fill it from:
@@ -60,9 +60,7 @@ Required values:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `SUPABASE_JWT_SECRET`
 - `APP_URL`
-- `CRON_SECRET`
 
 After logging in and linking the project:
 
@@ -78,9 +76,7 @@ Then configure the same environment variables in Vercel:
 vercel env add NEXT_PUBLIC_SUPABASE_URL
 vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY
 vercel env add SUPABASE_SERVICE_ROLE_KEY
-vercel env add SUPABASE_JWT_SECRET
 vercel env add APP_URL
-vercel env add CRON_SECRET
 ```
 
 ## Application notes

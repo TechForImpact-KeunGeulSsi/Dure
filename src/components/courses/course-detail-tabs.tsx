@@ -30,7 +30,7 @@ export function CourseDetailTabs({ workspaceId, courseId }: CourseDetailTabsProp
   const activeSegment = resolveActiveSegment(pathname, basePath);
 
   return (
-    <Tabs value={activeSegment} className="w-full border-b border-gray-200">
+    <Tabs value={activeSegment} className="w-full border-b border-[var(--color-border)]">
       <TabsList className="h-auto w-full justify-start gap-0 rounded-none border-0 bg-transparent p-0">
         {TAB_ITEMS.map((tab) => {
           const isActive = activeSegment === tab.segment;
@@ -49,8 +49,8 @@ export function CourseDetailTabs({ workspaceId, courseId }: CourseDetailTabsProp
                 className={cn(
                   'inline-block border-b-[3px] px-5 py-3 text-sm transition-colors',
                   isActive
-                    ? 'border-blue-600 font-semibold text-blue-600'
-                    : 'border-transparent font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700',
+                    ? 'border-[var(--color-primary)] font-semibold text-[var(--color-primary)]'
+                    : 'border-transparent font-medium text-[var(--color-muted-foreground)] hover:border-[var(--color-border)] hover:text-[var(--color-foreground)]',
                 )}
               >
                 {tab.label}

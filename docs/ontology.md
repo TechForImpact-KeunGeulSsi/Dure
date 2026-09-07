@@ -212,7 +212,7 @@ Primary relationships:
 | `HAS_CLASS_MEMO` | CourseSession | ClassMemo | Session memo |
 | `ACCESSIBLE_BY` | Group / Course | WorkspaceMember | Permission-derived access |
 
-## Permission Ontology
+## Historical Permission Ontology
 
 ### Owner Admin
 
@@ -222,7 +222,7 @@ Semantic access:
 
 - Can inspect all workspace operational data.
 - Can manage workspace members, groups, courses, participants, materials, attendance, and class memos according to service actions.
-- Admin Copilot v1 is restricted to this role.
+- The former Admin Copilot v1 was restricted to this role.
 
 ### Group Admin
 
@@ -231,7 +231,7 @@ Role: `group_admin`
 Semantic access:
 
 - Can inspect and manage only assigned group scope.
-- Not included in Admin Copilot v1.
+- Not included in the former Admin Copilot v1.
 - Future group-admin copilot must build a group-scoped graph before retrieval.
 
 ### Instructor
@@ -242,13 +242,13 @@ Semantic access:
 
 - Can inspect and operate directly assigned courses.
 - Cannot inspect general schedule.
-- Not included in Admin Copilot v1.
+- Not included in the former Admin Copilot v1.
 
 ### Participant
 
 Participants are data subjects, not system actors.
 
-## Administrative Signals for Admin Copilot v1
+## Historical Administrative Signals for Admin Copilot v1
 
 ### PendingMaterialReview
 
@@ -334,7 +334,7 @@ Recommended manual action:
 
 ## Graph-Shaped Context Contract
 
-`GraphContext` is a future permission-scoped LLM context contract, not a currently implemented runtime output. The current runtime output is `AdminCopilotTask` with `AdminCopilotEvidence`. A future LLM integration should avoid passing raw rows directly and may shape the already permission-filtered service projection as graph context.
+`GraphContext` is a future permission-scoped LLM context contract, not a currently implemented runtime output. The historical Copilot implementation used an `AdminCopilotTask`/`AdminCopilotEvidence` projection; those types are not current runtime output. A future LLM integration should avoid passing raw rows directly and may shape an already permission-filtered service projection as graph context.
 
 Recommended structure:
 
@@ -390,17 +390,19 @@ type EvidenceItem = {
 };
 ```
 
-## v1 Scope Boundary
+## Historical v1 Scope Boundary (archived)
 
-Included:
+The following scope describes the former Copilot/ontology implementation and is retained for historical context. It is not an active product contract.
+
+Historical implementation included:
 
 - Owner-admin operational briefing.
 - Pending material review detection.
 - Attendance-risk participant detection.
 - Course completion candidate detection.
-- Current `AdminCopilotTask` / `AdminCopilotEvidence` projection derived from relational data.
+- An `AdminCopilotTask` / `AdminCopilotEvidence` projection derived from relational data.
 - Human-approved `ReviewMaterial` proposal, decision, and execution audit for pending materials.
-- Current material-version fingerprinting, stale-state protection, and idempotent execution.
+- Material-version fingerprinting, stale-state protection, and idempotent execution.
 
 Excluded:
 
@@ -433,9 +435,9 @@ Possible future graph infrastructure:
 - Embedding index for documents and class memo text.
 - Recommendation audit trail.
 
-## Implemented Vertical Slice: Human-Approved ReviewMaterial
+## Historical Implemented Vertical Slice: Human-Approved ReviewMaterial (archived)
 
-This section defines the first implemented kinetic ontology slice. The ordinary Admin Copilot briefing remains read-only, while `ReviewMaterial` can mutate a material only through the bounded proposal, human decision, revalidation, and execution path described below.
+This section records the former kinetic ontology slice. At that time, the ordinary Admin Copilot briefing was read-only, while `ReviewMaterial` could mutate a material only through the bounded proposal, human decision, revalidation, and execution path described below. The slice is no longer active; current product behavior is defined by `api-spec.md`, `architecture.md`, and `ontology-contract.md`.
 
 ### Action type
 
@@ -447,7 +449,7 @@ Initial approval mode: always_required
 Initial actor scope: active owner_admin
 ```
 
-The `ontology-actions.ts` service and narrow service-role RPCs are the mutation boundary. They orchestrate proposal, decision, stale-state protection, execution, and audit; they must not introduce a direct LLM-to-database mutation path.
+At the time, the `ontology-actions.ts` service and narrow service-role RPCs were the mutation boundary. They orchestrated proposal, decision, stale-state protection, execution, and audit; a direct LLM-to-database mutation path was not allowed.
 
 ### Preconditions
 

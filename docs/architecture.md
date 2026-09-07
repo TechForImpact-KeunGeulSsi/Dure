@@ -10,7 +10,7 @@
 - 클라이언트에서 전달한 `workspace_id`, `role`, `user_id`는 신뢰하지 않는다.
 - 페이지는 업무 테이블을 직접 흩어 조회하지 않고 `src/services/`의 query/action을 호출한다.
 - 기록 보존이 필요한 도메인은 물리 삭제보다 상태 변경, snapshot 필드, soft delete를 우선한다.
-- RLS가 SSR 환경에서 `current_member_id(workspace_id)` 비교를 안정적으로 통과하지 않는 작업은 admin client를 사용하되, service 계층에서 먼저 권한을 검증한다.
+- RLS가 SSR 환경에서 `current_member_id(workspace_id)` 비교를 안정적으로 통과하지 않는 작업은 admin client를 사용하되, service 계층에서 업무 데이터 노출·변경 전 권한을 검증한다. 권한 확인용 멤버십/대상 조회는 이보다 먼저 필요할 수 있다.
 
 ## 2. 전체 시스템 구조
 
@@ -99,7 +99,7 @@ src/app/
 - `/workspaces/discover`: 기존 워크스페이스 참여 요청.
 - `/home`: 운영자는 전체 수업, 강사는 담당 수업 중심의 홈.
 - `/calendar`: 수업 회차와 일반 일정의 월간 캘린더.
-- `/members`: owner_admin 전용 멤버 초대/수정/제거와 참여 요청 처리.
+- `/members`: 멤버 목록과 역할별 관리 UI. 대표 운영자는 수정/제거/참여 요청 처리, 그룹 운영자는 자신의 범위 내 초대를 수행한다.
 - `/manage/groups`, `/manage/courses`, `/manage/participants`: 운영 데이터 관리 허브.
 - `/courses/[courseId]/*`: 운영자용 수업 상세, 자료, 참여자 현황.
 - `/teach/courses/[courseId]/*`: 강사용 수업 홈, 자료, 출석부, 메모.
@@ -113,36 +113,16 @@ src/app/
 
 ## 5. 서버 모듈 구조
 
-```text
-src/
-  lib/
-    api/                 # 공통 ApiResult, 오류 코드, 라벨, DTO 타입
-    auth/                # 사용자/워크스페이스 권한 헬퍼
-    courses/             # 반복 회차 생성 유틸
-    invites/             # 초대 token/hash 유틸
-    supabase/            # client, server, admin client
-    validators/          # Zod schema
-  services/
-   access.ts
-   activity.ts
-    attendance-dashboard-logic.ts
-    attendance-dashboard.ts
-   auth.ts
-    calendar.ts
-    class-memos.ts
-    course-detail.ts
-    course-participants.ts
-    course-sessions.ts
-    courses.ts
-    groups.ts
-    instructor-course.ts
-    invites.ts
-    join-requests.ts
-    materials.ts
-    participants.ts
-    workspace-members.ts
-    workspaces.ts
-```
+| 위치 | 역할 |
+| --- | --- |
+| `src/lib/api/`, `src/lib/validators/` | DTO/오류 계약과 입력 검증 |
+| `src/lib/auth/`, `src/lib/supabase/` | 세션, 권한 보조 함수, 일반/admin client |
+| `src/services/access.ts` | 현재 멤버와 그룹/수업 범위 조회 |
+| `src/services/attendance-dashboard.ts`, `attendance-dashboard-logic.ts` | 권한 범위 집계와 순수 계산 |
+| `src/services/attendance.ts`, `class-memos.ts` | 회차 출석과 메모 |
+| `src/services/materials.ts`, `invites.ts` | 파일 및 Auth admin 경계 |
+| 나머지 `src/services/` 모듈 | 수업/참여자/일정/워크스페이스별 query/action |
+
 
 ### 처리 원칙
 
@@ -150,7 +130,7 @@ src/
 - 서비스 함수는 현재 사용자와 활성 멤버십을 기준으로 권한을 계산한다.
 - `createSupabaseServerClient()`는 사용자 세션과 RLS가 필요한 일반 조회에 사용한다.
 - `createSupabaseAdminClient()`는 admin 작업, storage 파일 조작, Auth admin, SSR/RLS 충돌 우회 작업에만 사용한다.
-- admin client 사용 지점은 호출 전에 service 계층에서 권한을 검증해야 한다.
+- admin client를 이용한 권한 확인용 조회와 실제 업무 데이터 노출·변경을 구분한다. 후자는 service 권한 검증 이후에 수행한다.
 - 응답은 화면에 필요한 projection DTO를 반환하고, 내부 DB row 전체를 그대로 노출하지 않는다.
 
 ## 6. 데이터 모델
@@ -171,7 +151,7 @@ src/
 | `courses` | 수업 기본 정보, 상태, 담당 강사, 카드 시각 정보 |
 | `course_recurrence_rules` | 반복 회차 생성 규칙 |
 | `course_groups` | 수업과 그룹의 N:M 관계 |
-| `course_participants` | 명시 제외와 출석 FK 보호용 수업-참여자 연결 |
+| `course_participants` | 명시 제외, 출석 FK 보호, 대시보드 배정일(`assigned_at`)을 제공하는 수업-참여자 연결 |
 | `course_participant_groups` | legacy 성격의 수업 내 참여 그룹 snapshot |
 | `course_sessions` | 회차, 노출/집계/진행 상태, 취소 사유 |
 | `materials` | 수업 자료 메타데이터와 storage path |
@@ -188,8 +168,8 @@ src/
 | `settlement_request_items` | 레거시 정산 품목 데이터 (앱 기능 종료, 행 보존) |
 | `settlement_request_receipts` | 레거시 정산 영수증 데이터 (앱 기능 종료, 객체 보존) |
 | `course_feedbacks` | 레거시 공개 수업 피드백 데이터 (앱 기능 종료, 행 보존) |
-| `ontology_action_proposals` | 결정론적 운영 신호에서 생성된 human-approved action 제안 ledger |
-| `ontology_action_executions` | 승인된 action의 실행 결과와 before/after audit ledger |
+| `ontology_action_proposals` | 레거시 Copilot/ReviewMaterial action 제안 ledger (앱 기능 종료, 행 보존) |
+| `ontology_action_executions` | 레거시 승인 action 실행 결과와 before/after audit ledger (앱 기능 종료, 행 보존) |
 
 ### 주요 enum
 
@@ -206,21 +186,21 @@ src/
 - `session_progress_status`: `scheduled`, `cancelled`
 - `material_upload_status`: `uploading`, `uploaded`, `failed`
 - `material_review_status`: `pending`, `reviewed`
-- `material_visibility_scope`: `admin_only` (기존 `public` 행은 기능 종료 migration에서 정리)
+- `material_visibility_scope`: SQL enum은 `public | admin_only`를 유지한다. 기능 종료 migration은 기존 행을 `admin_only`로 바꾸고 CHECK로 새 `public` 값을 금지한다. 원격 적용 여부는 별도 검증 대상이다.
 - `attendance_status`: `present`, `partial`, `absent`
 - `settlement_request_status`: `pending`, `paid` (보존 데이터 전용)
 - `course_feedback_category`: `suggestion`, `praise`, `other` (보존 데이터 전용)
 - `course_feedback_status`: `new`, `reviewed` (보존 데이터 전용)
-- `ontology_action_proposal_status`: `pending`, `approved`, `rejected`, `expired`
-- `ontology_action_execution_status`: `succeeded`, `failed`
+- `ontology_action_proposal_status`: `pending`, `approved`, `rejected`, `expired` (레거시 보존 데이터 전용)
+- `ontology_action_execution_status`: `succeeded`, `failed` (레거시 보존 데이터 전용)
 
 ### 참여자 수와 출석 대상
 
 제품 기준과 일반 수업·출석 서비스는 수업 참여 범위를 수업의 현재 연결 그룹과 참여자의 현재 활성 그룹 관계에서 파생한다. 구현별 미준수 사항은 `docs/STATUS.md`의 blocker에서 관리한다.
 
 - 그룹 인원 수: `participant_groups.status='active'` AND `participants.deleted_at IS NULL`인 distinct participant.
-- 수업 참여자 수: 수업의 현재 `course_groups`에 속한 distinct 활성 participant.
-- 출석 대상과 운영자 참여자 현황도 같은 그룹 파생 기준을 쓴다.
+- 수업 참여자 수: 수업의 현재 `course_groups`에 속한 distinct participant에서 명시 제외를 적용한다. 상태 필터는 아래 화면별 차이를 따른다.
+- 그룹 파생 연결은 공통이지만 상태 필터는 다르다. 대시보드는 `status=active`만 포함하고 일반 출석부와 수업 참여자 화면은 삭제되지 않은 `inactive` 참여자도 포함한다. 통일 여부는 미결정이다.
 - `course_participants.status='excluded'`는 특정 참여자를 수업에서 명시 제외하는 기록으로 사용한다.
 - `course_participant_groups`는 legacy/snapshot 성격으로 보존하며, 현재 목록/집계의 주 기준이 아니다.
 
@@ -229,10 +209,11 @@ src/
 자료는 권한 있는 워크스페이스 멤버만 접근한다. 기존 `public` 행은 기능 종료 migration에서 `admin_only`로 정리하며, 공개 수업 상세·비로그인 다운로드 경로는 제공하지 않는다.
 - 과거 설계의 `material_groups`와 `selected_groups` 방식은 `20260517100000_material_visibility_v2.sql`에서 제거됐다.
 - 자료 파일은 `course-materials` private bucket에 저장하고, 다운로드는 권한 검증 후 signed URL로 발급한다.
+- 구현 차이: 기존 자료는 `can_access_material` RLS와 `canEditMaterial`의 원 업로더 분기로 담당 수업 해제 후에도 접근이 가능할 수 있다. 담당 수업만 접근한다는 강사 계약의 충족 증거로 취급하지 않는다. 재배정 후 권한 검증과 정책 결정은 `docs/STATUS.md`에 남긴다.
 
 ### 초대와 참여 요청
 
-- owner_admin이 초대하면 `workspace_members` placeholder와 `invites` row를 만들고, Supabase Auth admin `generateLink`로 magic/invite link를 발급한다.
+- `createInvite`는 owner_admin 또는 범위 검증을 통과한 group_admin이 초대하면 `workspace_members` placeholder와 `invites` row를 만들고, Supabase Auth admin `generateLink`로 magic/invite link를 발급한다.
 - 초대 수락은 기존 placeholder의 `user_id`를 채우고 `status='active'`로 전환한다.
 - 사용자가 직접 워크스페이스 참여를 요청하면 `workspace_join_requests`에 pending row를 만들고, owner_admin 승인 시 멤버십을 생성한다.
 
@@ -285,9 +266,10 @@ Supabase RLS는 업무 테이블에 활성화되어 있다. 단, 현재 구현�
 - 활동 로그 INSERT/SELECT와 권한 필터링 projection
 - 일반 일정 생성/수정/삭제
 - `attendance-dashboard.ts`는 활성 멤버십과 역할별 수업 범위를 확인한 뒤 출석 대시보드에 필요한 회차·참여자·출석 기록만 permission-scoped projection으로 집계한다.
-- `attendance-dashboard-logic.ts`는 날짜/시간대, 유효 회차, `출석/유효회차`, 50% 미만 저출석 판정을 순수 함수로 계산한다.
+- 대시보드 배정일은 `course_participants.assigned_at`을 우선하고, 없으면 수업 시작일 → 첫 회차일 → 선택일의 UTC 자정으로 대체한다(`attendance-dashboard.ts`의 `fallbackDate` 계산). 현재 그룹 가입일 자체를 항상 사용하는 것은 아니다.
+- `attendance-dashboard-logic.ts`는 날짜/시간대, 유효 회차, 누적 `출석/기록 있는 유효회차`, 50% 미만 저출석을 계산한다. 날짜별 회차 그래프는 배정 참여자 전체를 분모로 하므로 미입력도 포함한다.
 
-이 패턴의 전제는 항상 같다.
+기존 워크스페이스 업무의 권한 검증 순서는 다음과 같다. 멤버십 확인용 admin 조회가 먼저 필요할 수 있지만 업무 데이터 접근은 검증 이후에 수행한다. 워크스페이스 생성, 참여 요청, 초대 수락은 멤버십 생성 전의 별도 세션·대상·토큰/이메일 검증 경로를 따른다.
 
 1. 사용자의 Supabase 세션을 확인한다.
 2. 활성 `workspace_members` row를 조회한다.
@@ -330,9 +312,9 @@ workspaces/{workspace_id}/settlements/{request_id}/{file_id}-{safe_filename}
 | `NEXT_PUBLIC_SUPABASE_URL` | client/server | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | client/server | RLS가 적용되는 anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | server only | admin client, Auth admin, storage 작업 |
-| `SUPABASE_JWT_SECRET` | server only | 필요한 경우 토큰 검증 |
 | `APP_URL` | server | 초대 magic link redirect 기준 URL |
-| `CRON_SECRET` | server | cron endpoint 보호용. cron 구현 시 사용 |
+
+현재 앱은 `SUPABASE_JWT_SECRET`과 `CRON_SECRET`을 읽지 않는다. local dev helper가 JWT 값을 전달하지만 앱 필수 변수는 아니다. 배포 대상은 Vercel이며 CI 자체가 배포나 원격 DB 상태를 검증하지 않는다.
 
 `SUPABASE_SERVICE_ROLE_KEY`는 반드시 service_role key여야 한다. anon key를 잘못 넣으면 자료 업로드, 초대 링크 생성, signed URL 발급 같은 admin 작업이 실패한다.
 

@@ -2,7 +2,13 @@
 .vercel
 
 # Local agent/tool state
-.agents/
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/dure-repository-research/
+!.agents/skills/dure-tdd-vertical-slice/
+!.agents/skills/dure-boundary-review/
+!.agents/skills/dure-verification/
 .claude/
 .codex/
 .understand-anything/
@@ -20,10 +26,14 @@ agent-workbench/
 !/docs/STATUS.md
 !/docs/context.md
 !/docs/architecture.md
+!/docs/setup.md
+!/docs/codex-instruction-audit.md
 !/docs/api-spec.md
 !/docs/developer-qa.md
 !/docs/ontology.md
 !/docs/ontology-contract.md
+!/docs/ui-system.md
+!/docs/ui-audit-matrix.md
 /.github/**/*.md
 
 # Environment files (never commit secrets)

@@ -1,10 +1,12 @@
 # Project Status
 
-최종 갱신: 2026-09-03
+최종 갱신: 2026-09-06
 
 ## 현재 상태
 
 현재 checkout에는 운영 범위 정리와 출석 대시보드 변경이 있다. workspace home은 운영 중 수업을 가로 복수 필터로 선택하고, 선택 날짜의 회차별 출석 그래프와 참여자 누적 출석률을 제공한다. 코파일럿 홈 UI·서비스·action은 제거했으며, 과거 migration과 자료·운영 데이터는 보존한다.
+
+2026-09-04 첫 현장 배포 discovery 준비: 로컬 전용 `docs/pm/user-research/mapo-center/field-mission-2026-09-07/` Field Kit(01~08, post-visit synthesis)를 생성했다. 이번 단계에서는 제품 코드·DB·RLS·Storage·배포를 변경하지 않았고, 실제 센터 workflow·권한·효과는 현장 미검증으로 유지한다.
 
 기존 Darori 사용자 테스트 seed와 분리된 local-first developer QA smoke fixture는 계속 유지한다. 레거시 피드백·정산 행과 영수증 객체는 보존하되 활성 화면에서 사용하지 않는다. 원격 staging과 인증된 브라우저 역할 검증은 별도 release 단계다.
 
@@ -12,7 +14,39 @@
 
 현재 DURE는 Supabase를 source of truth로 유지한다. 대시보드 계산은 서버의 permission-scoped query와 `attendance-dashboard-logic.ts` 순수 함수로 분리했다. 누적 출석률은 참여자 배정일 이후 종료된 유효 회차 중 기록이 있는 회차를 분모로 하며, `present`와 `partial`은 출석 1회로 세고 `absent`는 유효회차에 포함한다. 미입력은 분모에서 제외하고 정확히 50%는 저출석이 아니다.
 
+2026-09-05 repository instruction audit:
+
+- `AGENTS.md`를 repository invariant, 실제 명령, non-obvious domain constraint와 verification 기준 중심으로 축소하고, 고정된 역할표·Tier·artifact handoff 같은 반복 workflow는 local Skills와 agent 정의의 책임으로 정리했다.
+- 모델/추론 강도는 전역 Codex 설정을 상속하도록 local override를 정리했다. `.codex/`는 개인 설정으로 ignored 상태를 유지하며 재사용 가능한 `.agents/skills/dure-*`는 추적 가능하게 했다.
+- 누락된 runtime assertion 4개를 `.test.mjs`로 전환해 `npm test`에 포함했다. `workspace-members.remove-member.test.ts`만 타입 전용 계약으로 남긴다. native TypeScript import 때문에 Node 최소 버전은 22.18이며 CI는 Node 24를 사용한다.
+- `next lint`를 동일 소스 범위의 `eslint src`로 교체하고 중복 legacy ESLint 설정을 제거했다. 존재하지 않는 `seed.sql` 자동 실행은 끄고 명시적 QA seed 절차를 유지한다.
+- 제거된 Copilot task/evidence 절차와 과거 ontology 구현의 현재 runtime 서술을 문서에서 교정했으며, legacy migration·행·Storage 보존 지식은 삭제하지 않았다.
+
+이번 instruction/tooling 수정 검증: `npm test` 26 passed, typecheck/build passed, `eslint src` passed(기존 isSameDay warning 1개), diff 및 instruction 정적 검사 passed. 독립 검토 지적 수정 후 재검토 완료. DB/Storage/browser/배포와 새 세션 모델 상속은 미검증이다. 상세 분류는 [instruction audit](codex-instruction-audit.md)에 있다.
+
+2026-09-06 instruction audit 후속 완료:
+
+- 어제 미커밋 변경을 보존하고 루트 지침의 전역 자율성·모델·팀 운영 문구 중복을 제거했다. 작업별 Skill 링크는 Architecture에 모았다.
+- Skills 4개는 역할을 유지하고 중복 승인/출력 지시를 정리했다. seed가 자체 검증한다는 점과 fixture verifier가 Next.js 서비스·참여자 역할별 거부·교차 workspace를 검증하지 않는다는 범위를 명확히 했다.
+- 자료 enum/CHECK, 배정일 fallback, 원 업로더의 권한 예외를 코드와 대조해 문서에 반영했다. 제품 코드나 DB 권한은 이번 후속 작업에서 변경하지 않았다.
+- 현재 재검증: 테스트 26 passed, typecheck/lint/build passed(기존 lint warning 1개). build는 환경 파일 없는 임시 소스 복사본과 CI placeholder를 사용했다. Supabase CLI help/version은 telemetry 파일 쓰기 sandbox 오류로 미확인이다. DB/Storage/browser/배포는 미검증이다.
+- 사용자 지정 model routing을 적용했다. 큰 범위 구현 기획은 `dure_large_planner`의 Astra medium, 그보다 작은 별도 기획은 `dure_planner`의 Sol high, 구현·일상 조사·검토·검증 기본값은 Luna xhigh다. 이 기본 routing에서는 Astra high 이상을 선택하지 않는다. 전역 설정이나 명시적 runtime override를 차단하는 관리형 정책은 수정하지 않았고, 현재 세션의 실효 적용은 증명하지 않았으므로 새 task/restart 확인이 남아 있다.
+
+자료 권한 미준수 후보: 활성 원 업로더는 담당 수업 해제 후에도 `src/services/materials.ts:canEditMaterial`과 `can_access_material` RLS의 uploader 분기로 기존 자료 조회·다운로드·수정/교체가 허용될 수 있다. 담당 수업만 접근한다는 `docs/api-spec.md` §14 계약과 다르다. 이번 감사에서는 동작을 변경하지 않았으며, 담당 해제 후 service/RLS 허용·거부 실행 검증과 정책 결정이 남아 있다.
+
+미결정 상태 필터: 대시보드는 활성 참여자만 포함하지만 `attendance.ts`와 `course-participants.ts`는 삭제되지 않은 inactive 참여자도 포함한다. 이번 지침 audit은 이 제품 동작을 변경하지 않는다.
+
 운영 데이터 계약은 `docs/api-spec.md`와 `docs/ontology-contract.md`에 반영했다. 현재 활성 홈 계약은 `getAttendanceDashboard`이며, `수업·참여자`와 `운영자·강사` 관리 화면 및 기존 자료 관리는 유지한다. 종료된 피드백·정산 객체와 코파일럿 관련 migration·행은 보존 데이터로만 취급한다.
+
+현재 상태 아래의 날짜가 붙은 항목은 변경 이력이다. 현재 동작은 위 요약과 source/tests/migrations 및 현재 기준 문서로 다시 확인한다.
+
+2026-09-03 UI alignment 기준 정리:
+
+- `docs/ui-system.md`를 추가해 현재 운영 화면의 시각 토큰, 공통 컴포넌트, 페이지 패턴, 역할·용어, 적용 순서와 완료 기준을 고정했다.
+- `docs/ui-audit-matrix.md`를 추가해 활성 화면별 역할, 업무, 기준 컴포넌트, alignment 확인 항목을 고정했다.
+- `Card`, `Table`, 운영자·강사 수업 탭의 직접 색상값을 기존 UI 토큰으로 연결했다. 시각적 기준만 정렬했으며 동작은 변경하지 않았다.
+- `AGENTS.md`에 제품 계약에 없는 설명문·주석형 UI 카피·AI 작업 해설·설계 의도 문구를 추가하지 않는 제한을 명시했다.
+- 이번 단계에서는 UI 컴포넌트와 문서·작업 지침만 변경했으며 API, DB, RLS, Storage는 변경하지 않았다.
 
 2026-09-02 운영 범위 정리:
 
@@ -25,6 +59,8 @@
 - 자료 업로드는 역할뿐 아니라 대상 수업의 workspace/course scope를 service layer에서 재검증하고, activity actor·course target도 workspace와 역할 범위로 제한
 
 ## 최근 검증
+
+> 아래 날짜별 항목은 당시 checkout에서 실행한 historical evidence입니다. 명령·화면·기능이 현재 제거되었을 수 있으므로, 실행 가능한 현재 명령은 `package.json`, `README.md`, `AGENTS.md`를 기준으로 확인합니다. Copilot/ReviewMaterial 관련 항목은 현재 release 기준이 아닙니다.
 
 2026-09-03 출석 대시보드 개편:
 
@@ -44,8 +80,8 @@
 2026-09-03 마포 센터 대시보드 데모 데이터셋:
 
 - 별도 local-only workspace `마포 장애인 가족 지원 센터 데모` seed와 verifier를 추가했다.
-- `생활체육교실`, `미술활동`, `음악교실` 3개 수업, 18회차, 가상 참여자 12명, 출석 기록 112건을 구성했다.
-- `2/6` 저출석, 정확히 `3/6 (50%)` 정상, 부분 출석, 미입력 사례를 포함했다.
+- `생활체육교실`, `미술활동`, `음악교실`, `요리활동`, `디지털활동`, `일상생활훈련` 6개 수업, 36회차, 가상 참여자 18명, 출석 기록 205건을 구성했다.
+- 여러 `2/6` 저출석, 정확히 `3/6 (50%)` 정상, 부분 출석, 미입력 사례를 수업별로 분산했다.
 - `npm run test:mapo-dashboard`: 2 passed
 - `npm run seed:mapo-dashboard:local -- --reset`: passed
 - `npm run verify:mapo-dashboard:local`: passed
@@ -64,7 +100,7 @@
 - role/skill/document 참조 해석, ignore 계약, no-product-code diff, `git diff --check`: passed
 - 현재 실행 중인 세션의 custom agent runtime discovery는 관찰하지 못했으며, 새 Codex task/restart에서 확인 필요. 그 전에는 내장 `explorer`/`worker` fallback을 사용
 - 감사에서 CI가 일부 기존 ontology-action test와 local Supabase/browser 검증을 포함하지 않는 점을 기존 verification gap으로 확인. 이번 bootstrap에서는 CI/product 설정을 변경하지 않음
-- model routing 추가: project/main agent와 기본 subagent는 `gpt-5.6-luna` + `xhigh`, custom boundary/code-review/verifier도 Luna xhigh로 고정. `dure_planner`만 실제 제품 기획·큰 범위 합성에 한해 `gpt-5.6-sol` + `high` 사용
+- 당시 model routing은 project/main agent와 기본 subagent 및 custom boundary/code-review/verifier를 `gpt-5.6-luna` + `xhigh`로 고정했고, `dure_planner`만 실제 제품 기획·큰 범위 합성에 한해 `gpt-5.6-sol` + `high`를 사용했다. 2026-09-05 audit에서 이 local override를 제거했으나 2026-09-06 사용자 후속 결정으로 현재 routing을 새 기준으로 다시 설정했다.
 
 2026-09-02 운영 범위 정리 검증:
 
@@ -257,14 +293,14 @@ npm run build
 ## Blocker / 미검증
 
 - local-first 명령은 `supabase status`에서 연결 정보를 읽고 고정된 로컬 전용 workspace ID와 비밀번호를 사용하므로 별도 QA 환경변수가 필요하지 않습니다. 원격 reset에는 기존 allowlist와 환경변수 안전장치가 유지됩니다.
-- post-seed verifier는 DB/Auth/Storage/RLS와 순수 briefing logic을 확인합니다. Task 7 browser 확인에서는 owner login/home/dialog/proposal 생성·재진입까지 확인했지만, rejection/stale/approval mutation 전체와 non-owner 화면 전환은 안정적인 browser automation이 없어 미검증입니다.
-- 2026-08-31에 기록된 production 배포 이후의 현재 live 상태는 이번 2026-09-02 bootstrap에서 다시 확인하지 않았습니다.
+- 과거 ReviewMaterial browser 검증에서는 owner의 proposal 생성·재진입까지 확인했지만 rejection/stale/approval mutation 전체와 non-owner 화면 전환은 미검증으로 남았다. 해당 기능이 retired되어 현재 release blocker는 아니다.
+- 2026-08-31에 기록된 production 배포 이후의 현재 live 상태는 이번 checkout에서 다시 확인하지 않았습니다.
 - 이번 운영 범위 정리 후 retired public/feedback/settlement route의 실제 브라우저 404와 레거시 event 비노출은 focused source test로 확인했으며, 실행 중인 앱의 브라우저 smoke는 아직 미검증입니다.
 - 자동 테스트는 순수 규칙 로직과 group-derived projection, 중복 제거, 명시 제외, 삭제 상태, 1,000행 초과 pagination, query 오류 전파를 검증합니다. 실제 Supabase query, 멤버십 권한, home 통합을 포함하는 service/integration test는 아직 없습니다.
 - LLM phrasing을 추가하려면 provider, 비용, permission-filtered input contract를 먼저 결정해야 합니다.
 - `20260902090000_retire_non_operational_surfaces.sql`은 추가했지만, 현재 local DB reset 적용과 원격 staging/production 적용은 아직 미검증입니다. 적용 시 기존 피드백·정산 행과 영수증 객체를 보존하는지, 정산/영수증/public-material anonymous policy가 종료되는지 확인해야 합니다.
-- `ReviewMaterial` Task 1 DB foundation부터 Task 7 local verifier까지 compile/focused/local integration 검증은 통과했지만, browser UI의 rejection/stale/approval mutation 전체와 group-admin/instructor 실제 화면 전환은 미검증입니다.
-- RPC는 application contract의 millisecond timestamp canonicalization과 일치하도록 비교합니다. 이 경계는 local E2E에서 회귀 검증했습니다.
+- 과거 `ReviewMaterial` Task 1 DB foundation부터 Task 7 local verifier까지의 검증 기록은 보존하지만, 해당 기능은 현재 retired 상태라 active release criterion이 아닙니다.
+- 과거 RPC의 millisecond timestamp canonicalization 경계는 historical migration evidence로 보존합니다. 새 기능에서 재사용할 때는 현재 service/API 계약을 다시 확인합니다.
 
 ## 기준 문서
 
@@ -272,7 +308,7 @@ npm run build
 - 용어: `docs/context.md`
 - 구조: `docs/architecture.md`
 - API와 화면 계약: `docs/api-spec.md`
-- Operational ontology: `docs/ontology.md`
+- Operational ontology historical reference: `docs/ontology.md`
 - Operational ontology 공통 계약: `docs/ontology-contract.md`
 - Developer QA: `docs/developer-qa.md`
 

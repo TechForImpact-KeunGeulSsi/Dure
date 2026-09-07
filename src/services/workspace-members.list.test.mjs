@@ -1,6 +1,6 @@
 import * as assert from "node:assert/strict";
 
-import { buildWorkspaceMemberList } from "./workspace-members.list";
+import { buildWorkspaceMemberList } from "./workspace-members.list.ts";
 
 const members = buildWorkspaceMemberList({
   rows: [

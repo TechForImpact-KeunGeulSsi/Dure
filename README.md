@@ -27,13 +27,16 @@ supabase/
 
 ## 로컬 실행
 
+개발과 검증은 Node.js 22.18 이상과 npm을 기준으로 합니다. 일부 순수 테스트가 TypeScript 모듈을 Node test runner에서 직접 불러옵니다.
+
 ```bash
-npm install
+npm ci
 cp .env.example .env.local
 supabase start
-supabase db reset
 npm run dev:local
 ```
+
+첫 로컬 구성과 migration 적용은 [개발 환경](docs/setup.md)을 따릅니다. `supabase db reset`은 기존 로컬 데이터를 삭제합니다.
 
 환경 변수는 `.env.example`을 기준으로 설정합니다. 실제 비밀값은 커밋하지 않습니다.
 
@@ -42,13 +45,16 @@ npm run dev:local
 ```bash
 npm run dev:local
 npm run dev
+npm test
 npm run test:attendance-dashboard
 npm run lint
 npm run typecheck
 npm run build
 ```
 
-현재 `npm run lint`는 `next lint`를 호출합니다. Next.js 15 환경에서는 별도 ESLint 실행 방식으로 갱신이 필요할 수 있습니다.
+`npm test`는 `.mjs` 실행 테스트를 수행합니다. `workspace-members.remove-member.test.ts`는 타입 전용 계약이며 `npm run typecheck`로 검사합니다. 저장소 작업 지침은 [AGENTS.md](AGENTS.md), 선택형 절차는 `.agents/skills/`에 있습니다.
+
+`npm run lint`는 `eslint src`로 애플리케이션 소스를 검사하며 `eslint.config.mjs`를 사용합니다.
 
 ## 현재 제품 범위
 

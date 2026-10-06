@@ -62,6 +62,18 @@
 
 > 아래 날짜별 항목은 당시 checkout에서 실행한 historical evidence입니다. 명령·화면·기능이 현재 제거되었을 수 있으므로, 실행 가능한 현재 명령은 `package.json`, `README.md`, `AGENTS.md`를 기준으로 확인합니다. Copilot/ReviewMaterial 관련 항목은 현재 release 기준이 아닙니다.
 
+2026-10-07 목업용 마포 데모 데이터 확장 (`feat/mockup-fake-data`):
+
+- `participants`에 보고용 nullable 열 `internal_no`, `gender`, `birth_year`, `has_disability`를 추가하는 migration을 작성했다. 연령대는 출생연도에서 계산하고, 장애 유형·진단명은 저장하지 않는다.
+- 마포 데모 fixture를 가상 참여자 30명(1인 1수업, 수업당 5명), 6개 수업 × 주 1회 13회차(78회차, 휴강 1회), 출석 기록 380건으로 확장했다. 저출석 4명, 정확히 `6/12 (50%)` 정상 4명, 기준일 미입력 2건, 동명이인, 중단 후 복귀 사례를 포함한다.
+- seed의 Windows `supabase` 조회를 `dev-local.mjs`와 같은 방식으로 고쳤다.
+- `npm run test:mapo-dashboard`: 4 passed
+- `npx supabase migration up --local`: 새 migration 적용
+- `npm run seed:mapo-dashboard:local -- --reset`, `npm run verify:mapo-dashboard:local`: passed (DB 참여자 30명, 보고용 열 채움, 출석 380건)
+- `npm test`: 27 passed, 1 failed (`scripts/operational-scope.test.mjs`의 기존 실패. Windows CRLF checkout에서 `\n` 정규식이 맞지 않음, 이번 변경과 무관)
+- `npm run typecheck`: passed / `npm run lint`: 기존 `month-grid.tsx:8` warning만
+- 앱 화면은 참여자 열을 아직 표시하지 않으며, 브라우저 확인은 하지 않았다. 원격 DB에는 적용하지 않았다.
+
 2026-09-03 출석 대시보드 개편:
 
 - workspace home을 `getAttendanceDashboard` 기반의 실제 DURE 대시보드 UI로 교체했다.

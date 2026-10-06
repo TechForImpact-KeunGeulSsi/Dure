@@ -21,14 +21,14 @@ const REQUIRED_TABLE_PROJECTIONS = {
   workspace_members: "id, workspace_id, user_id, email, role, status",
   workspace_member_groups: "workspace_id, member_id, group_id",
   groups: "id, workspace_id, name, status",
-  participants: "id, workspace_id, name, status, deleted_at",
+  participants: "id, workspace_id, name, status, deleted_at, internal_no, gender, birth_year, has_disability",
   participant_groups: "workspace_id, participant_id, group_id, status",
   courses: "id, workspace_id, name, status, instructor_member_id, public_visibility",
   course_recurrence_rules: "workspace_id, course_id, repeat_weekdays, session_count",
   course_groups: "workspace_id, course_id, group_id",
   course_participants: "workspace_id, course_id, participant_id, status, assigned_at",
   course_participant_groups: "workspace_id, course_participant_id, group_id",
-  course_sessions: "id, workspace_id, course_id, date, visibility_status, rollup_status, progress_status",
+  course_sessions: "id, workspace_id, course_id, date, visibility_status, rollup_status, progress_status, cancellation_reason",
   attendance_records: "id, workspace_id, session_id, participant_id, status",
   class_memos: "id, workspace_id, session_id",
 };
@@ -111,9 +111,14 @@ function parseArgs(rawArgs) {
 }
 
 function loadLocalConfig(referenceDateOverride) {
+  // Windows resolves `supabase` to a .cmd/.exe via PATHEXT, which execFile does not
+  // apply on its own (same fix as scripts/dev-local.mjs).
+  const [supabaseFile, supabaseArgs] = process.platform === "win32"
+    ? ["cmd.exe", ["/c", "supabase", "status", "-o", "json"]]
+    : ["supabase", ["status", "-o", "json"]];
   let output;
   try {
-    output = execFileSync("supabase", ["status", "-o", "json"], {
+    output = execFileSync(supabaseFile, supabaseArgs, {
       cwd: process.cwd(),
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
@@ -502,22 +507,20 @@ function verifyDashboardProjection(fixture) {
   assert.equal(projection.summary.missingAttendanceCount, fixture.expected.dailyMissingCount);
   assert.equal(projection.summary.lowAttendanceParticipantCount, fixture.expected.lowAttendance.length);
 
-  const fitness = projection.courses.find((course) => course.id === fixture.courses.find((item) => item.key === "fitness").id);
-  const art = projection.courses.find((course) => course.id === fixture.courses.find((item) => item.key === "art").id);
-  const music = projection.courses.find((course) => course.id === fixture.courses.find((item) => item.key === "music").id);
-  assert.deepEqual(
-    [fitness.dailySessions[0], art.dailySessions[0], music.dailySessions[0]].map((session) => ({
-      present: session.presentCount,
-      partial: session.partialCount,
-      absent: session.absentCount,
-      missing: session.missingAttendanceCount,
-    })),
-    [
-      { present: 4, partial: 2, absent: 2, missing: 0 },
-      { present: 4, partial: 0, absent: 1, missing: 1 },
-      { present: 2, partial: 0, absent: 2, missing: 1 },
-    ],
-  );
+  for (const course of fixture.courses) {
+    const projected = projection.courses.find((item) => item.id === course.id);
+    const session = projected.dailySessions[0];
+    assert.deepEqual(
+      {
+        present: session.presentCount,
+        partial: session.partialCount,
+        absent: session.absentCount,
+        missing: session.missingAttendanceCount,
+      },
+      fixture.expected.todaySessionCounts[course.key],
+      `${course.key} daily session counts mismatch`,
+    );
+  }
   for (const boundary of fixture.expected.lowAttendance) {
     const course = projection.courses.find((item) => item.id === fixture.courses.find((row) => row.key === boundary.courseKey).id);
     const participant = course.participants.find((item) => item.participantId === fixture.participants.find((row) => row.key === boundary.participantKey).id);
@@ -543,6 +546,7 @@ function stripFixtureFields(row) {
     key: _key,
     groupKeys: _groupKeys,
     instructorKey: _instructorKey,
+    courseKey: _courseKey,
     starts_at: _startsAt,
     ends_at: _endsAt,
     ...databaseRow

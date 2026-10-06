@@ -77,37 +77,53 @@ export function buildMapoDashboardFixture({
     },
   ];
 
+  // 한 사람은 한 수업만 듣는다 (센터 신청 규칙). 내부 번호는 배열 순서대로 M-0001부터 붙는다.
   const participants = [
-    participant("haneul", "김하늘"),
-    participant("sumin", "이수민"),
-    participant("jihu", "박지후"),
-    participant("daon", "정다온"),
-    participant("yejun", "한예준"),
-    participant("seoa", "강서아"),
-    participant("jiho", "윤지호"),
-    participant("junwoo", "서준우"),
-    participant("minjun", "최민준"),
-    participant("yerin", "배예린"),
-    participant("seoyun", "박서윤"),
-    participant("doyun", "이도윤"),
-    participant("eunchae", "김은채"),
-    participant("taeyang", "이태양"),
-    participant("yubin", "최유빈"),
-    participant("junseo", "정준서"),
-    participant("sebin", "오세빈"),
-    participant("jiwoo", "문지우"),
-  ];
+    participant("haneul", "김하늘", "female", 2012, true, "fitness"),
+    participant("sumin", "이수민", "female", 1978, false, "digital"),
+    participant("jihu", "박지후", "male", 2009, true, "music"),
+    participant("daon", "정다온", "female", 2001, true, "fitness"),
+    participant("yejun", "한예준", "male", 2014, true, "fitness"),
+    participant("seoa", "강서아", "female", 2011, false, "cooking"),
+    participant("jiho", "윤지호", "male", 1999, true, "digital"),
+    participant("junwoo", "서준우", "male", 1975, false, "fitness"),
+    participant("minjun", "최민준", "male", 2008, true, "art"),
+    participant("yerin", "배예린", "female", 1983, false, "art"),
+    participant("seoyun", "박서윤", "female", 2016, true, "music"),
+    participant("doyun", "이도윤", "male", 1996, true, "music"),
+    participant("eunchae", "김은채", "female", 1969, false, "cooking"),
+    participant("taeyang", "이태양", "male", 2004, true, "cooking"),
+    participant("yubin", "최유빈", "female", 1987, false, "digital"),
+    participant("junseo", "정준서", "male", 2013, true, "digital"),
+    participant("sebin", "오세빈", "male", 2003, true, "daily"),
+    participant("jiwoo", "문지우", "female", 1998, true, "daily"),
+    participant("sumin2", "이수민", "female", 2010, true, "art"),
+    participant("minseo", "장민서", "female", 2015, true, "music"),
+    participant("hyunwoo", "조현우", "male", 1972, false, "fitness"),
+    participant("hayun", "임하윤", "female", 2007, false, "art"),
+    participant("jian", "송지안", "male", 1962, false, "digital"),
+    participant("dohyun", "권도현", "male", 2005, true, "cooking"),
+    participant("sua", "황수아", "female", 1980, false, "daily"),
+    participant("siwoo", "안시우", "male", 2017, true, "music"),
+    participant("chaewon", "홍채원", "female", 1966, false, "art"),
+    participant("gunwoo", "유건우", "male", 2000, true, "daily"),
+    participant("sunhee", "남궁선희", "female", 1961, true, "cooking"),
+    participant("seungho", "백승호", "male", 1994, true, "daily"),
+  ].map((item, index) => ({ ...item, internal_no: `M-${String(index + 1).padStart(4, "0")}` }));
 
   const courses = [
-    course("fitness", "생활체육교실", "fitnessInstructor", -35, "08:00:00", "09:00:00"),
-    course("art", "미술활동", "artInstructor", -35, "13:00:00", "14:30:00"),
-    course("music", "음악교실", "musicInstructor", -35, "16:00:00", "17:00:00"),
-    course("cooking", "요리활동", "cookingInstructor", -35, "10:00:00", "11:30:00"),
-    course("digital", "디지털활동", "digitalInstructor", -35, "14:30:00", "15:30:00"),
-    course("daily", "일상생활훈련", "dailyInstructor", -35, "15:00:00", "16:00:00"),
+    course("fitness", "생활체육교실", "fitnessInstructor", -84, "08:00:00", "09:00:00"),
+    course("art", "미술활동", "artInstructor", -84, "13:00:00", "14:30:00"),
+    course("music", "음악교실", "musicInstructor", -84, "16:00:00", "17:00:00"),
+    course("cooking", "요리활동", "cookingInstructor", -84, "10:00:00", "11:30:00"),
+    course("digital", "디지털활동", "digitalInstructor", -84, "14:30:00", "15:30:00"),
+    course("daily", "일상생활훈련", "dailyInstructor", -84, "15:00:00", "16:00:00"),
   ];
 
-  const sessionOffsets = [-35, -28, -21, -14, -7, 0];
+  // 약 3개월: 주 1회 13회차, 마지막 회차가 기준일
+  const SESSION_COUNT = 13;
+  const sessionOffsets = Array.from({ length: SESSION_COUNT }, (_, index) => (index - SESSION_COUNT + 1) * 7);
+  const cancelledSessionKeys = new Set(["cooking-7"]);
   const sessions = courses.flatMap((courseItem) =>
     sessionOffsets.map((offset, index) =>
       session(
@@ -137,20 +153,12 @@ export function buildMapoDashboardFixture({
     group_name_snapshot: groups[0].name,
   }));
 
-  const courseParticipantKeys = {
-    fitness: ["haneul", "sumin", "jihu", "daon", "yejun", "seoa", "jiho", "junwoo"],
-    art: ["minjun", "seoa", "jiho", "yerin", "junwoo", "haneul"],
-    music: ["seoyun", "doyun", "jihu", "jiho", "yerin"],
-    cooking: ["haneul", "eunchae", "taeyang", "seoa", "minjun"],
-    digital: ["sumin", "jihu", "yubin", "jiho", "junseo"],
-    daily: ["daon", "yejun", "seoyun", "sebin", "jiwoo", "doyun"],
-  };
+  // 모든 참여자가 센터 그룹을 통해 모든 수업에 연결되므로, 듣지 않는 수업은 명시적으로 제외한다.
   const courseParticipants = [];
   const courseParticipantGroups = [];
   for (const courseItem of courses) {
-    const activeParticipantKeys = new Set(courseParticipantKeys[courseItem.key]);
     for (const participantItem of participants) {
-      const status = activeParticipantKeys.has(participantItem.key) ? "active" : "excluded";
+      const status = participantItem.courseKey === courseItem.key ? "active" : "excluded";
       const relationKey = `${courseItem.key}:${participantItem.key}`;
       const relationId = id("course-participant", relationKey);
       courseParticipants.push({
@@ -160,7 +168,7 @@ export function buildMapoDashboardFixture({
         participant_id: participantItem.id,
         status,
         participant_name_snapshot: participantItem.name,
-        assigned_at: timestamp(-40, 3),
+        assigned_at: timestamp(-90, 3),
       });
       courseParticipantGroups.push({
         id: id("course-participant-group", `${relationKey}:center`),
@@ -172,88 +180,78 @@ export function buildMapoDashboardFixture({
     }
   }
 
-  const attendancePatterns = {
-    fitness: {
-      haneul: ["absent", "present", "absent", "absent", "present", "absent"],
-      sumin: ["present", "partial", "present", "present", "present", "partial"],
-      jihu: ["present", "absent", "present", "absent", "present", "absent"],
-      daon: ["present", "present", "partial", "present", "present", "present"],
-      yejun: ["present", "absent", "present", "present", "present", "present"],
-      seoa: ["present", "present", "present", "absent", "present", "present"],
-      jiho: ["present", "present", "partial", "present", "present", "partial"],
-      junwoo: ["present", "present", "present", "absent", "present", "present"],
-    },
-    art: {
-      minjun: ["absent", "present", "absent", "absent", "present", "absent"],
-      seoa: ["present", "present", "partial", "present", "present", "present"],
-      jiho: ["present", "absent", "present", "partial", "present", "present"],
-      yerin: ["present", "present", "present", "absent", "present", "present"],
-      junwoo: ["present", "present", "present", "present", "absent", "present"],
-      haneul: ["present", "present", "absent", "present", "present", "absent"],
-    },
-    music: {
-      seoyun: ["present", "partial", "present", "present", "present", "present"],
-      doyun: ["present", "present", "present", "absent", "present", "partial"],
-      jihu: ["present", "absent", "present", "absent", "present", "absent"],
-      jiho: ["present", "present", "partial", "present", "present", "present"],
-      yerin: ["absent", "present", "absent", "present", "present", "absent"],
-    },
-    cooking: {
-      haneul: ["present", "present", "absent", "present", "present", "absent"],
-      eunchae: ["present", "absent", "present", "absent", "present", "absent"],
-      taeyang: ["present", "present", "present", "present", "absent", "present"],
-      seoa: ["partial", "present", "present", "present", "present", "partial"],
-      minjun: ["absent", "absent", "present", "absent", "present", "absent"],
-    },
-    digital: {
-      sumin: ["present", "partial", "present", "present", "present", "present"],
-      jihu: ["present", "absent", "present", "absent", "present", "absent"],
-      yubin: ["present", "partial", "present", "present", "present", "present"],
-      jiho: ["present", "absent", "partial", "present", "present", "present"],
-      junseo: ["present", "present", "absent", "present", "absent", "present"],
-    },
-    daily: {
-      daon: ["present", "present", "partial", "present", "present", "present"],
-      yejun: ["present", "absent", "present", "present", "present", "present"],
-      seoyun: ["present", "partial", "present", "present", "present", "present"],
-      sebin: ["absent", "present", "absent", "present", "absent", "present"],
-      jiwoo: ["present", "absent", "absent", "absent", "present", "absent"],
-      doyun: ["present", "present", "present", "absent", "present", "partial"],
-    },
+  // 회차 번호(1부터) → 상태. 지정하지 않은 사람은 regularStatus로 채운다.
+  const attendedOnly = (sessionNos) => (sessionNo) => (sessionNos.includes(sessionNo) ? "present" : "absent");
+  // 기록이 있는 회차를 순서대로 번갈아 출석/결석 처리해 정확히 50%를 만든다.
+  const alternating = (skipSessionNos) => {
+    const order = [];
+    for (let no = 1; no <= SESSION_COUNT; no += 1) if (!skipSessionNos.includes(no)) order.push(no);
+    return (sessionNo) => {
+      const position = order.indexOf(sessionNo);
+      if (position % 4 === 2) return "partial";
+      return position % 2 === 0 ? "present" : "absent";
+    };
   };
+  const specialPatterns = {
+    haneul: attendedOnly([2, 5, 9, 12]),
+    minjun: attendedOnly([1, 4, 7, 10, 13]),
+    jiwoo: attendedOnly([1, 3, 8, 11]),
+    seungho: attendedOnly([1, 6, 10]),
+    jihu: alternating([4]),
+    yerin: alternating([6]),
+    eunchae: alternating([7]),
+    sebin: alternating([9]),
+  };
+  // 기록이 없는 칸: 정확히 50% 사례의 과거 1칸 + 기준일 미입력 2칸
   const missingRecords = new Set([
-    "art:haneul:6",
-    "music:doyun:6",
-    "cooking:seoa:6",
-    "digital:yubin:6",
-    "daily:doyun:6",
+    "jihu:4",
+    "yerin:6",
+    "sebin:9",
+    `doyun:${SESSION_COUNT}`,
+    `yubin:${SESSION_COUNT}`,
   ]);
+  const breakSessionNos = [5, 6, 7, 8];
+
   const attendanceRecords = [];
-  for (const courseItem of courses) {
-    for (const participantKey of courseParticipantKeys[courseItem.key]) {
-      const participantItem = participants.find((item) => item.key === participantKey);
-      const statuses = attendancePatterns[courseItem.key][participantKey];
-      for (const [index, status] of statuses.entries()) {
-        if (missingRecords.has(`${courseItem.key}:${participantKey}:${index + 1}`)) continue;
-        const sessionKey = `${courseItem.key}-${index + 1}`;
-        attendanceRecords.push({
-          id: id("attendance", `${sessionKey}:${participantKey}`),
-          workspace_id: workspaceId,
-          session_id: id("session", sessionKey),
-          participant_id: participantItem.id,
-          participant_name_snapshot: participantItem.name,
-          status,
-          note:
-            (participantKey === "haneul" && status === "absent") ||
-            (participantKey === "minjun" && status === "absent")
-              ? "연락 필요"
-              : null,
-          updated_at: timestamp(0, 18),
-          instructorKey: courseItem.instructorKey,
-        });
-      }
+  for (const [participantIndex, participantItem] of participants.entries()) {
+    const courseItem = courses.find((item) => item.key === participantItem.courseKey);
+    for (let sessionNo = 1; sessionNo <= SESSION_COUNT; sessionNo += 1) {
+      const sessionKey = `${courseItem.key}-${sessionNo}`;
+      if (cancelledSessionKeys.has(sessionKey)) continue;
+      if (missingRecords.has(`${participantItem.key}:${sessionNo}`)) continue;
+      const onBreak = participantItem.key === "dohyun" && breakSessionNos.includes(sessionNo);
+      const status = onBreak
+        ? "absent"
+        : (specialPatterns[participantItem.key] ?? regularStatus(participantIndex))(sessionNo);
+      attendanceRecords.push({
+        id: id("attendance", `${sessionKey}:${participantItem.key}`),
+        workspace_id: workspaceId,
+        session_id: id("session", sessionKey),
+        participant_id: participantItem.id,
+        participant_name_snapshot: participantItem.name,
+        status,
+        note: onBreak
+          ? "개인 사정으로 쉬는 중"
+          : (participantItem.key === "haneul" || participantItem.key === "minjun") && status === "absent"
+            ? "연락 필요"
+            : null,
+        updated_at: timestamp(0, 18),
+        instructorKey: courseItem.instructorKey,
+      });
     }
   }
+
+  const todaySessionCounts = Object.fromEntries(courses.map((courseItem) => {
+    const sessionId = id("session", `${courseItem.key}-${SESSION_COUNT}`);
+    const records = attendanceRecords.filter((record) => record.session_id === sessionId);
+    const assigned = participants.filter((item) => item.courseKey === courseItem.key).length;
+    return [courseItem.key, {
+      present: records.filter((record) => record.status === "present").length,
+      partial: records.filter((record) => record.status === "partial").length,
+      absent: records.filter((record) => record.status === "absent").length,
+      missing: assigned - records.length,
+    }];
+  }));
 
   return {
     workspace: {
@@ -291,32 +289,49 @@ export function buildMapoDashboardFixture({
       },
       groupAdminGroupKeys: ["center"],
       lowAttendance: [
-        { courseKey: "fitness", participantKey: "haneul", attended: 2, valid: 6 },
-        { courseKey: "art", participantKey: "minjun", attended: 2, valid: 6 },
-        { courseKey: "cooking", participantKey: "minjun", attended: 2, valid: 6 },
-        { courseKey: "daily", participantKey: "jiwoo", attended: 2, valid: 6 },
+        { courseKey: "fitness", participantKey: "haneul", attended: 4, valid: 13 },
+        { courseKey: "art", participantKey: "minjun", attended: 5, valid: 13 },
+        { courseKey: "daily", participantKey: "jiwoo", attended: 4, valid: 13 },
+        { courseKey: "daily", participantKey: "seungho", attended: 3, valid: 13 },
       ],
       exactFifty: [
-        { courseKey: "fitness", participantKey: "jihu", attended: 3, valid: 6 },
-        { courseKey: "music", participantKey: "jihu", attended: 3, valid: 6 },
-        { courseKey: "music", participantKey: "yerin", attended: 3, valid: 6 },
-        { courseKey: "cooking", participantKey: "eunchae", attended: 3, valid: 6 },
-        { courseKey: "digital", participantKey: "jihu", attended: 3, valid: 6 },
-        { courseKey: "daily", participantKey: "sebin", attended: 3, valid: 6 },
+        { courseKey: "music", participantKey: "jihu", attended: 6, valid: 12 },
+        { courseKey: "art", participantKey: "yerin", attended: 6, valid: 12 },
+        { courseKey: "cooking", participantKey: "eunchae", attended: 6, valid: 12 },
+        { courseKey: "daily", participantKey: "sebin", attended: 6, valid: 12 },
       ],
-      dailyMissingCount: 5,
+      dailyMissingCount: 2,
+      todaySessionCounts,
     },
   };
 
-  function participant(key, name) {
+  function participant(key, name, gender, birthYear, hasDisability, courseKey) {
+    const memos = {
+      haneul: "출석 확인 필요",
+      minjun: "출석 확인 필요",
+      sumin2: "동명이인 있음 (M-0002 이수민과 다른 사람)",
+    };
     return {
       key,
       id: id("participant", key),
       workspace_id: workspaceId,
       name,
-      memo: key === "haneul" || key === "minjun" ? "출석 확인 필요" : null,
+      memo: memos[key] ?? null,
       status: "active",
+      gender,
+      birth_year: birthYear,
+      has_disability: hasDisability,
       groupKeys: ["center"],
+      courseKey,
+    };
+  }
+
+  function regularStatus(participantIndex) {
+    return (sessionNo) => {
+      const value = (participantIndex * 5 + sessionNo * 3) % 11;
+      if (value === 0) return "absent";
+      if (value === 1) return "partial";
+      return "present";
     };
   }
 
@@ -359,7 +374,8 @@ export function buildMapoDashboardFixture({
       type: "regular",
       visibility_status: "visible",
       rollup_status: "included",
-      progress_status: "scheduled",
+      progress_status: cancelledSessionKeys.has(key) ? "cancelled" : "scheduled",
+      cancellation_reason: cancelledSessionKeys.has(key) ? "강사 개인 사정으로 휴강" : null,
     };
   }
 }

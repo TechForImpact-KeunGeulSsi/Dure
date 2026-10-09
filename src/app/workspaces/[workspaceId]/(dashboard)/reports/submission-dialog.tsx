@@ -146,7 +146,7 @@ export function SubmissionDialog({
             </table>
           </div>
           <p className="text-xs text-[var(--color-muted-foreground)]">
-            엑셀에는 요약, 참여자 명단, 계산 기준 시트가 들어갑니다. 숫자 값만 넣고 수식은 쓰지 않습니다.
+            엑셀에는 요약(월별 포함), 교차표, 참여자 명단, 계산 기준 시트가 들어갑니다. 숫자 값만 넣고 수식은 쓰지 않습니다.
           </p>
         </section>
 

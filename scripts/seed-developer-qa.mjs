@@ -524,6 +524,7 @@ async function resetWorkspaceData(client, workspaceId) {
     "ontology_action_executions",
     "ontology_action_proposals",
     "materials",
+    "attendance_contact_notes",
     "class_memos",
     "course_participant_groups",
     "attendance_records",

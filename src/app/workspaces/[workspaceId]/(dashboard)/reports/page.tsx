@@ -6,6 +6,7 @@ import { getParticipationReport } from '@/services/participation-report';
 import { getWorkspaceContext } from '@/services/workspaces';
 
 import { ReportClient } from './report-client';
+import { ReportTabs } from './report-tabs';
 
 type Props = {
   params: Promise<{ workspaceId: string }>;
@@ -36,11 +37,14 @@ export default async function ReportsPage({ params, searchParams }: Props) {
   if (!result.ok) return <EmptyState message={result.error.message} />;
 
   return (
-    <ReportClient
-      workspaceId={workspaceId}
-      thisYear={Number(today.slice(0, 4))}
-      query={query}
-      report={result.data}
-    />
+    <div className="space-y-6">
+      <ReportTabs workspaceId={workspaceId} active="participation" />
+      <ReportClient
+        workspaceId={workspaceId}
+        thisYear={Number(today.slice(0, 4))}
+        query={query}
+        report={result.data}
+      />
+    </div>
   );
 }

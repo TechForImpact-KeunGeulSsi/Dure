@@ -2,9 +2,13 @@ import { EmptyState } from '@/components/courses/empty-state';
 import { requireUser } from '@/lib/auth/require-user';
 import { getWorkspaceContext } from '@/services/workspaces';
 import { getAttendanceDashboard } from '@/services/attendance-dashboard';
+import { buildMonthlyLowAttendance, recentMonths } from '@/services/low-attendance-logic';
+import { getParticipationReport } from '@/services/participation-report';
+import { quarterPeriod } from '@/services/participation-report-logic';
 import { type UUID } from '@/lib/api/types';
 
 import { DashboardHomeClient } from './home-client';
+import { QuarterSummary } from './quarter-summary';
 
 type Props = {
   params: Promise<{ workspaceId: string }>;
@@ -47,12 +51,49 @@ export default async function DashboardHomePage({ params, searchParams }: Props)
   });
   if (!result.ok) return <EmptyState message={result.error.message} />;
 
+  const role = context.data.workspace.currentMember.role;
+  const today = todayInTimezone(context.data.workspace.timezone);
+  const year = Number(today.slice(0, 4));
+  const quarter = Math.ceil(Number(today.slice(5, 7)) / 3) as 1 | 2 | 3 | 4;
+  // 저출석은 지난달 기준 (이번 달은 회차가 다 끝나지 않았다)
+  const lowAttendanceMonth = recentMonths(today, 2)[1];
+  const period = quarterPeriod(year, quarter);
+  const quarterReport =
+    role === 'instructor'
+      ? null
+      : await getParticipationReport({
+          workspaceId: workspaceId as UUID,
+          startDate: period.startDate,
+          endDate: period.endDate,
+          today,
+        });
+  const todayDashboard =
+    role === 'instructor' || selectedDate === today
+      ? result
+      : await getAttendanceDashboard({ workspaceId: workspaceId as UUID, selectedDate: today });
+
   return (
-    <DashboardHomeClient
-      workspaceId={workspaceId}
-      timezone={context.data.workspace.timezone}
-      role={context.data.workspace.currentMember.role}
-      initialData={result.data}
-    />
+    <>
+      {quarterReport?.ok && todayDashboard.ok ? (
+        <QuarterSummary
+          workspaceId={workspaceId}
+          year={year}
+          quarter={quarter}
+          uniqueParticipants={quarterReport.data.total.uniqueParticipants}
+          attendanceCount={quarterReport.data.total.attendanceCount}
+          missingRecordCount={quarterReport.data.missingRecordCount}
+          lowAttendanceCount={
+            buildMonthlyLowAttendance(todayDashboard.data.courses, lowAttendanceMonth).length
+          }
+          lowAttendanceMonth={lowAttendanceMonth}
+        />
+      ) : null}
+      <DashboardHomeClient
+        workspaceId={workspaceId}
+        timezone={context.data.workspace.timezone}
+        role={role}
+        initialData={result.data}
+      />
+    </>
   );
 }

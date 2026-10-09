@@ -23,6 +23,7 @@ type SubmissionDialogProps = {
   query: ReportQuery;
   periodLabel: string;
   report: ParticipationReportOutput;
+  onPrint: (options: SubmissionOptions) => void;
 };
 
 export function SubmissionDialog({
@@ -32,6 +33,7 @@ export function SubmissionDialog({
   query,
   periodLabel,
   report,
+  onPrint,
 }: SubmissionDialogProps) {
   const [options, setOptions] = useState<SubmissionOptions>(DEFAULT_SUBMISSION_OPTIONS);
   const [missingConfirmed, setMissingConfirmed] = useState(false);
@@ -170,7 +172,7 @@ export function SubmissionDialog({
           disabled={blocked}
           onClick={() => {
             onOpenChange(false);
-            window.setTimeout(() => window.print(), 100);
+            onPrint(options);
           }}
         >
           인쇄·PDF

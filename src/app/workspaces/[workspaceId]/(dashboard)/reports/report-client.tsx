@@ -18,8 +18,10 @@ import {
   type ParticipationBreakdownRow,
   type ParticipationEvidence,
 } from '@/services/participation-report-logic';
+import type { SubmissionOptions } from '@/services/report-export-logic';
 
 import { SubmissionDialog } from './submission-dialog';
+import { SubmissionPrint } from './submission-print';
 
 
 type Selection = {
@@ -42,6 +44,15 @@ export function ReportClient({ workspaceId, thisYear, query, report }: ReportCli
   const [isPending, startTransition] = useTransition();
   const [selection, setSelection] = useState<Selection | null>(null);
   const [submissionOpen, setSubmissionOpen] = useState(false);
+  const [printJob, setPrintJob] = useState<{ options: SubmissionOptions; generatedAt: string } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!printJob) return;
+    const timer = window.setTimeout(() => window.print(), 100);
+    return () => window.clearTimeout(timer);
+  }, [printJob]);
   const evidenceRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -71,7 +82,8 @@ export function ReportClient({ workspaceId, thisYear, query, report }: ReportCli
   const selectedRows = selection ? report.evidence.filter(selection.match) : [];
 
   return (
-    <div className="space-y-6" data-workspace-id={workspaceId}>
+    <>
+      <div className="space-y-6 print:hidden" data-workspace-id={workspaceId}>
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
           <p className="text-sm font-medium text-[var(--color-primary)]">보고서</p>
@@ -96,6 +108,15 @@ export function ReportClient({ workspaceId, thisYear, query, report }: ReportCli
         query={query}
         periodLabel={periodLabel}
         report={report}
+        onPrint={(options) =>
+          setPrintJob({
+            options,
+            generatedAt: new Intl.DateTimeFormat('ko-KR', {
+              dateStyle: 'medium',
+              timeStyle: 'short',
+            }).format(new Date()),
+          })
+        }
       />
 
       <section
@@ -383,7 +404,16 @@ export function ReportClient({ workspaceId, thisYear, query, report }: ReportCli
           </aside>
         ) : null}
       </div>
-    </div>
+      </div>
+      {printJob ? (
+        <SubmissionPrint
+          report={report}
+          periodLabel={periodLabel}
+          options={printJob.options}
+          generatedAt={printJob.generatedAt}
+        />
+      ) : null}
+    </>
   );
 }
 

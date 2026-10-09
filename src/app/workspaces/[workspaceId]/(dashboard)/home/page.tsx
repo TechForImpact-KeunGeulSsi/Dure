@@ -4,15 +4,20 @@ import { getWorkspaceContext } from '@/services/workspaces';
 import { getAttendanceDashboard } from '@/services/attendance-dashboard';
 import { buildMonthlyLowAttendance, recentMonths } from '@/services/low-attendance-logic';
 import { getParticipationReport } from '@/services/participation-report';
-import { quarterPeriod } from '@/services/participation-report-logic';
 import { type UUID } from '@/lib/api/types';
+import {
+  reportPeriod,
+  reportPeriodLabel,
+  reportQueryToParams,
+  type ReportQuery,
+} from '@/lib/reports/report-query';
 
 import { DashboardHomeClient } from './home-client';
-import { QuarterSummary } from './quarter-summary';
+import { PeriodSummary, type SummaryUnit } from './period-summary';
 
 type Props = {
   params: Promise<{ workspaceId: string }>;
-  searchParams: Promise<{ date?: string | string[] }>;
+  searchParams: Promise<{ date?: string | string[]; summary?: string | string[] }>;
 };
 
 function todayInTimezone(timezone: string): string {
@@ -53,12 +58,23 @@ export default async function DashboardHomePage({ params, searchParams }: Props)
 
   const role = context.data.workspace.currentMember.role;
   const today = todayInTimezone(context.data.workspace.timezone);
-  const year = Number(today.slice(0, 4));
-  const quarter = Math.ceil(Number(today.slice(5, 7)) / 3) as 1 | 2 | 3 | 4;
+  const summaryRaw = Array.isArray(query.summary) ? query.summary[0] : query.summary;
+  const summaryUnit: SummaryUnit =
+    summaryRaw === 'month' || summaryRaw === 'year' ? summaryRaw : 'quarter';
+  const reportQuery: ReportQuery = {
+    unit: summaryUnit,
+    year: Number(today.slice(0, 4)),
+    quarter: Math.ceil(Number(today.slice(5, 7)) / 3) as 1 | 2 | 3 | 4,
+    month: Number(today.slice(5, 7)),
+    courseId: null,
+    gender: null,
+    disability: null,
+    ageBand: null,
+  };
   // 저출석은 지난달 기준 (이번 달은 회차가 다 끝나지 않았다)
   const lowAttendanceMonth = recentMonths(today, 2)[1];
-  const period = quarterPeriod(year, quarter);
-  const quarterReport =
+  const period = reportPeriod(reportQuery);
+  const summaryReport =
     role === 'instructor'
       ? null
       : await getParticipationReport({
@@ -71,17 +87,21 @@ export default async function DashboardHomePage({ params, searchParams }: Props)
     role === 'instructor' || selectedDate === today
       ? result
       : await getAttendanceDashboard({ workspaceId: workspaceId as UUID, selectedDate: today });
+  const dateParam = Array.isArray(query.date) ? query.date[0] : query.date;
 
   return (
     <>
-      {quarterReport?.ok && todayDashboard.ok ? (
-        <QuarterSummary
+      {summaryReport?.ok && todayDashboard.ok ? (
+        <PeriodSummary
           workspaceId={workspaceId}
-          year={year}
-          quarter={quarter}
-          uniqueParticipants={quarterReport.data.total.uniqueParticipants}
-          attendanceCount={quarterReport.data.total.attendanceCount}
-          missingRecordCount={quarterReport.data.missingRecordCount}
+          unit={summaryUnit}
+          periodLabel={reportPeriodLabel(reportQuery)}
+          reportQuery={reportQueryToParams(reportQuery).toString()}
+          dateParam={dateParam ?? null}
+          uniqueParticipants={summaryReport.data.total.uniqueParticipants}
+          attendanceCount={summaryReport.data.total.attendanceCount}
+          missingRecordCount={summaryReport.data.missingRecordCount}
+          byCourse={summaryReport.data.byCourse}
           lowAttendanceCount={
             buildMonthlyLowAttendance(todayDashboard.data.courses, lowAttendanceMonth).length
           }

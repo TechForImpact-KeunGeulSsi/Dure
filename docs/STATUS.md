@@ -65,16 +65,18 @@
 2026-10-09 B 출력 화면 목업 (`feat/b2-report-logic`, `feat/mockup-fake-data` 위):
 
 - B2 `/reports`: 월·분기·연도 실인원·연인원, 수업·성별·연령대·장애 유무별 표와 거르기, 숫자 근거 기록, 기간 내 출석 미입력 경고. 계산 기준은 PR 통합 문서 7.1 초안(출석·부분 출석을 참여로, 휴강·미입력 제외, 연령대 = 기준연도 - 출생연도)이며 센터 확인 전이다.
-- B3 제출 파일: 이름 가운데 가림, 연락처·주소·메모·내부 번호·장애 유형 제외, 의존성 없는 xlsx(요약·참여자 명단·계산 기준, 숫자 값만), 미입력이 있으면 확인 후 내보내기, 인쇄·PDF용 print 스타일. 제출 파일 생성 이력은 아직 저장하지 않는다.
+- B3 제출 파일: 이름 가운데 가림, 연락처·주소·메모·내부 번호·장애 유형 제외, 의존성 없는 xlsx(요약·참여자 명단·계산 기준, 숫자 값만), 미입력이 있으면 확인 후 내보내기, 인쇄·PDF는 엑셀과 같은 내용을 인쇄. 제출 파일 생성 이력은 아직 저장하지 않는다.
 - B4 `/reports/low-attendance`: 월 기록 2회 이상·50% 미만 저출석자, 연락 결과·메모를 `attendance_contact_notes`(새 migration, RLS 포함)에 저장. 진행 중 수업만 대상이다.
-- B1 홈 상단: 이번 분기 실인원·연인원, 지난달 저출석자 수, 분기 미입력, 보고서 링크.
+- B1 홈 상단: 이번 달·분기·올해 실인원·연인원, 수업별 연인원, 지난달 저출석자 수, 기간 미입력, 보고서 링크. 파일 가져오기 미확정 표시는 A 파트(가져오기) 완성 후 붙인다.
 - 보고서·저출석자·내보내기는 `owner_admin`·`group_admin`만 허용(결정 1의 운영자), 강사는 `ROLE_FORBIDDEN`.
 - `npm test`: 35 passed, 1 failed (기존 `operational-scope.test.mjs` Windows CRLF 실패)
 - `npm run typecheck`, `npm run build`: passed / `npm run lint`: 기존 `month-grid.tsx:8` warning만
 - `npx supabase migration up --local`: `attendance_contact_notes` 적용
 - local owner browser: 3분기 실인원 30·연인원 272, 여성·장애인 거르기 7명, 근거 기록, 제출 파일 창·xlsx 응답(200, 가린 이름만 포함, 수식 없음), 8월 저출석 7명과 연락 메모 저장·새로고침 유지, 홈 요약 확인
 - local instructor browser: `/reports`, `/reports/low-attendance`, export API 모두 거부(403), 사이드바에 보고서 없음. 다른 workspace export는 `WORKSPACE_ACCESS_DENIED`(403)
-- group_admin 범위 브라우저 확인, 원격 DB 적용은 하지 않았다.
+- local group_admin(`mapo.demo.operator`, 센터 그룹) browser: 보고서 실인원 30, export 200, 저출석자 조회 허용
+- 홈 상단 요약은 이번 달·분기·올해 전환과 수업별 연인원 막대를 포함한다. 인쇄·PDF는 엑셀과 같은 요약·참여자 명단·계산 기준을 인쇄한다(가린 이름만 포함 확인).
+- 원격 DB 적용은 하지 않았다.
 
 2026-10-07 목업용 마포 데모 데이터 확장 (`feat/mockup-fake-data`):
 

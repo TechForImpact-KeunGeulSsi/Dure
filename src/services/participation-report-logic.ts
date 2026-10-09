@@ -54,8 +54,20 @@ export type ParticipationBreakdownRow = ParticipationCount & {
   label: string;
 };
 
+export type ParticipationEvidence = {
+  participantId: UUID;
+  courseId: UUID;
+  sessionId: UUID;
+  date: string;
+  status: "present" | "partial";
+  gender: ParticipationReportParticipantInput["gender"];
+  ageBand: string;
+  disability: string;
+};
+
 export type ParticipationReport = {
   period: ParticipationReportPeriod;
+  evidence: ParticipationEvidence[];
   total: ParticipationCount;
   byCourse: (ParticipationCount & { courseId: UUID; courseName: string })[];
   byGender: ParticipationBreakdownRow[];
@@ -66,6 +78,9 @@ export type ParticipationReport = {
 type AttendedRecord = {
   participant: ParticipationReportParticipantInput;
   courseId: UUID;
+  sessionId: UUID;
+  date: string;
+  status: "present" | "partial";
 };
 
 const UNKNOWN_KEY = "unknown";
@@ -95,7 +110,13 @@ export function buildParticipationReport(input: {
     if (filter.gender && participant.gender !== filter.gender) continue;
     if (filter.hasDisability !== undefined && participant.hasDisability !== filter.hasDisability) continue;
     if (filter.ageBand && ageBandKey(participant.birthYear, input.ageReferenceYear) !== filter.ageBand) continue;
-    attended.push({ participant, courseId: session.courseId });
+    attended.push({
+      participant,
+      courseId: session.courseId,
+      sessionId: session.id,
+      date: session.date,
+      status: record.status,
+    });
   }
 
   const visibleCourses = courseFilter
@@ -104,6 +125,18 @@ export function buildParticipationReport(input: {
 
   return {
     period: input.period,
+    evidence: attended
+      .map((record) => ({
+        participantId: record.participant.id,
+        courseId: record.courseId,
+        sessionId: record.sessionId,
+        date: record.date,
+        status: record.status,
+        gender: record.participant.gender,
+        ageBand: ageBandKey(record.participant.birthYear, input.ageReferenceYear),
+        disability: disabilityKey(record.participant.hasDisability),
+      }))
+      .sort((left, right) => left.date.localeCompare(right.date)),
     total: countRecords(attended),
     byCourse: visibleCourses.map((course) => ({
       courseId: course.id,
@@ -121,8 +154,7 @@ export function buildParticipationReport(input: {
     ),
     byDisability: breakdown(
       attended,
-      (participant) =>
-        participant.hasDisability === null ? UNKNOWN_KEY : participant.hasDisability ? "yes" : "no",
+      (participant) => disabilityKey(participant.hasDisability),
       [
         ["yes", "장애인"],
         ["no", "비장애인"],
@@ -162,6 +194,11 @@ export function monthPeriod(year: number, month: number): ParticipationReportPer
 
 export function yearPeriod(year: number): ParticipationReportPeriod {
   return { startDate: `${year}-01-01`, endDate: `${year}-12-31` };
+}
+
+function disabilityKey(hasDisability: boolean | null): string {
+  if (hasDisability === null) return UNKNOWN_KEY;
+  return hasDisability ? "yes" : "no";
 }
 
 function isCountedSession(

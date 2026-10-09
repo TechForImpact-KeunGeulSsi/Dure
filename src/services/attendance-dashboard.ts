@@ -239,7 +239,7 @@ type ScopedCourseRow = {
   instructor_member_id: UUID | null;
 };
 
-async function filterCoursesByRole(params: {
+export async function filterCoursesByRole(params: {
   workspaceId: UUID;
   membership: { memberId: UUID; role: "owner_admin" | "group_admin" | "instructor" };
   courses: Array<{

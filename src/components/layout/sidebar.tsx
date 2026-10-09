@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BarChart3,
   Home,
   LayoutGrid,
   UserCog,
@@ -43,6 +44,13 @@ export function Sidebar({ workspace, capabilities }: SidebarProps) {
       icon: LayoutGrid,
       visible: workspace.currentMember.role !== "instructor",
       match: (p) => p.startsWith(`${base}/manage`),
+    },
+    {
+      href: `${base}/reports`,
+      label: "보고서",
+      icon: BarChart3,
+      visible: workspace.currentMember.role !== "instructor",
+      match: (p) => p.startsWith(`${base}/reports`),
     },
     {
       href: `${base}/members`,

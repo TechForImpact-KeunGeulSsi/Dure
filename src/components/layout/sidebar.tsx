@@ -62,7 +62,7 @@ export function Sidebar({ workspace, capabilities }: SidebarProps) {
   ];
 
   return (
-    <aside className="hidden md:flex h-screen w-64 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-card)]">
+    <aside className="hidden md:flex print:!hidden h-screen w-64 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-card)]">
       <div className="px-5 py-5 border-b border-[var(--color-border)]">
         <p className="text-xs text-[var(--color-muted-foreground)]">워크스페이스</p>
         <p className="mt-1 truncate text-base font-semibold text-[var(--color-foreground)]">

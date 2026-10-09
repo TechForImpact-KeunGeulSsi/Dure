@@ -1,11 +1,16 @@
 'use client';
 
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle, FileDown, X } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
+import {
+  reportPeriodLabel,
+  reportQueryToParams,
+  type ReportQuery,
+} from '@/lib/reports/report-query';
 import { cn } from '@/lib/utils/cn';
 import type { ParticipationReportOutput } from '@/services/participation-report';
 import {
@@ -14,16 +19,8 @@ import {
   type ParticipationEvidence,
 } from '@/services/participation-report-logic';
 
-export type ReportQuery = {
-  unit: 'month' | 'quarter' | 'year';
-  year: number;
-  quarter: 1 | 2 | 3 | 4;
-  month: number;
-  courseId: string | null;
-  gender: 'female' | 'male' | null;
-  disability: 'yes' | 'no' | null;
-  ageBand: string | null;
-};
+import { SubmissionDialog } from './submission-dialog';
+
 
 type Selection = {
   label: string;
@@ -44,6 +41,7 @@ export function ReportClient({ workspaceId, thisYear, query, report }: ReportCli
   const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [submissionOpen, setSubmissionOpen] = useState(false);
   const evidenceRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -63,46 +61,47 @@ export function ReportClient({ workspaceId, thisYear, query, report }: ReportCli
   );
 
   function update(patch: Partial<ReportQuery>) {
-    const next = { ...query, ...patch };
-    const params = new URLSearchParams();
-    params.set('unit', next.unit);
-    params.set('year', String(next.year));
-    if (next.unit === 'quarter') params.set('quarter', String(next.quarter));
-    if (next.unit === 'month') params.set('month', String(next.month));
-    if (next.courseId) params.set('course', next.courseId);
-    if (next.gender) params.set('gender', next.gender);
-    if (next.disability) params.set('disability', next.disability);
-    if (next.ageBand) params.set('age', next.ageBand);
+    const params = reportQueryToParams({ ...query, ...patch });
     setSelection(null);
     startTransition(() => router.push(`${pathname}?${params.toString()}`));
   }
 
-  const periodLabel =
-    query.unit === 'month'
-      ? `${query.year}년 ${query.month}월`
-      : query.unit === 'quarter'
-        ? `${query.year}년 ${query.quarter}분기`
-        : `${query.year}년`;
+  const periodLabel = reportPeriodLabel(query);
   const maxCourseCount = Math.max(1, ...report.byCourse.map((row) => row.attendanceCount));
   const selectedRows = selection ? report.evidence.filter(selection.match) : [];
 
   return (
     <div className="space-y-6" data-workspace-id={workspaceId}>
-      <header className="space-y-1">
-        <p className="text-sm font-medium text-[var(--color-primary)]">보고서</p>
-        <h1 className="text-2xl font-semibold text-[var(--color-foreground)]">
-          {periodLabel} 참여 실적
-        </h1>
-        <p className="text-sm text-[var(--color-muted-foreground)]">
-          {report.period.startDate} ~ {report.period.endDate} · 출석과 부분 출석을 참여로 셉니다.
-          휴강 회차는 제외합니다.
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-[var(--color-primary)]">보고서</p>
+          <h1 className="text-2xl font-semibold text-[var(--color-foreground)]">
+            {periodLabel} 참여 실적
+          </h1>
+          <p className="text-sm text-[var(--color-muted-foreground)]">
+            {report.period.startDate} ~ {report.period.endDate} · 출석과 부분 출석을 참여로 셉니다.
+            휴강 회차는 제외합니다.
+          </p>
+        </div>
+        <Button className="print:hidden" onClick={() => setSubmissionOpen(true)}>
+          <FileDown className="mr-1.5 h-4 w-4" aria-hidden="true" />
+          제출 파일 만들기
+        </Button>
       </header>
+
+      <SubmissionDialog
+        open={submissionOpen}
+        onOpenChange={setSubmissionOpen}
+        workspaceId={workspaceId}
+        query={query}
+        periodLabel={periodLabel}
+        report={report}
+      />
 
       <section
         aria-label="조회 조건"
         className={cn(
-          'grid gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-card)] p-4 sm:grid-cols-2 lg:grid-cols-4',
+          'grid gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-card)] p-4 sm:grid-cols-2 lg:grid-cols-4 print:hidden',
           isPending && 'opacity-70',
         )}
       >
@@ -330,7 +329,7 @@ export function ReportClient({ workspaceId, thisYear, query, report }: ReportCli
           <aside
             ref={evidenceRef}
             aria-label="숫자 근거"
-            className="h-fit rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-card)] lg:sticky lg:top-4"
+            className="h-fit rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-card)] lg:sticky lg:top-4 print:hidden"
           >
             <div className="flex items-start justify-between gap-2 border-b border-[var(--color-border)] px-4 py-3">
               <div>

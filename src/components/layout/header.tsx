@@ -168,7 +168,7 @@ export function Header({ member, workspaceId }: HeaderProps) {
   }
 
   return (
-    <header className="flex h-14 items-center justify-end gap-3 border-b border-[var(--color-border)] bg-[var(--color-card)] px-4">
+    <header className="flex h-14 items-center justify-end gap-3 print:hidden border-b border-[var(--color-border)] bg-[var(--color-card)] px-4">
       <div ref={activityRef} className="relative">
         <button
           type="button"

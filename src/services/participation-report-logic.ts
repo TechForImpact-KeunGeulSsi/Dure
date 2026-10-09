@@ -62,6 +62,7 @@ export type ParticipationEvidence = {
   status: "present" | "partial";
   gender: ParticipationReportParticipantInput["gender"];
   ageBand: string;
+  ageBandLabel: string;
   disability: string;
 };
 
@@ -134,6 +135,7 @@ export function buildParticipationReport(input: {
         status: record.status,
         gender: record.participant.gender,
         ageBand: ageBandKey(record.participant.birthYear, input.ageReferenceYear),
+        ageBandLabel: ageBandLabel(ageBandKey(record.participant.birthYear, input.ageReferenceYear)),
         disability: disabilityKey(record.participant.hasDisability),
       }))
       .sort((left, right) => left.date.localeCompare(right.date)),

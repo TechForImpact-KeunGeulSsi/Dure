@@ -200,3 +200,21 @@ test("마포 데모 데이터 전체 기간 보고서는 30명·1인 1수업 구
     30,
   );
 });
+
+test("월별 추이는 빈 달도 0으로 채우고 연인원 합이 분기 값과 같다", async () => {
+  const { buildMonthlyTrend } = await import("../src/services/participation-report-logic.ts");
+  const quarter = report(buildQuarterExample(), quarterPeriod(2026, 1));
+  const trend = buildMonthlyTrend(quarter.period, quarter.evidence);
+  assert.deepEqual(
+    trend.map((row) => [row.month, row.uniqueParticipants, row.attendanceCount]),
+    [
+      ["2026-01", 3, 11],
+      ["2026-02", 1, 4],
+      ["2026-03", 2, 6],
+    ],
+  );
+  assert.deepEqual(
+    buildMonthlyTrend({ startDate: "2025-11-01", endDate: "2026-02-28" }, []).map((row) => row.month),
+    ["2025-11", "2025-12", "2026-01", "2026-02"],
+  );
+});

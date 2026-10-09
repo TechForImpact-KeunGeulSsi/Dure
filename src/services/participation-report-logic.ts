@@ -255,3 +255,32 @@ function lastDayOfMonth(year: number, month: number): number {
 function pad(value: number): string {
   return String(value).padStart(2, "0");
 }
+
+export type MonthlyTrendRow = ParticipationCount & { month: string };
+
+// 기간 안의 달마다 실인원·연인원. 기록이 없는 달도 0으로 넣는다.
+export function buildMonthlyTrend(
+  period: ParticipationReportPeriod,
+  evidence: Pick<ParticipationEvidence, "participantId" | "date">[],
+): MonthlyTrendRow[] {
+  const months: string[] = [];
+  let year = Number(period.startDate.slice(0, 4));
+  let month = Number(period.startDate.slice(5, 7));
+  const endKey = period.endDate.slice(0, 7);
+  while (`${year}-${pad(month)}` <= endKey) {
+    months.push(`${year}-${pad(month)}`);
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+  }
+  return months.map((key) => {
+    const rows = evidence.filter((row) => row.date.startsWith(key));
+    return {
+      month: key,
+      uniqueParticipants: new Set(rows.map((row) => row.participantId)).size,
+      attendanceCount: rows.length,
+    };
+  });
+}

@@ -76,6 +76,8 @@
 - local instructor browser: `/reports`, `/reports/low-attendance`, export API 모두 거부(403), 사이드바에 보고서 없음. 다른 workspace export는 `WORKSPACE_ACCESS_DENIED`(403)
 - local group_admin(`mapo.demo.operator`, 센터 그룹) browser: 보고서 실인원 30, export 200, 저출석자 조회 허용
 - 홈 상단 요약은 이번 달·분기·올해 전환과 수업별 연인원 막대를 포함한다. 인쇄·PDF는 엑셀과 같은 요약·참여자 명단·계산 기준을 인쇄한다(가린 이름만 포함 확인).
+- 인쇄·PDF 첫 쪽에 제출용 그래프 3종(월별 연인원 추이, 수업별 참여, 성별·장애 유무·연령대 구성)을 넣었다. 색은 dataviz validator를 통과한 파랑·주황 2색이다. 엑셀 내 그래프는 다음 미팅 이후로 미뤘다.
+- 인쇄 시 대시보드 레이아웃의 스크롤 영역(`main overflow-y-auto`) 때문에 PDF 아래가 잘리던 문제를 print 스타일로 고쳤다. headless Edge `printToPDF`로 3분기·연간 PDF가 4쪽 전체(명단 30명·계산 기준) 출력되는 것을 확인했다.
 - 원격 DB 적용은 하지 않았다.
 
 2026-10-07 목업용 마포 데모 데이터 확장 (`feat/mockup-fake-data`):

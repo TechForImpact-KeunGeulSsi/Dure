@@ -23,11 +23,11 @@ export default async function DashboardLayout({
   const { workspace, capabilities } = result.data;
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen print:block print:min-h-0">
       <Sidebar workspace={workspace} capabilities={capabilities} />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col print:block">
         <Header member={workspace.currentMember} workspaceId={workspace.id} />
-        <main className="flex-1 overflow-y-auto bg-[var(--color-muted)] p-6">
+        <main className="flex-1 overflow-y-auto bg-[var(--color-muted)] p-6 print:overflow-visible print:bg-white print:p-0">
           {children}
         </main>
       </div>

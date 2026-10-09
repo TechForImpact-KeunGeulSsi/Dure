@@ -83,10 +83,15 @@ export default async function DashboardHomePage({ params, searchParams }: Props)
           endDate: period.endDate,
           today,
         });
+  // 저출석자 화면과 같은 기준(끝난 수업 포함)으로 센다
   const todayDashboard =
-    role === 'instructor' || selectedDate === today
+    role === 'instructor'
       ? result
-      : await getAttendanceDashboard({ workspaceId: workspaceId as UUID, selectedDate: today });
+      : await getAttendanceDashboard({
+          workspaceId: workspaceId as UUID,
+          selectedDate: today,
+          courseStatuses: ['in_progress', 'completed'],
+        });
   const dateParam = Array.isArray(query.date) ? query.date[0] : query.date;
 
   return (

@@ -114,3 +114,22 @@ test("열 이름은 A, Z, AA 순서로 붙는다", () => {
   assert.equal(columnName(25), "Z");
   assert.equal(columnName(26), "AA");
 });
+
+test("교차표 시트는 고른 항목만 담고 합계 줄은 중복을 뺀다", async () => {
+  const { buildCrossTab, buildMonthlyTrend } = await import("../src/services/participation-report-logic.ts");
+  const base = sampleInput();
+  const crossTabs = ["gender", "disability", "ageBand"].map((dimension) => buildCrossTab(base.report, dimension));
+  const sheets = buildSubmissionSheets({
+    ...base,
+    options: { ...DEFAULT_SUBMISSION_OPTIONS, includeAgeBand: false },
+    monthlyTrend: buildMonthlyTrend(base.report.period, base.report.evidence),
+    crossTabs,
+  });
+  assert.deepEqual(sheets.map((sheet) => sheet.name), ["요약", "교차표", "참여자 명단", "계산 기준"]);
+  const cross = sheets[1].rows;
+  assert.ok(cross.some((row) => row[0] === "수업 × 성별"));
+  assert.ok(cross.some((row) => row[0] === "수업 × 장애 유무"));
+  assert.equal(cross.some((row) => row[0] === "수업 × 연령대"), false);
+  assert.deepEqual(cross.find((row) => row[0] === "합계(중복 제외)"), ["합계(중복 제외)", 1, 2, 1, 1, 2, 3]);
+  assert.ok(sheets[0].rows.some((row) => row[0] === "월"));
+});

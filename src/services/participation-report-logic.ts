@@ -284,3 +284,63 @@ export function buildMonthlyTrend(
     };
   });
 }
+
+export type CrossTabDimension = "gender" | "disability" | "ageBand";
+
+export type CrossTab = {
+  dimension: CrossTabDimension;
+  title: string;
+  columns: Array<{ key: string; label: string }>;
+  rows: Array<{
+    courseId: UUID;
+    courseName: string;
+    cells: Record<string, ParticipationCount>;
+    total: ParticipationCount;
+  }>;
+  totalRow: { cells: Record<string, ParticipationCount>; total: ParticipationCount };
+};
+
+const CROSS_TAB_TITLES: Record<CrossTabDimension, string> = {
+  gender: "수업 × 성별",
+  disability: "수업 × 장애 유무",
+  ageBand: "수업 × 연령대",
+};
+
+// 수업 × 구분 교차표. 모든 칸과 합계는 원래 기록에서 다시 중복을 뺀다.
+export function buildCrossTab(
+  report: Pick<ParticipationReport, "evidence" | "byCourse">,
+  dimension: CrossTabDimension,
+): CrossTab {
+  const keyOf = (row: ParticipationEvidence): string =>
+    dimension === "gender" ? (row.gender ?? UNKNOWN_KEY) : dimension === "disability" ? row.disability : row.ageBand;
+  const present = new Set(report.evidence.map(keyOf));
+  const fixed: Array<[string, string]> =
+    dimension === "gender"
+      ? [["female", "여성"], ["male", "남성"]]
+      : dimension === "disability"
+        ? [["yes", "장애인"], ["no", "비장애인"]]
+        : [...present]
+            .filter((key) => key !== UNKNOWN_KEY)
+            .sort((left, right) => Number(left) - Number(right))
+            .map((key) => [key, ageBandLabel(key)]);
+  const columns = fixed.map(([key, label]) => ({ key, label }));
+  if (present.has(UNKNOWN_KEY)) columns.push({ key: UNKNOWN_KEY, label: "미상" });
+
+  const count = (rows: ParticipationEvidence[]): ParticipationCount => ({
+    uniqueParticipants: new Set(rows.map((row) => row.participantId)).size,
+    attendanceCount: rows.length,
+  });
+  const cellsOf = (rows: ParticipationEvidence[]) =>
+    Object.fromEntries(columns.map((column) => [column.key, count(rows.filter((row) => keyOf(row) === column.key))]));
+
+  return {
+    dimension,
+    title: CROSS_TAB_TITLES[dimension],
+    columns,
+    rows: report.byCourse.map((course) => {
+      const rows = report.evidence.filter((row) => row.courseId === course.courseId);
+      return { courseId: course.courseId, courseName: course.courseName, cells: cellsOf(rows), total: count(rows) };
+    }),
+    totalRow: { cells: cellsOf(report.evidence), total: count(report.evidence) },
+  };
+}

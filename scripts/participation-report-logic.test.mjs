@@ -218,3 +218,22 @@ test("월별 추이는 빈 달도 0으로 채우고 연인원 합이 분기 값�
     ["2025-11", "2025-12", "2026-01", "2026-02"],
   );
 });
+
+test("교차표는 칸마다 중복을 빼고, 합계 줄도 원래 기록에서 다시 센다", async () => {
+  const { buildCrossTab } = await import("../src/services/participation-report-logic.ts");
+  const quarter = report(buildQuarterExample(), quarterPeriod(2026, 1));
+  const table = buildCrossTab(quarter, "gender");
+
+  assert.deepEqual(table.columns.map((column) => column.label), ["여성", "남성"]);
+  const cell = (row, key) => [row.cells[key].uniqueParticipants, row.cells[key].attendanceCount];
+  const art = table.rows.find((row) => row.courseId === "art");
+  const fitness = table.rows.find((row) => row.courseId === "fitness");
+  assert.deepEqual([cell(art, "female"), cell(art, "male")], [[1, 8], [1, 6]]);
+  assert.deepEqual([cell(fitness, "female"), cell(fitness, "male")], [[1, 3], [1, 4]]);
+  // B는 미술·체육 둘 다 들어도 남성 합계에서 1명
+  assert.deepEqual([cell(table.totalRow, "female"), cell(table.totalRow, "male")], [[2, 11], [1, 10]]);
+  assert.deepEqual(table.totalRow.total, { uniqueParticipants: 3, attendanceCount: 21 });
+
+  const ages = buildCrossTab(quarter, "ageBand");
+  assert.deepEqual(ages.columns.map((column) => column.label), ["10대", "30대", "60대"]);
+});

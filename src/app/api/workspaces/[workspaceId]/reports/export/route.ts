@@ -9,10 +9,12 @@ import {
   todayInTimezone,
 } from "@/lib/reports/report-query";
 import { getParticipationReport } from "@/services/participation-report";
+import { buildCrossTab, buildMonthlyTrend } from "@/services/participation-report-logic";
 import {
   buildSubmissionSheets,
   type SubmissionOptions,
 } from "@/services/report-export-logic";
+import { recordReportExport } from "@/services/report-exports";
 import { getWorkspaceContext } from "@/services/workspaces";
 
 type RouteParams = {
@@ -60,19 +62,44 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     timeStyle: "short",
   }).format(new Date());
 
-  const workbook = buildXlsx(
-    buildSubmissionSheets({
-      report: result.data,
-      courseNames: new Map(result.data.courseOptions.map((course) => [course.id, course.name])),
-      participantNames: new Map(
-        result.data.participants.map((participant) => [participant.id, participant.name]),
-      ),
-      periodLabel,
-      missingRecordCount: result.data.missingRecordCount,
-      generatedAt,
-      options,
-    }),
-  );
+  const sheets = buildSubmissionSheets({
+    report: result.data,
+    courseNames: new Map(result.data.courseOptions.map((course) => [course.id, course.name])),
+    participantNames: new Map(
+      result.data.participants.map((participant) => [participant.id, participant.name]),
+    ),
+    periodLabel,
+    missingRecordCount: result.data.missingRecordCount,
+    generatedAt,
+    options,
+    monthlyTrend: buildMonthlyTrend(result.data.period, result.data.evidence),
+    crossTabs: (["gender", "disability", "ageBand"] as const).map((dimension) =>
+      buildCrossTab(result.data, dimension),
+    ),
+  });
+
+  // 제출 파일을 만들 때마다 이력을 남긴다. 기록하지 못하면 파일도 내주지 않는다.
+  const participantSheet = sheets.find((sheet) => sheet.name === "참여자 명단");
+  const recorded = await recordReportExport({
+    workspaceId,
+    format: "xlsx",
+    periodLabel,
+    startDate: period.startDate,
+    endDate: period.endDate,
+    filters: {
+      courseId: query.courseId,
+      gender: query.gender,
+      disability: query.disability,
+      ageBand: query.ageBand,
+    },
+    options,
+    participantRowCount: Math.max(0, (participantSheet?.rows.length ?? 1) - 1),
+  });
+  if (!recorded.ok) {
+    return NextResponse.json(recorded, { status: statusForCode(recorded.error.code) });
+  }
+
+  const workbook = buildXlsx(sheets);
 
   const fileName = `참여실적_${periodLabel.replace(/\s+/g, "_")}.xlsx`;
   return new NextResponse(Buffer.from(workbook), {

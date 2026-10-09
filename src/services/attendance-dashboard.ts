@@ -26,6 +26,8 @@ const GetAttendanceDashboardSchema = z.object({
   workspaceId: z.string().uuid(),
   selectedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   courseIds: z.array(z.string().uuid()).max(100).optional(),
+  // 기본은 진행 중 수업만. 보고서·저출석처럼 지난 기간을 보는 곳은 끝난 수업도 포함한다.
+  courseStatuses: z.array(z.enum(["planned", "in_progress", "completed"])).min(1).optional(),
 });
 
 export type GetAttendanceDashboardInput = z.infer<
@@ -51,7 +53,7 @@ export async function getAttendanceDashboard(
     .from("courses")
     .select("id, name, status, starts_on, instructor_member_id")
     .eq("workspace_id", parsed.data.workspaceId)
-    .eq("status", "in_progress")
+    .in("status", parsed.data.courseStatuses ?? ["in_progress"])
     .order("name", { ascending: true });
   if (courseError) return apiError("INTERNAL_ERROR", courseError.message);
 

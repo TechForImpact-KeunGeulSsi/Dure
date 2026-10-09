@@ -78,6 +78,10 @@
 - 홈 상단 요약은 이번 달·분기·올해 전환과 수업별 연인원 막대를 포함한다. 인쇄·PDF는 엑셀과 같은 요약·참여자 명단·계산 기준을 인쇄한다(가린 이름만 포함 확인).
 - 인쇄·PDF 첫 쪽에 제출용 그래프 3종(월별 연인원 추이, 수업별 참여, 성별·장애 유무·연령대 구성)을 넣었다. 색은 dataviz validator를 통과한 파랑·주황 2색이다. 엑셀 내 그래프는 다음 미팅 이후로 미뤘다.
 - 인쇄 시 대시보드 레이아웃의 스크롤 영역(`main overflow-y-auto`) 때문에 PDF 아래가 잘리던 문제를 print 스타일로 고쳤다. headless Edge `printToPDF`로 3분기·연간 PDF가 4쪽 전체(명단 30명·계산 기준) 출력되는 것을 확인했다.
+- 분담안·통합 문서 재대조 후 보완: 보고서 미입력 경고가 성별·장애 유무·연령대 조건을 반영하도록 수정, 저출석자·미입력 집계에 종료된 수업 포함(`getAttendanceDashboard`에 `courseStatuses` 옵션), 수업 × 성별·장애 유무·연령대 교차표(화면·엑셀 `교차표` 시트·PDF), 엑셀 요약에 월별 표, 제출 파일 생성 이력(`report_exports` migration, 엑셀·인쇄 모두 기록, 기록 실패 시 내보내지 않음).
+- `npm test`: 39 passed, 1 failed (기존 CRLF 실패) / `typecheck` passed / `lint` 기존 warning만
+- `npx supabase migration up --local`, `npm run seed:mapo-dashboard:local -- --reset`, `npm run verify:mapo-dashboard:local`: passed
+- local browser: 여성 조건에서 미입력 3→1건, 교차표 표시, xlsx 4개 시트(요약·교차표·참여자 명단·계산 기준)와 이력 기록, headless Edge 인쇄 PDF 5쪽 확인
 - 원격 DB 적용은 하지 않았다.
 
 2026-10-07 목업용 마포 데모 데이터 확장 (`feat/mockup-fake-data`):

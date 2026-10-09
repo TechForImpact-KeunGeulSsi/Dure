@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/auth/require-user';
 import { type UUID } from '@/lib/api/types';
 import { parseReportQuery, reportPeriod, todayInTimezone } from '@/lib/reports/report-query';
 import { getParticipationReport } from '@/services/participation-report';
+import { listReportExports } from '@/services/report-exports';
 import { getWorkspaceContext } from '@/services/workspaces';
 
 import { ReportClient } from './report-client';
@@ -35,6 +36,7 @@ export default async function ReportsPage({ params, searchParams }: Props) {
     ageBand: query.ageBand ?? undefined,
   });
   if (!result.ok) return <EmptyState message={result.error.message} />;
+  const exports = await listReportExports(workspaceId);
 
   return (
     <div className="space-y-6">
@@ -44,6 +46,7 @@ export default async function ReportsPage({ params, searchParams }: Props) {
         thisYear={Number(today.slice(0, 4))}
         query={query}
         report={result.data}
+        exports={exports.ok ? exports.data : []}
       />
     </div>
   );

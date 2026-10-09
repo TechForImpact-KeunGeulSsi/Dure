@@ -2,6 +2,8 @@ import type { UUID } from "@/lib/api/types";
 import type { XlsxCell, XlsxSheet } from "@/lib/export/xlsx";
 
 import type {
+  CrossTab,
+  MonthlyTrendRow,
   ParticipationBreakdownRow,
   ParticipationReport,
 } from "./participation-report-logic";
@@ -35,7 +37,28 @@ export type SubmissionInput = {
   missingRecordCount: number;
   generatedAt: string;
   options: SubmissionOptions;
+  // 호출하는 쪽에서 buildMonthlyTrend·buildCrossTab으로 계산해 넘긴다
+  monthlyTrend?: MonthlyTrendRow[];
+  crossTabs?: CrossTab[];
 };
+
+export function crossTabRows(table: CrossTab): XlsxCell[][] {
+  const header: XlsxCell[] = ["수업"];
+  for (const column of table.columns) header.push(`${column.label} 실인원(명)`, `${column.label} 연인원(회)`);
+  header.push("합계 실인원(명)", "합계 연인원(회)");
+  const line = (name: string, cells: CrossTab["totalRow"]["cells"], total: CrossTab["totalRow"]["total"]) => {
+    const row: XlsxCell[] = [name];
+    for (const column of table.columns) row.push(cells[column.key].uniqueParticipants, cells[column.key].attendanceCount);
+    row.push(total.uniqueParticipants, total.attendanceCount);
+    return row;
+  };
+  return [
+    [table.title],
+    header,
+    ...table.rows.map((row) => line(row.courseName, row.cells, row.total)),
+    line("합계(중복 제외)", table.totalRow.cells, table.totalRow.total),
+  ];
+}
 
 export function maskName(name: string): string {
   const chars = Array.from(name.trim());
@@ -129,13 +152,31 @@ export function buildSubmissionSheets(input: SubmissionInput): XlsxSheet[] {
   if (options.includeGender) appendBreakdown("성별", report.byGender);
   if (options.includeAgeBand) appendBreakdown("연령대", report.byAgeBand);
   if (options.includeDisability) appendBreakdown("장애 유무", report.byDisability);
+  if (input.monthlyTrend && input.monthlyTrend.length > 1) {
+    summary.push([], ["월", "실인원(명)", "연인원(회)"]);
+    for (const row of input.monthlyTrend) {
+      summary.push([`${row.month.slice(0, 4)}년 ${Number(row.month.slice(5))}월`, row.uniqueParticipants, row.attendanceCount]);
+    }
+  }
+
+  const allowedTabs = (input.crossTabs ?? []).filter(
+    (table) =>
+      (table.dimension === "gender" && options.includeGender) ||
+      (table.dimension === "disability" && options.includeDisability) ||
+      (table.dimension === "ageBand" && options.includeAgeBand),
+  );
+  const crossSheet: XlsxCell[][] = [];
+  for (const table of allowedTabs) {
+    if (crossSheet.length > 0) crossSheet.push([]);
+    crossSheet.push(...crossTabRows(table));
+  }
 
   const basis: XlsxCell[][] = [
     ["항목", "기준"],
     ["실인원", "기간 안에 출석 또는 부분 출석이 한 번 이상 있는 사람 수. 같은 사람은 1명으로 셉니다."],
     ["연인원", "기간 안의 출석과 부분 출석 횟수 합계입니다."],
     ["제외", "휴강 회차와 집계 제외 회차, 출석이 입력되지 않은 칸은 세지 않습니다."],
-    ["합계", "수업별 숫자를 더하지 않고 원래 출석 기록에서 다시 계산합니다."],
+    ["합계", "수업별 숫자를 더하지 않고 원래 출석 기록에서 다시 계산합니다. 교차표의 합계 줄도 같습니다."],
     ["연령대", `${report.period.endDate.slice(0, 4)}년 기준 (기준연도 - 출생연도), 10세 단위`],
     ["이름", options.nameMode === "masked" ? "가운데 글자를 가렸습니다." : "넣지 않았습니다."],
     ["넣지 않은 정보", "연락처, 주소, 메모, 내부 번호, 장애 유형"],
@@ -145,6 +186,7 @@ export function buildSubmissionSheets(input: SubmissionInput): XlsxSheet[] {
 
   return [
     { name: "요약", rows: summary },
+    ...(crossSheet.length > 0 ? [{ name: "교차표", rows: crossSheet }] : []),
     { name: "참여자 명단", rows: buildParticipantRows(input) },
     { name: "계산 기준", rows: basis },
   ];

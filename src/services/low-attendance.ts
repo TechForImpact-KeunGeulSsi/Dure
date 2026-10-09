@@ -50,6 +50,7 @@ export async function getLowAttendanceList(
   const dashboard = await getAttendanceDashboard({
     workspaceId,
     selectedDate: parsed.data.today,
+    courseStatuses: ["in_progress", "completed"],
   });
   if (!dashboard.ok) return dashboard;
 

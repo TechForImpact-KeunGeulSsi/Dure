@@ -8,6 +8,7 @@ import { Dialog, DialogBody, DialogFooter, DialogHeader } from '@/components/ui/
 import type { UUID } from '@/lib/api/types';
 import { reportQueryToParams, type ReportQuery } from '@/lib/reports/report-query';
 import type { ParticipationReportOutput } from '@/services/participation-report';
+import type { ReportExportItem } from '@/services/report-exports';
 import {
   DEFAULT_SUBMISSION_OPTIONS,
   buildParticipantRows,
@@ -24,6 +25,8 @@ type SubmissionDialogProps = {
   periodLabel: string;
   report: ParticipationReportOutput;
   onPrint: (options: SubmissionOptions) => void;
+  onDownloaded: () => void;
+  exports: ReportExportItem[];
 };
 
 export function SubmissionDialog({
@@ -34,6 +37,8 @@ export function SubmissionDialog({
   periodLabel,
   report,
   onPrint,
+  onDownloaded,
+  exports,
 }: SubmissionDialogProps) {
   const [options, setOptions] = useState<SubmissionOptions>(DEFAULT_SUBMISSION_OPTIONS);
   const [missingConfirmed, setMissingConfirmed] = useState(false);
@@ -145,6 +150,33 @@ export function SubmissionDialog({
           </p>
         </section>
 
+        <section aria-label="최근 만든 제출 파일" className="space-y-2">
+          <h3 className="text-sm font-medium">최근 만든 제출 파일</h3>
+          {exports.length === 0 ? (
+            <p className="text-sm text-[var(--color-muted-foreground)]">아직 만든 제출 파일이 없습니다.</p>
+          ) : (
+            <ul className="divide-y divide-[var(--color-border)] rounded-[var(--radius-md)] border border-[var(--color-border)] text-sm">
+              {exports.slice(0, 5).map((item) => (
+                <li key={item.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 py-2">
+                  <span>
+                    <span className="font-medium">{item.periodLabel}</span>
+                    <span className="ml-2 text-[var(--color-muted-foreground)]">
+                      {item.format === 'xlsx' ? '엑셀' : '인쇄·PDF'} · 명단 {item.participantRowCount}줄
+                      {item.options.nameMode === 'masked' ? ' · 이름 가림' : ' · 이름 없음'}
+                    </span>
+                  </span>
+                  <span className="text-xs text-[var(--color-muted-foreground)]">
+                    {item.createdByName ?? '알 수 없음'} ·{' '}
+                    {new Intl.DateTimeFormat('ko-KR', { dateStyle: 'short', timeStyle: 'short' }).format(
+                      new Date(item.createdAt),
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
         {report.missingRecordCount > 0 ? (
           <div className="space-y-2 rounded-[var(--radius-md)] border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             <p className="flex items-start gap-2">
@@ -183,6 +215,7 @@ export function SubmissionDialog({
           <a
             href={downloadHref}
             download
+            onClick={onDownloaded}
             className="inline-flex h-9 items-center rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 text-sm font-medium text-[var(--color-primary-foreground)] hover:opacity-90"
           >
             엑셀 내려받기

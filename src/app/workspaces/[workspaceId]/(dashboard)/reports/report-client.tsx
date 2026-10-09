@@ -18,8 +18,10 @@ import {
   type ParticipationBreakdownRow,
   type ParticipationEvidence,
 } from '@/services/participation-report-logic';
-import type { SubmissionOptions } from '@/services/report-export-logic';
+import { buildParticipantRows, type SubmissionOptions } from '@/services/report-export-logic';
+import { recordReportExport, type ReportExportItem } from '@/services/report-exports';
 
+import { CrossTabSection } from './cross-tab-section';
 import { SubmissionDialog } from './submission-dialog';
 import { SubmissionPrint } from './submission-print';
 
@@ -36,14 +38,16 @@ type ReportClientProps = {
   thisYear: number;
   query: ReportQuery;
   report: ParticipationReportOutput;
+  exports: ReportExportItem[];
 };
 
-export function ReportClient({ workspaceId, thisYear, query, report }: ReportClientProps) {
+export function ReportClient({ workspaceId, thisYear, query, report, exports }: ReportClientProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
   const [selection, setSelection] = useState<Selection | null>(null);
   const [submissionOpen, setSubmissionOpen] = useState(false);
+  const [printError, setPrintError] = useState<string | null>(null);
   const [printJob, setPrintJob] = useState<{ options: SubmissionOptions; generatedAt: string } | null>(
     null,
   );
@@ -108,15 +112,50 @@ export function ReportClient({ workspaceId, thisYear, query, report }: ReportCli
         query={query}
         periodLabel={periodLabel}
         report={report}
-        onPrint={(options) =>
+        exports={exports}
+        onDownloaded={() => window.setTimeout(() => router.refresh(), 1500)}
+        onPrint={async (options) => {
+          // 인쇄도 제출 파일이므로 먼저 이력을 남긴다. 기록에 실패하면 인쇄하지 않는다.
+          const recorded = await recordReportExport({
+            workspaceId,
+            format: 'print',
+            periodLabel,
+            startDate: report.period.startDate,
+            endDate: report.period.endDate,
+            filters: {
+              courseId: query.courseId,
+              gender: query.gender,
+              disability: query.disability,
+              ageBand: query.ageBand,
+            },
+            options,
+            participantRowCount: Math.max(
+              0,
+              buildParticipantRows({
+                report,
+                courseNames: new Map(),
+                participantNames: new Map(),
+                periodLabel,
+                missingRecordCount: report.missingRecordCount,
+                generatedAt: '',
+                options,
+              }).length - 1,
+            ),
+          });
+          if (!recorded.ok) {
+            setPrintError(recorded.error.message);
+            return;
+          }
+          setPrintError(null);
           setPrintJob({
             options,
             generatedAt: new Intl.DateTimeFormat('ko-KR', {
               dateStyle: 'medium',
               timeStyle: 'short',
             }).format(new Date()),
-          })
-        }
+          });
+          router.refresh();
+        }}
       />
 
       <section
@@ -224,6 +263,12 @@ export function ReportClient({ workspaceId, thisYear, query, report }: ReportCli
         </Field>
       </section>
 
+      {printError ? (
+        <p role="alert" className="rounded-[var(--radius-md)] border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+          인쇄하지 못했습니다. {printError}
+        </p>
+      ) : null}
+
       {report.missingRecordCount > 0 ? (
         <div
           role="status"
@@ -311,6 +356,8 @@ export function ReportClient({ workspaceId, thisYear, query, report }: ReportCli
               한 사람이 여러 수업에 참여하면 수업별 실인원의 합이 전체 실인원보다 클 수 있습니다.
             </p>
           </section>
+
+          <CrossTabSection report={report} onSelect={setSelection} />
 
           <div className="grid gap-6 lg:grid-cols-3">
             <BreakdownTable

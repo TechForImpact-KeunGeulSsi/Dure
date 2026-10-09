@@ -13,6 +13,7 @@ import {
 } from "@/services/attendance-dashboard";
 
 import {
+  ageBandKey,
   buildParticipationReport,
   type ParticipationReport,
   type ParticipationReportParticipantInput,
@@ -148,6 +149,7 @@ export async function getParticipationReport(
     today: input.today,
     period,
     courseIds: (input.courseIds as UUID[] | undefined) ?? scopedCourseIds,
+    filter: { gender: input.gender, hasDisability: input.hasDisability, ageBand: input.ageBand },
   });
   if (!missingResult.ok) return missingResult;
 
@@ -226,20 +228,23 @@ async function loadReportParticipants(
   );
 }
 
-// 기간 안에 끝난 회차 중 배정된 참여자의 출석이 비어 있는 칸 수 (진행 중 수업 기준)
+// 기간 안에 끝난 회차 중 배정된 참여자의 출석이 비어 있는 칸 수.
+// 성별·장애 유무·연령대 조건이 있으면 그 조건에 맞는 참여자의 빈칸만 센다.
 async function countMissingRecords(params: {
   workspaceId: UUID;
   today: string;
   period: ParticipationReportPeriod;
   courseIds: UUID[];
+  filter: { gender?: "female" | "male"; hasDisability?: boolean; ageBand?: string };
 }): Promise<ApiResult<number>> {
   const dashboard = await getAttendanceDashboard({
     workspaceId: params.workspaceId,
     selectedDate: params.today,
     courseIds: params.courseIds,
+    courseStatuses: ["in_progress", "completed"],
   });
   if (!dashboard.ok) return dashboard;
-  let count = 0;
+  const missingByParticipant = new Map<UUID, number>();
   for (const course of dashboard.data.courses) {
     for (const participant of course.participants) {
       for (const session of participant.sessionHistory) {
@@ -248,10 +253,28 @@ async function countMissingRecords(params: {
           session.date >= params.period.startDate &&
           session.date <= params.period.endDate
         ) {
-          count += 1;
+          missingByParticipant.set(
+            participant.participantId,
+            (missingByParticipant.get(participant.participantId) ?? 0) + 1,
+          );
         }
       }
     }
+  }
+  const { gender, hasDisability, ageBand } = params.filter;
+  const filtered = gender !== undefined || hasDisability !== undefined || ageBand !== undefined;
+  if (!filtered || missingByParticipant.size === 0) {
+    return apiOk([...missingByParticipant.values()].reduce((sum, count) => sum + count, 0));
+  }
+  const attributes = await loadReportParticipants(params.workspaceId, [...missingByParticipant.keys()]);
+  if (!attributes.ok) return attributes;
+  const referenceYear = Number(params.period.endDate.slice(0, 4));
+  let count = 0;
+  for (const { report } of attributes.data) {
+    if (gender !== undefined && report.gender !== gender) continue;
+    if (hasDisability !== undefined && report.hasDisability !== hasDisability) continue;
+    if (ageBand !== undefined && ageBandKey(report.birthYear, referenceYear) !== ageBand) continue;
+    count += missingByParticipant.get(report.id) ?? 0;
   }
   return apiOk(count);
 }

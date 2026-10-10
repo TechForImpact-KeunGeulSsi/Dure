@@ -18,6 +18,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState, useTransition, type CSSProperties } from 'react';
 
 import { cn } from '@/lib/utils/cn';
+import { toggleAllCourseIds } from '@/lib/courses/course-filter';
 import type { AttendanceStatus, WorkspaceRole } from '@/lib/api/types';
 import type {
   AttendanceDashboardCourse,
@@ -139,7 +140,12 @@ export function DashboardHomeClient({
   }
 
   function selectAllCourses() {
-    setSelectedCourseIds(initialData.courses.map((course) => course.id));
+    setSelectedCourseIds((current) =>
+      toggleAllCourseIds(
+        current,
+        initialData.courses.map((course) => course.id),
+      ),
+    );
     setSelectedCourseId(null);
     setSelectedParticipantId(null);
   }

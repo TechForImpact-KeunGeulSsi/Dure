@@ -96,6 +96,9 @@ operator: mapo.demo.operator@test.local
 fitness instructor: mapo.demo.fitness@test.local
 art instructor: mapo.demo.art@test.local
 music instructor: mapo.demo.music@test.local
+cooking instructor: mapo.demo.cooking@test.local
+digital instructor: mapo.demo.digital@test.local
+daily-life instructor: mapo.demo.daily@test.local
 password: dure-local-qa-password
 ```
 

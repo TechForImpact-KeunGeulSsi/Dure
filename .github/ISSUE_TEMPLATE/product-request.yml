@@ -1,5 +1,5 @@
-name: Product request
-description: 검증된 문제를 제품 변경 요청으로 정리합니다.
+name: Feature Request
+description: 기능이 필요한 문제, 목표, 요구사항과 검증 가능한 완료 조건을 정의합니다.
 title: "[제품] "
 labels:
   - type:feature
@@ -9,6 +9,7 @@ body:
       value: |
         공개 저장소의 Issue입니다. 기관명·담당자명·연락처·미팅 원문·참여자 개인정보를 쓰지 마세요.
         현장 사실은 비공개 Field Ops에 보관하고, 이 양식에는 익명화된 제품 인사이트만 옮깁니다.
+        구현 방법보다 필요한 동작과 완료 조건을 적습니다. 기술적 제약은 근거와 함께 구분합니다.
   - type: input
     id: problem
     attributes:
@@ -20,8 +21,8 @@ body:
   - type: textarea
     id: evidence
     attributes:
-      label: 근거와 검증 상태
-      description: 기관은 익명 코드로만 쓰고, 관찰 횟수·빈도·데이터 근거를 적습니다. 원문·연락처는 금지합니다.
+      label: Background — 배경과 근거
+      description: 기능이 필요한 배경과 현재의 어려움을 적습니다. 현장 근거가 있다면 기관은 익명 코드로만 쓰고 검증 상태를 구분합니다. 원문·연락처는 금지합니다.
       placeholder: 기관 A·B에서 각각 2회 관찰. 기관 C에서는 기존 기능으로 해결됨.
     validations:
       required: true
@@ -35,15 +36,25 @@ body:
   - type: textarea
     id: outcome
     attributes:
-      label: 목표 행동과 기대 결과
+      label: Goal — 목표
       description: 사용자가 무엇을 할 수 있게 되는지, 제품이 어떻게 달라져야 하는지 적습니다.
+    validations:
+      required: true
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Requirements — 기능 요구사항
+      description: 사용자가 할 수 있어야 하는 행동, 권한 범위, 정상·실패 동작을 적습니다. 특정 구현 방식은 꼭 필요한 제약일 때만 근거와 함께 적습니다.
+      placeholder: |
+        - 대표 운영자는 워크스페이스 범위의 정보를 조회할 수 있다.
+        - 강사는 배정된 수업의 정보만 조회할 수 있다.
     validations:
       required: true
   - type: textarea
     id: acceptance
     attributes:
-      label: 완료 조건
-      description: 테스트 가능한 체크리스트로 적습니다.
+      label: Acceptance Criteria — 완료 조건
+      description: 입력·역할·상황과 기대 결과를 연결한 검증 가능한 조건을 적습니다. 체크박스는 실제 검증 후에만 체크합니다.
       placeholder: |
         - [ ] 권한 범위가 역할별로 검증된다.
         - [ ] 정상 흐름에서 원하는 화면으로 이동한다.
@@ -53,7 +64,20 @@ body:
   - type: textarea
     id: out_of_scope
     attributes:
-      label: 제외 범위와 미해결 질문
+      label: Out of Scope — 제외 범위
+      description: 이번 Issue에서 다루지 않을 작업을 적습니다. 미해결 질문이 있으면 별도로 구분합니다. 없으면 '없음'으로 적습니다.
+    validations:
+      required: true
+  - type: textarea
+    id: references
+    attributes:
+      label: References — 관련 문서와 Issue
+      description: 관련 설계 문서, ADR, Issue의 공개 가능한 경로나 링크를 적습니다. 없으면 '없음'으로 적습니다.
+      placeholder: |
+        - docs/architecture.md의 관련 절
+        - 관련 Issue 또는 docs/decisions/의 ADR
+    validations:
+      required: true
   - type: dropdown
     id: priority
     attributes:
@@ -71,5 +95,5 @@ body:
       options:
         - label: 기관·사람을 식별할 수 있는 이름, 연락처, 이메일, 원문, 첨부파일을 포함하지 않았습니다.
           required: true
-        - label: 상세 원문은 비공개 Field Ops에 보관했고, 이 Issue에는 익명화된 인사이트만 남겼습니다.
+        - label: 현장 조사 원문이 있는 경우 비공개 Field Ops에 보관하고, 이 Issue에는 익명화된 인사이트만 남겼습니다.
           required: true

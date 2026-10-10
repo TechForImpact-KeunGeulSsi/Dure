@@ -1,0 +1,30 @@
+name: PR Policy
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-policy:
+    name: PR Policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # Read the event JSON in Node; never interpolate untrusted PR text into shell code.
+      - name: Validate PR description
+        run: node scripts/check-pr.mjs

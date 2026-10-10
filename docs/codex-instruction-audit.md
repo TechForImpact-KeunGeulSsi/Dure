@@ -1,5 +1,14 @@
 # Codex repository instruction audit — 2026-09-06
 
+## 2026-09-09 현재 기준: 사용자 모델 선택
+
+- `.codex/config.toml`의 Astra 및 추론 강도 고정을 제거했다. 모델·추론 강도는 사용자가 Codex에서 선택하며 저장소는 자동 배정이나 전환을 요구하지 않는다. 남은 boundary reviewer에도 모델 override가 없다.
+- `AGENTS.md`는 모든 모델에 동일한 도메인 불변식·구현 완료·위험별 검증 기준을 적용한다. 관련 diff/진입점/테스트와 필요한 계약 부분만 읽고, 증거 재사용·검색 출력 제한·불필요한 재검증 및 작업 로그 생략으로 토큰 낭비를 줄인다.
+- `.codex/`는 ignored 로컬 설정으로 유지한다. 공통 지침은 Git 관리 대상 `AGENTS.md`에 있다. 전역 설정과 현재 실행 중인 task의 모델은 변경하지 않았다.
+- 아래 감사와 모델 routing 서술은 당시 이력이며 현재 작업 지침이 아니다. 이 문서는 지침 감사나 이력 확인이 필요한 경우에만 읽는다.
+
+## 이전 감사 기록
+
 현재 작업 트리의 코드·tests·설정을 기준으로 조사하고 수정했다. 시작 시 AGENTS, CI, package, 여러 개발 문서와 UI 파일에 기존 변경이 있었다. 이 감사는 그 변경을 보존하며 지침·개발 도구·테스트 연결을 수정한다. 제품 권한/출석 계산이나 DB migration은 변경하지 않는다.
 
 ## 근거와 저장소 특성
@@ -69,6 +78,16 @@
 ## 참고
 
 공식 [Astra model guidance](https://developers.openai.com/api/docs/guides/latest-model)는 instruction/Skill 충돌 감사와 변경에 맞는 검증 범위 조정을 권장한다. [AGENTS 계층](https://learn.chatgpt.com/docs/agent-configuration/agents-md), [Subagents와 custom agent 설정](https://learn.chatgpt.com/docs/agent-configuration/subagents), [Codex config reference](https://learn.chatgpt.com/docs/config-file/config-reference), [Skills](https://learn.chatgpt.com/docs/build-skills)를 참고하되, 실제 변경의 근거는 이 저장소 코드와 실행 결과다.
+
+## 2026-09-09 Astra 기준 축소 감사
+
+이번 후속 요청은 전역 환경의 `main agent first`, zero-subagent default, minimal context, risk-proportional verification 철학을 이 저장소에만 적용하는 범위로 처리했다.
+
+- 현재 repository instruction은 root `AGENTS.md` 하나이며 nested `AGENTS.md`/`AGENTS.override.md`는 없다. root에는 코드만으로 쉽게 추론하기 어려운 DURE 권한·출석·자료·초대 불변식, 실제 명령, 위험별 검증 기준만 남겼다.
+- `.codex/config.toml`은 `gpt-6-astra`와 `xhigh`만 override한다. `[agents]`의 기본 subagent model/effort는 삭제해 model 설정 중복과 routine delegation 유인을 없앴다. `.codex/`는 ignored이므로 이 적용은 현재 checkout의 local Codex 설정이며 global config나 다른 clone을 강제하지 않는다.
+- generic `dure_large_planner`, `dure_planner`, `dure_code_reviewer`, `dure_verifier`는 삭제했다. `dure_boundary_reviewer`만 권한·tenant·RLS/RPC·Storage·민감 데이터라는 DURE 고유 경계에 한정하고 parent 모델을 상속하게 했다.
+- `dure-repository-research`와 `dure-tdd-vertical-slice`는 일반 탐색·계획·테스트 선택을 중복하므로 삭제했다. `dure-boundary-review`와 `dure-verification`은 각각 권한 경계 및 local DB/fixture/browser/release 증거라는 반복적이고 repository-specific한 절차만 남겨 축약했다.
+- README, package scripts, CI, architecture/API/ontology/UI contract는 이 instruction audit의 변경 범위와 충돌하지 않아 제품 코드·실행 계약을 변경하지 않았다. 기존 dirty product changes도 보존했다.
 
 ## 2026-09-05 검증 기록 (이전 작업)
 

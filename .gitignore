@@ -5,8 +5,6 @@
 .agents/*
 !.agents/skills/
 .agents/skills/*
-!.agents/skills/dure-repository-research/
-!.agents/skills/dure-tdd-vertical-slice/
 !.agents/skills/dure-boundary-review/
 !.agents/skills/dure-verification/
 .claude/
@@ -34,7 +32,11 @@ agent-workbench/
 !/docs/ontology-contract.md
 !/docs/ui-system.md
 !/docs/ui-audit-matrix.md
+!/docs/dure-system-proposal.md
+# Public architecture decision records; keep private evidence outside this directory.
+!/docs/decisions/*.md
 /.github/**/*.md
+!/.github/pull_request_template.md
 
 # Environment files (never commit secrets)
 .env*

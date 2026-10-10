@@ -99,12 +99,12 @@ export function buildMapoDashboardFixture({
   ];
 
   const courses = [
-    course("fitness", "생활체육교실", "fitnessInstructor", -35, "08:00:00", "09:00:00"),
-    course("art", "미술활동", "artInstructor", -35, "13:00:00", "14:30:00"),
-    course("music", "음악교실", "musicInstructor", -35, "16:00:00", "17:00:00"),
-    course("cooking", "요리활동", "cookingInstructor", -35, "10:00:00", "11:30:00"),
-    course("digital", "디지털활동", "digitalInstructor", -35, "14:30:00", "15:30:00"),
-    course("daily", "일상생활훈련", "dailyInstructor", -35, "15:00:00", "16:00:00"),
+    course("fitness", "생활체육교실", "fitnessInstructor", -35, "07:30:00", "08:30:00"),
+    course("art", "미술활동", "artInstructor", -35, "08:00:00", "09:00:00"),
+    course("music", "음악교실", "musicInstructor", -35, "08:30:00", "09:30:00"),
+    course("cooking", "요리활동", "cookingInstructor", -35, "07:45:00", "08:45:00"),
+    course("digital", "디지털활동", "digitalInstructor", -35, "08:15:00", "09:15:00"),
+    course("daily", "일상생활훈련", "dailyInstructor", -35, "08:45:00", "09:45:00"),
   ];
 
   const sessionOffsets = [-35, -28, -21, -14, -7, 0];

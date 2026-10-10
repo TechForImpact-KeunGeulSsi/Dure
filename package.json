@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "test": "node --no-warnings --test scripts/*.test.mjs src/lib/auth/*.test.mjs src/services/*.test.mjs src/components/layout/*.test.mjs",
+    "check:pr": "node scripts/check-pr.mjs",
     "seed:darori": "node scripts/seed-darori-user-test.mjs",
     "test:darori-seed": "node --test scripts/seed-darori-user-test.test.mjs",
     "seed:developer-qa": "node --no-warnings scripts/seed-developer-qa.mjs",

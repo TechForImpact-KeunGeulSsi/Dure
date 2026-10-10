@@ -56,6 +56,12 @@ npm run build
 
 `npm run lint`는 `eslint src`로 애플리케이션 소스를 검사하며 `eslint.config.mjs`를 사용합니다.
 
+## 개발 워크플로
+
+GitHub Issue → Planning → Implementation → Testing → Pull Request → Review → Merge 순서로 진행합니다. Branch·Commit·Push는 GitHub Desktop에서 사용자가 관리하고, Codex는 구현·검증·코드 리뷰와 PR 설명 초안을 담당합니다.
+
+단계별 완료 조건과 GitHub 보호 설정은 [CONTRIBUTING.md](CONTRIBUTING.md)를 따릅니다. 기능 요청과 버그는 기존 [Issue 양식](.github/ISSUE_TEMPLATE/), PR은 [PR 템플릿](.github/pull_request_template.md)을 사용합니다. 중요한 설계 결정은 [ADR 템플릿](docs/decisions/template.md)으로 기록합니다.
+
 ## 현재 제품 범위
 
 구현된 주요 범위:

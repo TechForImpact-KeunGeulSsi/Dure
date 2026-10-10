@@ -1,4 +1,4 @@
-name: Bug report
+name: Bug Report
 description: 재현 가능한 제품 결함을 보고합니다.
 title: "[버그] "
 labels:
@@ -12,14 +12,14 @@ body:
   - type: textarea
     id: summary
     attributes:
-      label: 현상
+      label: Problem Description — 문제 설명
       description: 실제로 발생한 문제를 한두 문장으로 적습니다.
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: 재현 단계
+      label: Steps to Reproduce — 재현 단계
       description: 누구나 같은 결과를 얻을 수 있도록 번호로 적습니다.
       placeholder: |
         1. QA fixture의 owner 계정으로 로그인한다.
@@ -30,21 +30,31 @@ body:
   - type: textarea
     id: expected
     attributes:
-      label: 기대 결과
+      label: Expected Behavior — 기대 동작
     validations:
       required: true
   - type: textarea
     id: actual
     attributes:
-      label: 실제 결과
+      label: Actual Behavior — 실제 동작
     validations:
       required: true
   - type: input
     id: environment
     attributes:
-      label: 환경
-      description: 브라우저·OS·브랜치 또는 배포 환경을 적습니다. 비밀값은 금지합니다.
+      label: Environment — 실행 환경
+      description: 브라우저·OS·브랜치 또는 commit SHA, 로컬/배포 환경, 관련 런타임 버전을 적습니다. 비밀값은 금지합니다.
       placeholder: macOS 15 / Chrome 최신 / local QA fixture / commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria — 완료 조건
+      description: 같은 재현 단계에서 기대 동작이 확인되는 조건과 회귀 방지 조건을 적습니다. 체크박스는 실제 검증 후에만 체크합니다.
+      placeholder: |
+        - [ ] 재현 단계에서 기대 동작을 확인한다.
+        - [ ] 관련 정상·실패 또는 권한 범위의 회귀 검증을 통과한다.
     validations:
       required: true
   - type: dropdown

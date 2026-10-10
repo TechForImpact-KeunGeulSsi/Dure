@@ -1,0 +1,56 @@
+name: PR Policy
+
+on:
+  # The workflow and checker come from the protected default branch.
+  # Never check out or execute PR code in this workflow.
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to validate using the protected default branch
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-policy-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-policy:
+    name: PR Policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # Read the event JSON in Node; never interpolate untrusted PR text into shell code.
+      - name: Validate PR description
+        if: github.event_name == 'pull_request_target'
+        run: node scripts/check-pr.mjs
+
+      - name: Validate PR description manually
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        shell: bash
+        run: |
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || { echo "Invalid pull request number" >&2; exit 1; }
+          gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
+            --jq '{pull_request: {body: .body}, repository: {full_name: .base.repo.full_name}}' \
+            > "$RUNNER_TEMP/pr-policy-event.json"
+          GITHUB_EVENT_PATH="$RUNNER_TEMP/pr-policy-event.json" node scripts/check-pr.mjs

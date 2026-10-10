@@ -1,60 +1,83 @@
 # DURE Repository Instructions
 
-## Project Overview
+## Scope and sources
 
-DURE manages permission-scoped attendance and course operations. Supabase is the application backend; there is no application LLM provider. Public catalog, feedback, settlement, and Copilot/ReviewMaterial screens and services are retired, while historical migrations, rows, and Storage objects remain. Their presence is not authorization to restore features or delete retained data.
+- DURE manages permission-scoped attendance and course operations. Supabase is the source of truth. Public catalog, feedback, settlement, Copilot, and ReviewMaterial app entry points are retired; retained migrations, rows, and Storage objects are not permission to restore or delete them.
+- `src/app/` contains routes and Server Action consumers; `src/services/` contains business queries/actions and permission checks; `src/lib/` contains auth, Supabase clients, validators, and DTOs. `src/middleware.ts` refreshes cookies and is not the authorization boundary.
+- `supabase/migrations/` is the intended schema/RLS/RPC/Storage contract. Current product contracts are [architecture](docs/architecture.md), [API](docs/api-spec.md), [ontology](docs/ontology-contract.md), [UI](docs/ui-system.md), and [context](docs/context.md). Use [STATUS](docs/STATUS.md) for current blockers and evidence; `docs/ontology.md` is historical.
 
-## Architecture
+## Non-obvious invariants
 
-- `src/app/`: Next.js App Router pages, Server Actions consumers, and HTTP handlers. `src/middleware.ts` refreshes auth cookies; it is not the authorization boundary.
-- `src/services/`: business queries/actions and permission checks. Pages use these services; shared auth, Supabase clients, Zod input schemas, and DTOs live in `src/lib/`.
-- `supabase/migrations/`: ordered SQL schema, RLS, RPCs, triggers, and Storage policies. Migration files describe intended database state, not proof of remote application.
-- Current contracts: [architecture](docs/architecture.md), [API](docs/api-spec.md), [ontology](docs/ontology-contract.md), [UI](docs/ui-system.md). Compare with current code/tests when they disagree. [STATUS](docs/STATUS.md) records scope, blockers, and dated evidence; update it when those change. `docs/ontology.md` is historical.
-- Optional workflows: [research/scoping](.agents/skills/dure-repository-research/SKILL.md), [behavior changes](.agents/skills/dure-tdd-vertical-slice/SKILL.md), [boundary review](.agents/skills/dure-boundary-review/SKILL.md), [integration/release verification](.agents/skills/dure-verification/SKILL.md). Select by the changed surface; these are not mandatory phases for every edit.
+- Existing-workspace operations authorize authenticated user → active membership belonging to that user → role → group/course scope → target workspace/state. Bootstrap flows (workspace creation, discovery/join requests, invite acceptance) are exceptions. Caller-supplied role, member, and workspace IDs are not authorization; an admin client may establish membership, but does not replace service authorization or RLS.
+- Group admins may view a course through an intersecting group; full-course mutation requires every linked group to be in scope. Instructors require direct course assignment. Preserve last-active-owner protection.
+- Participant rosters derive from current course/group and participant/group links, explicit course exclusions, and deduplication; legacy snapshot links are not the primary roster. The active/inactive discrepancy remains recorded in `docs/STATUS.md`.
+- Cumulative attendance uses assignment-date-aware, ended, included, non-cancelled sessions with a record: `present` and `partial` each count once, missing records are excluded, and exactly 50% is not low attendance. Daily charts use assigned participants as the denominator, including missing records.
+- Materials are private `admin_only` resources, including authorized assigned instructors. Upload/replacement is a `FormData` Server Action using the admin Storage client after permission checks; downloads use authorized short-lived signed URLs; `/api/materials/upload-url` remains 410. The current uploader exception is a documented policy discrepancy, not an approved scope rule.
+- `src/services/invites.ts:createInvite` is the single invitation entry point, including scoped group-admin invitations and Auth-admin link generation. `SUPABASE_SERVICE_ROLE_KEY` is server-only, must be a service-role JWT, and must not be treated as an RLS substitute.
+- Use the domain terms `워크스페이스`, `그룹`, `수업`, `회차`, `참여자`, `멤버`, `강사`, `대표 운영자`, and `그룹 운영자`. Participants are operational records, not Auth users or API actors.
+- Product UI copy follows `docs/ui-system.md`; agent/process/design commentary stays outside product screens.
 
-## Codex Model Routing
+## Codex workflow
 
-- Use `gpt-6-astra` with `medium` only to plan genuinely large implementation scopes that span multiple product areas or architecture layers, especially when they include consequential authorization or data decisions. The `dure_large_planner` role owns this planning lane; hand implementation back to Luna.
-- When a separate implementation plan adds value but the scope does not require Astra, use `dure_planner` with `gpt-5.6-sol` and `high`.
-- Default implementation, routine investigation, review, and verification to `gpt-5.6-luna` with `xhigh`. Small, well-scoped changes may proceed without a separate planning agent.
-- Under this routing, do not select Astra for routine implementation or at `high` or above. A user must explicitly revise this policy before either exception.
+- Follow the Issue → Planning → Implementation → Testing → Pull Request → Review → Merge process in [CONTRIBUTING.md](CONTRIBUTING.md). The user manages branches, commits, and pushes in GitHub Desktop; Codex implements, verifies, reviews, and prepares PR text.
+- The user selects the model and reasoning effort in Codex. Do not set repository model/effort overrides, route tasks by model, or switch models automatically. Apply the same scope, domain invariants, and verification standards to every model.
+- Start with the relevant working-tree diff, entry point, and nearest tests; read only the contract sections needed for the change. Reuse existing service, validator, DTO, and UI patterns. Expand the search when a dependency or unresolved question requires it.
+- The main agent handles ordinary exploration, implementation, and verification directly. Keep simple changes direct; split larger changes into verifiable increments without mandatory planning artifacts.
+- Use a subagent only for an independent large task with real parallel benefit and distinct context, when the gain exceeds the token/context cost. Do not create generic explorer/planner/reviewer/tester stages. The remaining `dure_boundary_reviewer` is only for a material authorization, tenant, RLS/RPC, Storage, or sensitive-data boundary review.
+- Optional Skills: [boundary review](.agents/skills/dure-boundary-review/SKILL.md) for those boundaries and [integration/release verification](.agents/skills/dure-verification/SKILL.md) for DB, fixtures, browser, Storage, or release evidence. They are not mandatory phases for routine edits.
+- Older research/scoping and behavior-change Skill files may remain for history. The workflow in this file is authoritative; their presence does not require extra generic planning, exploration, or testing stages.
+- Reuse evidence already gathered in this task. Prefer scoped `rg` searches and bounded output; exclude generated files and lockfiles unless relevant. Read STATUS history and instruction audits only for a relevant blocker or history question, not as startup context.
+- Finish with the requested behavior implemented, relevant checks completed, and remaining evidence gaps stated. Keep the report to changes, checks, and material blockers. Update STATUS only when product scope, blockers, or verification evidence changes; do not create duplicate task logs.
+
+### Before implementation
+
+1. Read the related Issue's background, requirements, acceptance criteria, and out-of-scope items. If no Issue is available, use the explicit user request as provisional scope, report the missing Issue, and prepare an Issue draft before PR preparation; never invent an Issue number or create one remotely without authorization.
+2. Inspect the relevant working-tree diff, code, nearest tests, current design contracts, applicable directory instructions, and related ADRs in `docs/decisions/`.
+3. Present a concise implementation plan, affected files, and test plan in the conversation or Issue. A separate planning document is unnecessary for routine work.
+4. Propose important architecture changes, alternatives, and consequences before implementing them, and wait for explicit user approval of that decision.
+
+### During implementation
+
+1. Focus on one primary Issue. Preserve unrelated user changes; propose a separate Issue for scope expansion.
+2. Respect existing architecture, service authorization, validators, DTOs, and coding conventions.
+3. Add or update meaningful tests for changed behavior and regression cases, proportional to risk; follow the verification rules below.
+4. Update the existing source-of-truth documents in the same change when current behavior or API contracts change. Link them instead of duplicating specifications.
+5. Record consequential decisions with an ADR; avoid ADRs for cosmetic edits, routine bug fixes, or ordinary implementation choices.
+
+### Before PR and review
+
+1. Review the diff, including new files, for unrelated changes, secrets, and accidental generated artifacts.
+2. Map every acceptance criterion to implementation and verification evidence; identify unmet criteria.
+3. Run relevant checks and record the actual command, environment, result, and verification gaps. Never report unrun tests as passed.
+4. Verify code/document consistency, links, and the status of any required ADR approval.
+5. Prepare all sections of the [PR template](.github/pull_request_template.md), including the related Issue, remaining risks, trade-offs, and unfinished work. Check a checkbox only when its claim has been verified; explain non-applicable items explicitly.
+6. Review the current diff against the Issue and relevant contracts. Report actionable findings with file/line, impact, and validation needs; distinguish blockers from suggestions. Recheck changed areas after fixes and review the final pushed revision before merge.
+7. A completed implementation or Codex review does not authorize remote publication or merge. The user decides whether to merge after required checks and review.
+
+## Architecture decisions
+
+- For consequential technology, deployment, data ownership/model, authorization, public API, or difficult-to-reverse dependency changes, propose an ADR using [the template](docs/decisions/template.md). Record Context, Decision, Alternatives, Trade-offs, and Consequences, plus status and links to the Issue and user approval.
+- A proposal is not approval. Mark an ADR accepted only after explicit user approval; do not implement an important architecture change while that approval is pending.
+- Keep approved ADRs as historical records. When an important decision changes, create a new ADR referencing and superseding the prior one rather than rewriting its original rationale. Update current architecture/API contracts separately to describe implemented behavior.
+- Do not create unnecessary documents, mandatory plan files, duplicate task logs, or retroactive ADRs that imply approval without evidence.
+
+## Git management
+
+- Do not create commits, push, create/publish Issues or PRs, send external messages, deploy, or merge unless the user explicitly requests the specific action. A request to implement a feature does not authorize those actions.
+- Never merge into `main` without explicit user approval. Do not change important architecture or perform destructive operations without approval.
+- When a Git action is explicitly authorized, include only related verified changes, preserve other tasks' work, and report the action and verification results. Never publish secrets, credentials, local configuration, or unreviewed backlog.
 
 ## Commands
 
-Use npm with Node.js 22.18+ (native TypeScript stripping used by pure tests); CI uses Node 24 and `npm ci`.
+- Use Node.js 22.18+ and npm; CI uses Node 24 and `npm ci`.
+- Development: `npm run dev` or `npm run dev:local`.
+- Tests and checks: use the nearest focused script in `package.json`; available broad checks are `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build`.
+- Local Supabase and fixture procedures are in [setup](docs/setup.md) and [developer QA](docs/developer-qa.md). `supabase db reset` is destructive; do not use it as a routine prerequisite.
 
-```bash
-npm ci
-npm run dev                 # configured environment
-npm run dev:local           # injects running local Supabase values into Next.js
-npm test                    # executable .mjs tests, including pure TS module imports
-npm run typecheck           # includes the type-only removeMember contract
-npm run lint
-npm run build
-```
+## Risk-proportional verification
 
-Focused test scripts are in `package.json`; local DB/fixture procedures are in [setup](docs/setup.md) and [developer QA](docs/developer-qa.md). `supabase start` requires Docker; `supabase db reset` destroys local data and is not a routine test prerequisite. Non-local seed scripts can write remotely.
-
-Generated `.next/`, `next-env.d.ts`, and `*.tsbuildinfo` are ignored; change their source configuration instead. There is no configured database type-generation command.
-
-## Non-obvious Constraints
-
-- Existing-workspace operations check authenticated user → active membership belonging to that user → role → group/course scope → target workspace/state before privileged work. Membership lookup may itself require the server-only admin client; caller-supplied role/member/workspace IDs are not authorization. Workspace creation, discovery/join requests, and invite acceptance have distinct bootstrap checks; do not require membership before it can exist.
-- Group admins can view a course through an intersecting group; full-course mutation requires all linked groups within their scope. Instructor course access requires direct assignment. Existing material-uploader access differs from this intended scope; see the unresolved authorization discrepancy in `docs/STATUS.md`. Preserve last-active-owner protection in services and the DB.
-- `SUPABASE_SERVICE_ROLE_KEY` is server-only and must be a service-role JWT. RLS is a separate defense; admin paths still require service authorization.
-- Course participation derives from current course/group and participant/group links, explicit course exclusions, and deduplication. Do not restore legacy snapshot links as the primary roster. The active/inactive participant discrepancy is recorded in `docs/STATUS.md`.
-- Cumulative participant attendance uses assignment-date-aware, ended, included, non-cancelled sessions with a record. `present` and `partial` each count as one; missing records are excluded; exactly 50% is not low attendance. Daily session charts instead divide by assigned participants, including missing records. Preserve both contracts.
-- Materials use private `admin_only` visibility, which includes authorized assigned instructors. Upload/replacement is a `FormData` server action with admin `storage.upload()` after permission checks; downloads use authorized short-lived signed URLs. `/api/materials/upload-url` stays 410.
-- `src/services/invites.ts:createInvite` is the single invitation entry point, including scoped group-admin invitations and Auth-admin link generation.
-- Product UI copy follows `docs/ui-system.md`: task, state, scope, validation, result, risk confirmation, and accessibility text. Agent/process/design commentary belongs outside product screens.
-
-## Domain / Terminology
-
-Use `워크스페이스`, `그룹`, `수업`, `회차`, `참여자`, `멤버`, `강사`, `대표 운영자`, and `그룹 운영자` as defined in [context](docs/context.md). Participants are operational records, never Auth users or API actors. Instructors are course-assigned; group admins are group-scoped.
-
-## Verification
-
-- Docs/instructions/config: validate referenced paths and commands and run `git diff --check`. Package/runner/CI changes also need relevant executable tests; typecheck when TS or package resolution is affected.
-- Application/UI: focused behavior checks plus lint/build; authenticated browser checks for changed role/scope interactions.
-- Migration/RLS/Storage/privileged actions: relevant contract tests and local Auth/DB/Storage allow/deny cases, including another workspace where applicable.
-- CI uses placeholder Supabase values. Tests, typecheck, lint, and build do not prove DB migration, authenticated browser behavior, Storage, deployment, or persistence. Report missing evidence separately.
+- Docs, instructions, or config: validate referenced paths, commands, and links; run `git diff --check` and parse changed TOML/Skill metadata when applicable.
+- Pure logic or application changes: run the nearest focused tests and typecheck when TypeScript or package resolution is affected; add lint/build only when the changed surface warrants it.
+- For behavior changes, cover the changed success/failure case with a focused test when practical; for a bug fix, prefer a regression case that fails before the fix. Do not add tests that merely mirror implementation or test cosmetic edits. Repeat passing checks only after relevant changes or new evidence of a problem.
+- Migrations, RLS/RPC, Storage, privileged actions, or role/scope changes: verify relevant allow/deny cases locally, including another workspace where applicable, and separate code evidence from DB/Storage/browser evidence.
+- CI uses placeholder Supabase values. Tests, typecheck, lint, and build do not prove authenticated browser behavior, DB migration, Storage, deployment, or persistence; report those layers as unverified when not run.
